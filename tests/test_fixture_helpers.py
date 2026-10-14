@@ -318,6 +318,30 @@ async def test_afix_calendar_deletes_leftover_when_deletion_frees_the_url() -> N
     assert calendar is not leftover
 
 
+@pytest.mark.asyncio
+async def test_afix_calendar_keeps_calendar_when_it_cannot_be_recreated() -> None:
+    """Without create-calendar there is no pre-delete: what is there gets reused.
+
+    Posteo answers the DELETE of a calendar it does not have with 403, which
+    used to error out every async test taking a calendar fixture.
+    """
+    from caldav.lib.error import AuthorizationError
+
+    existing = FakeCalendar(url="http://dav.example.com/testcal/")
+    client = FakeClient({"create-calendar": False})
+    principal = FakePrincipal({"testcal": existing})
+
+    async def delete(wipe: bool | None = None) -> None:
+        raise AuthorizationError("Forbidden")
+
+    existing.delete = delete  # type: ignore[method-assign]
+
+    calendar, created = await afix_calendar(client, principal, cal_id="testcal")
+
+    assert calendar is existing
+    assert not created
+
+
 @pytest.mark.parametrize(
     "hints",
     [

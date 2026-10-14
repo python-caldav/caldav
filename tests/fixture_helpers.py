@@ -337,7 +337,7 @@ async def afix_calendar(
 
     ## Without create-calendar there is nothing to recreate, so a leftover must
     ## not be deleted - and the calendar at cal_id most likely never existed
-    ## (Posteo answers the wipe of a missing collection with 403, not 404).
+    ## (Posteo answers the DELETE of a missing collection with 403, not 404).
     if (
         principal is not None
         and _supports(client, "create-calendar")
