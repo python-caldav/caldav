@@ -7,10 +7,13 @@ This module provides abstract base classes for different types of test servers:
 - DockerTestServer: For servers that run in Docker containers
 """
 
+import os
+import threading
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from pathlib import Path
+from typing import IO, Any
 
 try:
     import niquests as requests
@@ -21,6 +24,22 @@ except ImportError:
 DEFAULT_HTTP_TIMEOUT = 5
 MAX_STARTUP_WAIT_SECONDS = 60
 STARTUP_POLL_INTERVAL = 0.05
+SESSION_LOCK_TIMEOUT_SECONDS = 1800
+
+# Per-server session locks held by this process, keyed by server name.
+# flock conflicts between two opens even within one process, so each
+# lock file is opened only once.
+_session_locks: dict[str, IO[str]] = {}
+# Servers whose lock timed out; later claims fail at once instead of
+# waiting again for every remaining test.
+_session_lock_failures: dict[str, RuntimeError] = {}
+_session_locks_mutex = threading.Lock()
+
+
+def _lock_path(name: str, suffix: str = "") -> Path:
+    import tempfile
+
+    return Path(tempfile.gettempdir()) / f"caldav-test-server-{name.lower()}{suffix}.lock"
 
 
 class TestServer(ABC):
@@ -106,10 +125,96 @@ class TestServer(ABC):
 
         return resolve_features(self.config.get("features", []))
 
+    @staticmethod
+    def claim_server(name: str, timeout: float | None = None) -> bool:
+        """Take an exclusive lock on server ``name`` for the rest of this process.
+
+        Test runs sharing a server would clobber each other's calendars (and
+        one run's teardown may stop a container another run still uses), so
+        a second process waits here until the first one exits.  Runs against
+        different servers proceed in parallel.  The OS drops the lock when
+        the process dies, so a crashed run leaves nothing stale behind.
+
+        Waits at most ``timeout`` seconds (default
+        ``$PYTHON_CALDAV_TEST_SERVER_LOCK_TIMEOUT``, or 30 minutes) - two runs
+        taking servers in different orders could otherwise deadlock.  A
+        timeout is remembered, so the remaining tests for that server fail
+        at once - except with ``timeout=0``, a mere probe.
+
+        Returns True if the lock was taken just now, False if this process
+        already held it.  Anything learned about the server before a fresh
+        claim may be stale, since its previous user may have stopped it.
+
+        Without ``fcntl`` (Windows) nothing is locked between processes.
+        """
+        import time
+
+        try:
+            import fcntl
+        except ImportError:
+            fcntl = None  # type: ignore[assignment]
+
+        with _session_locks_mutex:
+            if name in _session_locks:
+                return False
+            if name in _session_lock_failures:
+                raise _session_lock_failures[name]
+            if timeout is None:
+                timeout = float(
+                    os.environ.get(
+                        "PYTHON_CALDAV_TEST_SERVER_LOCK_TIMEOUT", SESSION_LOCK_TIMEOUT_SECONDS
+                    )
+                )
+            lock_file = open(_lock_path(name, ".session"), "a+")
+            try:
+                deadline = time.monotonic() + timeout
+                announced = False
+                while fcntl:
+                    try:
+                        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        break
+                    except BlockingIOError:
+                        lock_file.seek(0)
+                        holder = lock_file.read().strip() or "unknown"
+                        if time.monotonic() > deadline:
+                            error = RuntimeError(
+                                f"Test server {name} is in use by pid {holder}; "
+                                f"gave up after {timeout:.0f}s"
+                            )
+                            if timeout:
+                                _session_lock_failures[name] = error
+                            raise error from None
+                        if not announced:
+                            print(f"[WAIT] {name} is in use by pid {holder} - waiting")
+                            announced = True
+                        time.sleep(1)
+                lock_file.truncate(0)
+                lock_file.write(str(os.getpid()))
+                lock_file.flush()
+            except BaseException:
+                lock_file.close()
+                raise
+            _session_locks[name] = lock_file
+            return True
+
+    @staticmethod
+    def release_server(name: str) -> None:
+        """Give up a claim taken by ``claim_server()``, letting other runs have the server."""
+        with _session_locks_mutex:
+            lock_file = _session_locks.pop(name, None)
+        if lock_file:
+            lock_file.close()
+
+    def claim(self) -> bool:
+        """``claim_server()`` for this server."""
+        return self.claim_server(self.name)
+
     @abstractmethod
     def start(self) -> None:
         """
         Start the server if not already running.
+
+        Implementations must call ``self.claim()`` first.
 
         This method should be idempotent - calling it multiple times
         should not cause issues.
@@ -206,6 +311,8 @@ class TestServer(ABC):
         # Pass through scheduling_users if configured (for TestScheduling generation)
         if "scheduling_users" in self.config:
             params["scheduling_users"] = self.config["scheduling_users"]
+        # setup is always needed, since start() also takes the session lock
+        params["setup"] = lambda _: self.start()
         # Check if server is already running (either started by us or externally)
         already_running = self._started or self.is_accessible()
         if already_running:
@@ -213,8 +320,6 @@ class TestServer(ABC):
             # to avoid stopping a server that was running before tests started
             self._started = True
         else:
-            # Server needs to be started - add setup/teardown callbacks
-            params["setup"] = lambda _: self.start()
             params["teardown"] = lambda _: self.stop()
         return params
 
@@ -340,7 +445,13 @@ class DockerTestServer(TestServer):
         Raises:
             RuntimeError: If Docker is not available or container fails to start
         """
-        if self._started or self.is_accessible():
+        if self.claim():
+            # Whatever was seen before the lock (e.g. at collection) may be
+            # stale: the previous holder may have stopped the container.
+            self._started = False
+        if self._started:
+            return
+        if self.is_accessible():
             self._started = True  # Mark as started even if already running
             # Don't set _started_by_us - we didn't start it this time
             print(f"[OK] {self.name} is already running")
@@ -371,11 +482,8 @@ class DockerTestServer(TestServer):
         repo share the same containers and ports.
         """
         import fcntl
-        import tempfile
-        from pathlib import Path
 
-        lock_path = Path(tempfile.gettempdir()) / f"caldav-test-server-{self.name.lower()}.lock"
-        with open(lock_path, "w") as lock_file:
+        with open(_lock_path(self.name), "w") as lock_file:
             fcntl.flock(lock_file, fcntl.LOCK_EX)
             try:
                 yield
@@ -411,6 +519,13 @@ class DockerTestServer(TestServer):
             time.sleep(1)
 
         raise RuntimeError(f"{self.name} failed to start after {MAX_STARTUP_WAIT_SECONDS}s")
+
+    def get_server_params(self) -> dict[str, Any]:
+        params = super().get_server_params()
+        # A run that waited for the lock may have restarted a container that
+        # was up at collection; stop() leaves alone one we did not start.
+        params["teardown"] = lambda _: self.stop()
+        return params
 
     def stop(self) -> None:
         """Stop the Docker container and cleanup.
@@ -482,6 +597,7 @@ class ExternalTestServer(TestServer):
         # No accessibility check here - the caldav library handles URL
         # normalization, RFC6764 discovery, and will provide proper error
         # messages if the server is unreachable
+        self.claim()
         self._started = True
 
     def stop(self) -> None:

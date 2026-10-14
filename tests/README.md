@@ -34,6 +34,30 @@ pytest -k "test_to_utc"
 pytest tests/test_caldav_unit.py
 ```
 
+### Parallel Test Runs
+
+Test runs share the servers (fixed ports, users and calendar names), so
+two runs against the same server would clobber each other.  Each process
+takes an exclusive per-server lock (`$TMPDIR/caldav-test-server-<name>.session.lock`)
+when it first starts using a server and holds it until it exits.  A second run
+against the same server waits; runs against different servers proceed in
+parallel:
+
+```bash
+pytest tests/test_caldav.py -k Baikal &
+pytest tests/test_caldav.py -k Nextcloud &
+```
+
+The lock file lives in the temp directory, so runs only see each other's
+locks when they share `TMPDIR`.
+
+The wait is capped at `PYTHON_CALDAV_TEST_SERVER_LOCK_TIMEOUT` seconds
+(default 1800), as two runs taking servers in different orders could
+otherwise deadlock.  After that, the tests for that server fail at once,
+naming the pid holding the lock; the run continues with the other servers.
+`get_davclient()` with `PYTHON_CALDAV_USE_TEST_SERVER` does not wait at all:
+it moves on to the next available server.
+
 ## Test Configuration
 
 Test configuration uses YAML or JSON files. The configuration loader searches
