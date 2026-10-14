@@ -2407,6 +2407,9 @@ purelymail = {
     #'search-cache': {'behaviour': 'delay', 'delay': 0.3},
     ## Hmmm .... weird, this is flapping in the caldav-server-tester?
     "create-calendar.auto": {"support": "full"},
+    ## Probed 2026-10-14 by the server tester: a token the server never
+    ## issued gets a report and no error
+    "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
     ## 409 Conflict with <must-have-parent> when PUTting to a URL not under an existing calendar
     #'save-load.get-by-url': {'support': 'unknown'},
     #'save-load.todo': {'support': 'ungraceful'},
