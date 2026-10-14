@@ -29,6 +29,7 @@ from proxy.http.proxy import HttpProxyBasePlugin
 
 from caldav import get_davclient
 
+from .search_cache_delay import SearchCacheDelay
 from .test_servers import get_registry
 from .test_servers.config_loader import load_test_server_config
 
@@ -1454,10 +1455,13 @@ class RepeatedFunctionalTestsBaseClass:
         if foo.get("enable"):
             rate_delay = foo.get("interval", 0) / foo.get("count", 1)
             self.caldav.request = _delay_decorator(self.caldav.request, t=rate_delay)
-        foo = self.is_supported("search-cache", dict)
-        if foo.get("behaviour") == "delay":
+        ## A search waits only for what is left of the search-cache delay
+        ## since the last write (see search_cache_delay.py)
+        search_cache = SearchCacheDelay.from_features(self.caldav.features)
+        if search_cache:
             Calendar._search = Calendar.search
-            Calendar.search = _delay_decorator(Calendar.search, t=foo["delay"])
+            Calendar.search = search_cache.wrap_search(Calendar.search)
+            self.caldav.request = search_cache.wrap_request(self.caldav.request)
         delay = write_delay(self.caldav.features)
         if delay:
             ## Every write goes through the client request(); sleep after the

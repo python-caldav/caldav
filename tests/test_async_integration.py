@@ -21,6 +21,7 @@ from caldav import Event, FreeBusy, Todo
 from caldav.compatibility_hints import FeatureSet, write_delay
 from caldav.lib import error
 
+from .search_cache_delay import SearchCacheDelay
 from .test_caldav import (
     ev1 as ev1_static,  # old-date (2006); distinct from ev1() near-future generator
 )
@@ -41,23 +42,6 @@ from .test_caldav import todo5 as todo5_static
 from .test_caldav import todo6 as todo6_static
 from .test_caldav import todo8 as todo8_static
 from .test_servers import TestServer, get_available_servers
-
-
-def _async_delay_decorator(f, t=20):
-    """
-    Async decorator that adds a delay before calling the wrapped coroutine.
-
-    This is needed for servers like Bedework that have a search cache that
-    isn't immediately updated when objects are created/modified.
-    """
-
-    @wraps(f)
-    async def wrapper(*args, **kwargs):
-        await asyncio.sleep(t)
-        return await f(*args, **kwargs)
-
-    return wrapper
-
 
 ## HTTP methods that change server state; a server without "synchronous-write" settles each of
 ## these asynchronously, so we sleep AFTER every such request (the write-side
@@ -236,14 +220,14 @@ class AsyncFunctionalTestsBaseClass:
         # Apply search-cache delay if needed (similar to sync tests)
         # Use monkeypatch so it's automatically reverted after the test
         # (AsyncCalendar is an alias for Calendar, so we must restore it)
-        search_cache_config = client.features.is_supported("search-cache", dict)
-        if search_cache_config.get("behaviour") == "delay":
-            delay = search_cache_config.get("delay", 1.5)
+        ## A search waits only for what is left of the search-cache delay
+        ## since the last write (see search_cache_delay.py)
+        search_cache = SearchCacheDelay.from_features(client.features)
+        if search_cache:
             monkeypatch.setattr(
-                AsyncCalendar,
-                "search",
-                _async_delay_decorator(AsyncCalendar.search, t=delay),
+                AsyncCalendar, "search", search_cache.wrap_async_search(AsyncCalendar.search)
             )
+            monkeypatch.setattr(client, "request", search_cache.wrap_async_request(client.request))
 
         ## Sleep after every write for servers without synchronous writes.
         ## Wrapped on the client instance, so monkeypatch reverts it after the test.

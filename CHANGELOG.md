@@ -34,6 +34,7 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 * Compatibility feature `propfind.principal-depth-1`: whether a Depth: 1 PROPFIND on the principal URL works.  GMX answers it with a 400.  https://github.com/python-caldav/caldav/pull/755
 * Negated searches: `add_property_filter()` passes the `!=` (alias `<>`), `!contains` and `def` operators of icalendar-searcher 1.1.0 on to the search.  They are decided client-side (unless `post_filter=False`): the server query leaves them out, as no server has been probed for `negate-condition` support yet.  `build_search_xml_query()` renders `!contains` as a negated `text-match`, and `!=` and `def` as a bare `prop-filter` - a negated `text-match` is a negated *substring* match, so it cannot express `!=`.  https://github.com/python-caldav/caldav/issues/568
 * Compatibility features `sync-token.limit` and `sync-token.limit.initial-sync`, for DAV:limit and the checkpoint tokens of a truncated sync-collection report (RFC 6578 sections 3.6 and 3.7).  Hints for Stalwart, Xandikos, Radicale, Baïkal, Davis, Nextcloud, CCS and Infomaniak.
+* Compatibility feature `search-cache` takes a `filtered-only` key, saying only searches with a time range or a property filter come from the lagging cache while a plain listing is up to date at once.  The library itself ignores it; the integration tests and the caldav-server-tester wait less where it is set.  Set for Purelymail.
 
 ### Changed
 
