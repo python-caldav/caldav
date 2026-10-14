@@ -2146,9 +2146,10 @@ class Calendar(DAVObject):
         if self.is_async_client:
             return self._async_get_object_by_uid(uid, comp_filter, comp_class)
         ## Use self.search() rather than CalDAVSearcher directly, so that any
-        ## monkey-patching of Calendar.search (e.g. the search-cache delay for
-        ## servers with lazy search indexes) is respected.  This mirrors the
-        ## pattern used in get_todos() and get_events().
+        ## monkey-patching of Calendar.search (e.g. the search-cache delay that
+        ## tests/test_caldav.py wraps it with for servers with lazy search
+        ## indexes) is respected.  This mirrors the pattern used in get_todos()
+        ## and get_events().
         ##
         ## search(uid=...) does substring matching on the server side, so we
         ## apply an exact match filter afterwards to preserve the semantics of
