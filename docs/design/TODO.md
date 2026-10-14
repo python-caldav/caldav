@@ -48,3 +48,7 @@ A response whose `Content-Type` says XML but whose body is not XML (an HTML erro
 ## Search-cache delay misses writes from other clients
 
 `tests/search_cache_delay.py` only resets its clock on writes through the one wrapped client.  Writes through another `DAVClient` in the same test (e.g. the scheduling users' clients) are not counted, so a filtered search right after one may wait less than the server's cache lag, and get flaky on servers like Purelymail or Bedework.  Fix: wrap `DAVClient.request` at class level for the duration of the test, or document the limitation.  Found in the review of https://github.com/python-caldav/caldav/pull/776.
+
+## A waiting session-lock claim blocks other threads
+
+`TestServer.claim_server()` in `tests/test_servers/base.py` polls for the flock (up to `PYTHON_CALDAV_TEST_SERVER_LOCK_TIMEOUT`, 30 minutes by default) while holding the module-wide `_session_locks_mutex`.  A thread waiting for one busy server therefore blocks every other thread claiming a different server, which contradicts "runs against different servers proceed in parallel".  Harmless for single-threaded pytest.  Fix: hold the mutex only around the `_session_locks` checks and inserts, with a per-name lock against double claims.  Found in the review of https://github.com/python-caldav/caldav/pull/776.
