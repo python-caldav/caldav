@@ -311,6 +311,7 @@ hence, "fragile".
             "description": "The server delivers search results from a cache which is not immediately updated when an object is changed.  Hence recent changes may not be reflected in search results",
             "extra_keys": {
                 "delay": "after this number of seconds, we may be reasonably sure that the search results are updated",
+                "filtered-only": "True if only searches with a time range or a property filter are answered from the lagging cache, while a plain listing of the calendar is up to date at once (Purelymail).  Bedework lags in plain listings too",
             }
         },
         "synchronous-write": {
@@ -2415,7 +2416,10 @@ stalwart = {
 purelymail = {
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
-    'search-cache': {'behaviour': 'delay', 'delay': 180},
+    ## A plain listing reflects a new, edited, completed or deleted object at
+    ## once; time-range and text searches find a new one after ~25 s (probed
+    ## 2026-10-14)
+    'search-cache': {'behaviour': 'delay', 'delay': 180, 'filtered-only': True},
     #'search-cache': {'behaviour': 'delay', 'delay': 0.3},
     ## Hmmm .... weird, this is flapping in the caldav-server-tester?
     "create-calendar.auto": {"support": "full"},
