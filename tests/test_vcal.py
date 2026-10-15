@@ -442,6 +442,32 @@ END:VCALENDAR""",
         ical = "BEGIN:VCALENDAR\nSUMMARY:a\\\\\\'b \t\nEND:VCALENDAR\n"
         assert "SUMMARY:a'b\n" in vcal.fix(ical)
 
+    def test_fix_is_linear_on_blank_run_before_fold(self) -> None:
+        """GHSA-5h4q-xm57-3mh5: a long blank run ending a line that a folded
+        line continues - the backtracking case of the trailing-whitespace
+        lookahead.  The blanks are part of the value and must stay."""
+        self._assert_fix_is_fast(" " * 50000 + "\n y")
+        ical = "BEGIN:VCALENDAR\nSUMMARY:a" + " " * 3 + "\n b\nEND:VCALENDAR\n"
+        assert "SUMMARY:a   \n b\n" in vcal.fix(ical)
+
+    def test_linear_patterns_match_the_quadratic_ones(self) -> None:
+        """The lookbehinds added for GHSA-5h4q-xm57-3mh5 only change where a
+        match may start, never what is substituted: compared with the old
+        patterns on every string up to length 7 over an alphabet that hits
+        all their edges."""
+        import itertools
+
+        pairs = [
+            (r"\\+(['\"])", r"(?<!\\)\\+(['\"])", r"\1", 0, "\\'\"x"),
+            (r"[ \t]+$(?!\n[ \t])", r"(?<![ \t])[ \t]+$(?!\n[ \t])", "", re.MULTILINE, " \t\nx"),
+        ]
+        for old, new, repl, flags, alphabet in pairs:
+            for n in range(8):
+                for chars in itertools.product(alphabet, repeat=n):
+                    s = "".join(chars)
+                    expected = re.sub(old, repl, s, flags=flags)
+                    assert re.sub(new, repl, s, flags=flags) == expected, (old, s)
+
     def test_completed_date_fixup_preserves_next_property(self) -> None:
         """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
         merging the next property line into COMPLETED and destroying it."""

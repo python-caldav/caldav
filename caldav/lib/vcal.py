@@ -121,7 +121,7 @@ def fix(event):
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
     fixed = re.sub("CREATED:00001231T000000Z", "CREATED:19700101T000000Z", fixed)
-    ## Unescape quotes.  The lookbehind (here and in 4 below) makes matching
+    ## 3) Unescape quotes.  The lookbehind (here and in 4 below) makes matching
     ## start only where a run starts; without it re.sub is quadratic on a
     ## long run, see GHSA-5h4q-xm57-3mh5.
     fixed = re.sub(r"(?<!\\)\\+(['\"])", r"\1", fixed)
