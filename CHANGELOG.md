@@ -30,6 +30,17 @@ Also released without the niquests dependency as 3.5.0a0.
 
 * `vcal.fix()`, run on every iCalendar object fetched from the server, took quadratic time on a long run of blanks or backslashes - 100 kB took more than 20 s, so a hostile server or a shared calendar could stall the client.  It is now linear; the output is unchanged.  Reported by @BrianWillows.  https://github.com/python-caldav/caldav/security/advisories/GHSA-5h4q-xm57-3mh5  Also fixed in 3.4.1 and 3.3.2.
 
+### Potentially breaking changes
+
+These are bug fixes, but code relying on the old behaviour may notice them.  Details are in the entries under "Changed" and "Fixed" below.
+
+* `get_calendars()` raises `NotFoundError` or `PropfindError` when a PROPFIND for the calendar home or the calendar list fails, instead of returning an empty list.
+* A time-range search (also `date_search()`) filters the result client-side by default and drops objects the server returned outside the range.  All-day events are matched in the time zone of the search, and a plain `date` as `start`/`end` means a day in UTC.  Pass `post_filter=False` to get what the server returned.
+* A `save()` on an object loaded through `search()` or `multiget()` sends `If-Match` (or `If-Schedule-Tag-Match`) and raises `ETagMismatchError` (or `ScheduleTagMismatchError`) if the object was changed by someone else since it was loaded.  Previously the other change was silently overwritten.
+* Sync: a 401/403 naming a precondition other than `DAV:valid-sync-token` - or naming none, on a server configured with full sync-token support - is raised instead of silently falling back to a full fetch.
+* `FeatureSet.is_supported()` gave inverted answers for server observations and client features; code that compensated for that will now be wrong.  Asking for a server-peculiarity, tests-behaviour or client-hints feature as a bool raises `TypeError`.
+* icalendar-searcher 1.1.0 or later is required.
+
 ### Added
 
 * `SynchronizableCalendarObjectCollection.deleted_urls`: the URLs of the members a sync-collection report listed as removed (RFC 6578 section 3.2).  They are still among the returned objects, as before, but a caller no longer has to guess from a missing ETag, and `sync()` no longer fetches each removed object to find out.  The set is empty after the full-retrieval fallback, which reports no removals.  https://github.com/pycalendar/calendaring-sync/pull/19#issuecomment-6112378889
