@@ -1,0 +1,18 @@
+{#- Renders entries the way CHANGELOG.md has always had them: "* " bullets,
+    with the issue URLs appended after two spaces (or as a paragraph of their
+    own when the entry spans several lines), separated by " - ". -#}
+{%- set nl = "\n" -%}
+{{- "## [" ~ versiondata.version ~ "] - " ~ versiondata.date ~ nl }}
+{%- for section, _ in sections.items() %}
+    {%- for category, val in definitions.items() if category in sections[section] %}
+        {{- nl ~ "### " ~ definitions[category]['name'] ~ nl ~ nl }}
+        {%- for text, values in sections[section][category].items() %}
+            {{- "* " ~ text }}
+            {%- if values %}
+                {{- (nl ~ nl ~ "  " if nl in text else "  ") ~ values | join(" - ") }}
+            {%- endif %}
+            {{- nl }}
+        {%- endfor %}
+    {%- endfor %}
+{%- endfor %}
+{{- nl -}}

@@ -219,3 +219,56 @@ filterwarnings = [
     # Zimbra test server uses HTTPS with self-signed cert (ssl_verify_cert=False)
     "ignore:Unverified HTTPS request:urllib3_future.exceptions.InsecureRequestWarning",
 ]
+
+## Changelog fragments: changes/README.md explains the file naming, and
+## docs/design/RELEASE-HOWTO.md how they are merged into CHANGELOG.md.
+[tool.towncrier]
+directory = "changes"
+filename = "CHANGELOG.md"
+template = "changes/template.md.jinja"
+start_string = "<!-- towncrier release notes start -->\n"
+## The title, "## [{version}] - {date}", is rendered by the template
+title_format = false
+issue_format = "https://github.com/python-caldav/caldav/issues/{issue}"
+## editor leftovers too, as an unknown file name aborts the build
+ignore = ["README.md", "template.md.jinja", "*~", ".#*", "#*#"]
+
+[[tool.towncrier.type]]
+directory = "breaking"
+name = "Breaking changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "tests"
+name = "Tests and documentation"
+showcontent = true

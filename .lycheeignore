@@ -64,3 +64,6 @@ https://dav\.qq\.com/.*
 # pushes the code before the tag, so this view 404s until `v3.3.0` is pushed -
 # delete this entry once it is.
 https://github\.com/python-caldav/caldav/compare/v3\.2\.1\.\.\.v3\.3\.0
+
+# The issue_format template in pyproject.toml (towncrier)
+https://github\.com/python-caldav/caldav/issues/(%7B|\{)issue(%7D|\})

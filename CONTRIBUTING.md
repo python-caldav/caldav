@@ -9,12 +9,12 @@ Starting from v3.0.1, we'll stick to https://www.conventionalcommits.org/en/v1.0
 The types used should (as for now) be one of:
 
 * "revert" - a clean revert of a previous commit (should be used very infrequently on the master branch)
-* "feat" - a new feature added to the codebase/API.  The commit should include test code, documentation and a CHANGELOG entry unless there are good reasons for procrastinating it.  "feat" should not be used for new features that only affects the test framework, or changes only affectnig the documentation etc.
-* "fix" - a bugfix.  Again, documentation and CHANGELOG-entry should be included in the commit (notable exception: if a bug was introduced after the previous release and fixed before the next release, it does not need to be mentioned in the CHANGELOG).  If the only "fix" is that some typo is fixed in some existing documentation, then we should use "docs" instead.
+* "feat" - a new feature added to the codebase/API.  The commit should include test code, documentation and a changelog fragment (see below) unless there are good reasons for procrastinating it.  "feat" should not be used for new features that only affects the test framework, or changes only affecting the documentation etc.
+* "fix" - a bugfix.  Again, documentation and a changelog fragment should be included in the commit (notable exception: if a bug was introduced after the previous release and fixed before the next release, it does not need to be mentioned in the CHANGELOG).  If the only "fix" is that some typo is fixed in some existing documentation, then we should use "docs" instead.
 * "perf" - a code change in the codebase that is neither a bugfix or a feature, but intends to improve performance.
 * "refactor" - a code change in the codebase that is neither a bugfix or a feature, but makes the code more readable, shorter, better or more maintainable.
 * "test" - fixes, additions or improvements that only affects the test code or the test framework.  The commit may include documentation.
-* "docs" - changes that *only* is done to the documentation, documentation framework - this includes minor typo fixes as well as new documentation, and it includes both the user documentation under `docs/source`, other documentation files (including CHANGELOG) as well as inline comments and docstrings in the code itself.
+* "docs" - changes that *only* is done to the documentation, documentation framework - this includes minor typo fixes as well as new documentation, and it includes both the user documentation under `docs/source`, other documentation files (including CHANGELOG and changelog fragments) as well as inline comments and docstrings in the code itself.
 * "chore" - if nothing of the above fits
 
 The `compatibility_hints.py` has been moved from the test directory to the codebase not so very long ago.  Some special rules here:
@@ -72,7 +72,7 @@ Consider this procedures to be a more of a guideline than a rigid procedure.  Us
 
 * Consider to write some lines in the documentation, changelog and/or examples covering your change
 
-* Add an entry in the `CHANGELOG.md` file.
+* Add a changelog fragment: a file `changes/<issue>.<type>.md`, e.g. `changes/740.fixed.md`, holding the text of the entry (without an issue: `changes/+<slug>.<type>.md`).  Do not edit `CHANGELOG.md` itself - the fragments are collected into it at release time, so that parallel pull requests do not conflict there.  [changes/README.md](changes/README.md) has the details.
 
 * Create a pull request
 
