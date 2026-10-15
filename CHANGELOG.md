@@ -30,7 +30,7 @@ After 3.5.0, changes since the last release are kept as fragments in [changes/](
 
 Yet another release primarily focusing on bugfixes and compatibility.  iCloud has now been tested and got its compatibility profile in `compatibility_hints.py`.  Test runs towards GMX, Posteo and Purelymail have been skipped for the last few releases; with 3.5.0 the tests pass towards those.  More work on getting synchronization right, and on avoiding overwriting changes when multiple clients update the same object.
 
-Also released without the niquests dependency as 3.5.0a0 - install `caldav[niquests]`, or another supported HTTP library, alongside it.
+Also released without the niquests dependency as 3.5.0a0 - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
 
 ### Security
 
@@ -43,7 +43,7 @@ These are bug fixes, but code relying on the old behaviour may notice them.
 * `get_calendars()` raises `NotFoundError` or `PropfindError` when the server answers the PROPFIND for the calendar home or the calendar list with an error.  Earlier it would return an empty list.  Transient errors may happen with any server.  The empty list could not be told apart from an account without calendars, and a Home Assistant user was reporting that their calendars would sometimes "disappear".  Code that relied on getting an empty list on such errors must now catch the exception; 2.x raised as well.  `NotFoundError` is raised for a 404, `PropfindError` otherwise, and the same goes for `CalendarSet.get_calendars()`.  https://github.com/python-caldav/caldav/issues/741 https://github.com/python-caldav/caldav/pull/742
 * A time-range search (also `date_search()`) filters the result client-side by default and drops objects the server returned outside the range.  This affects every server, for users not in UTC: CalDAV servers compare all-day events and floating times as UTC, so a search in another time zone missed all-day events at the edges of the range and returned some from the neighbour days (reported on Baïkal).  The server is now asked for one extra day on each side (also for alarm searches and server-side expansion), and the exact cut is made client-side: with a timezone-aware `start`/`end`, all-day events and floating times are matched in the time zone of the search, not in that of the Python process.  A search may therefore return fewer objects than before, and a plain `date` as `start`/`end` now means a day in UTC, also for matching all-day events (previously, client-side, a day in the time zone of the Python process).  Pass `post_filter=False` or `compatibility_workarounds=False` to send the range as given and get what the server returned.  https://github.com/python-caldav/caldav/issues/545 https://github.com/python-caldav/caldav/pull/758
 * A `save()` on an object loaded through `search()` or `multiget()` sends `If-Match` (or `If-Schedule-Tag-Match`) and raises `ETagMismatchError` (or `ScheduleTagMismatchError`) if someone else changed the object since it was loaded.  This affects every server that returns ETags, i.e. nearly all.  Previously no ETag was requested in searches, so such a save silently overwrote the other client's change.  Code that saves search results must now be prepared to reload the object and retry.  (Servers sending only weak ETags, like GMX, still get an unconditional save.)  https://github.com/python-caldav/caldav/pull/751
-* Sync: a 401/403 on the sync-collection REPORT naming a precondition other than `DAV:valid-sync-token` - or naming none, on a server configured with full sync-token support - is raised instead of silently falling back to a full fetch (with no `features` configured, or with sync-token support set to `fragile`, the fallback is still used).  An expired sync token (RFC 6578 section 3.2) could not be told apart from a permission error, so a real permission problem was hidden behind an expensive full fetch.  An expired token (also Xandikos' 412) and an unsupported sync-collection report (Zimbra) still lead to the fallback.  https://github.com/python-caldav/caldav/issues/738 https://github.com/python-caldav/caldav/issues/756 https://github.com/python-caldav/caldav/pull/748 https://github.com/python-caldav/caldav/pull/759
+* Sync: a 401/403 on the sync-collection REPORT naming a precondition other than `DAV:valid-sync-token` - or naming none, on a server configured with full sync-token support (with no `features` configured, or with sync-token support set to `fragile`, such a 401/403 still falls back) - is raised instead of silently falling back to a full fetch.  An expired sync token (RFC 6578 section 3.2) could not be told apart from a permission error, so a real permission problem was hidden behind an expensive full fetch.  An expired token (also Xandikos' 412) and an unsupported sync-collection report (Zimbra) still lead to the fallback.  https://github.com/python-caldav/caldav/issues/738 https://github.com/python-caldav/caldav/issues/756 https://github.com/python-caldav/caldav/pull/748 https://github.com/python-caldav/caldav/pull/759
 * `FeatureSet.is_supported()` gave inverted answers for server observations (e.g. `get-current-user-principal.has-calendar`) and client features (e.g. `rate-limit`) when asked for a bool.  This concerns code querying the compatibility hints directly, not any particular server; code that compensated for the inverted answers will now be wrong.  Asking for a server-peculiarity, tests-behaviour or client-hints feature as a bool now raises `TypeError`, as no meaningful bool exists for those.  https://github.com/python-caldav/caldav/pull/732
 * icalendar-searcher 1.1.0 or later is required, for the negated searches and the time-zone-correct cut of time-range searches.  This matters to packagers and to environments pinning an older version.  https://github.com/python-caldav/caldav/pull/750
 
@@ -115,7 +115,7 @@ These are bug fixes, but code relying on the old behaviour may notice them.
 
 ## [3.4.1] - 2026-10-15
 
-Security release: 3.4.0 with only the fix below.  Also released without the niquests dependency as 3.4.1a0 - install `caldav[niquests]`, or another supported HTTP library, alongside it.
+Security release: 3.4.0 with only the fix below.  Also released without the niquests dependency as 3.4.1a0 - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
 
 ### Security
 
@@ -174,7 +174,7 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 ## [3.3.2] - 2026-10-15
 
-Security release: 3.3.1 with only the fix below.  Also released without the niquests dependency as 3.3.2a0 - install `caldav[niquests]`, or another supported HTTP library, alongside it.
+Security release: 3.3.1 with only the fix below.  Also released without the niquests dependency as 3.3.2a0 - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
 
 ### Security
 
