@@ -45,9 +45,48 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
   compares the sdist file list against `git ls-files` and refuses anything git
   does not track.  It runs in CI too, but run it here as well - CI checks the
   *repository*, this checks the *tree you are about to upload*.
-* Some people rely on the github release system for finding releases, so it's needed to make a release there too.  Run `~/bin/github_push_release.py` or https://github.com/python-caldav/caldav/releases/new
+* Some people rely on the github release system for finding releases, so it's needed to make a release there too.  Run `~/bin/github_push_release.py` or https://github.com/python-caldav/caldav/releases/new .  Or, with the notes taken from the tag annotation: `gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes-from-tag`, adding `--latest=false` for anything but the newest release and `--prerelease` for a0 releases.  `gh release edit` has no `--notes-from-tag`; to replace the notes of an existing release, use `git tag -l --format='%(contents:body)' vX.Y.Z | gh release edit vX.Y.Z --notes-file -` (the body leaves out the tag message's first line, which only repeats the version).
 * Remove the release dir and its venv: `rm -r ~/caldav-release ~/caldav-release-venv`
-* Currently we have a policy that a 3.x.ya1 release should be made without the niquests dependency.  There exists a branch `niquests-less`.  Detailing the steps is TODO, probably we'll go over to trusted publishing before the next release.
+* Currently we have a policy that every release is also made without the niquests dependency, as `X.Y.Za0` - see "Releases without niquests" below.
+
+## Releases without niquests (`X.Y.Za0`)
+
+*This section was written by Claude Opus and has not gone through human review or testing*
+
+Each release is also published without the hard dependency on niquests, as a pre-release `X.Y.Za0` sorting just below `X.Y.Z`.  Users of it must install an HTTP library alongside it themselves: requests for the sync client, and/or httpx2 for the async client.
+
+* Make a separate clone, and branch off the release: `git switch -c vX.Y-niquests-less vX.Y.Z`.
+* Cherry-pick the commit `chore: remove niquests dependency`, the tip of the previous niquests-less branch (e.g. `git cherry-pick v3.5-niquests-less`).  It comments the dependency out in `pyproject.toml`; the `niquests` extra stays.
+* Tag it `vX.Y.Za0` - not `vX.Y.Za`, which PyPI normalises to `a0` anyway and which then no longer matches the tag.
+* After `python -m build`, check the wheel: `unzip -p dist/*.whl '*/METADATA' | grep Requires-Dist` must list niquests only with `extra == "niquests"`.
+* Upload after the regular release; on GitHub, create the release with `--prerelease --latest=false`.
+* Push the `vX.Y-niquests-less` branch along with the tag.
+
+## Security releases
+
+*This section was written by Claude Opus and has not gone through human review or testing*
+
+Done the first time for GHSA-5h4q-xm57-3mh5 (3.3.2, 3.4.1 and 3.5.0, each also as a0).  The fix stays private until the release, so the normal "push first, let CI run" order is turned around.
+
+Before the release:
+
+* Develop the fix on a local branch that is never pushed, with a test that fails before the fix.  GitHub CI never sees it before release day, so run the unit tests locally on every release line instead (`pytest`, without the integration tests that need test servers).
+* Keep the GitHub security advisory as a draft (it is private).  Set the affected ranges with `a0` bounds, so the fixed a0 releases fall outside them: `< 3.3.2a0` and `>= 3.4.0, < 3.4.1a0` - `< 3.3.2` would flag 3.3.2a0 as vulnerable.  A lower bound like `>= 3.4.0` leaves out pre-releases of 3.4.0, so check PyPI for those.  Fill in the patched versions, and a CVSS vector - with CVSS 4.0, "the attacker must control the server or a calendar the victim subscribes to" is `AT:P`.  Request the CVE while the advisory is still a draft, so the ID exists when it is published.
+* Decide which release lines get a patch release: the newest of each maintained minor series.  Older ones are told to upgrade, in the advisory.
+* Prepare the `CHANGELOG.md` on a local master that is not pushed before release day - pushing it leaks the fix.  Keep the security entry as a fragment that stays local, and run `towncrier build` for the new minor release (if any) and for each patch release, so that each section carries the security entry, in version order.  The a0 releases get one line in their regular release's section, not a section of their own.  This file is copied verbatim into every release line.
+
+On release day - stop pushing to the repository from anywhere else:
+
+* For each release line, a separate clone (`git clone ~/caldav ~/caldav-release-X.Y.Z` - a local clone carries the unpushed commits and tags), and for each patch release a branch from the line's last tag, e.g. `git switch -c v3.4-maint v3.4.0`; the new minor release is master itself.  Cherry-pick the fix with `-n`, take the CHANGELOG from master (`git checkout origin/master -- CHANGELOG.md`, which also resolves its conflict), and commit.
+* QA in each clone, before tagging: `pytest` (without the server tests) and `tox -e style,package` (where the line has a `package` env).
+* Tag each release signed, with its CHANGELOG section as the annotation: `git tag -s --cleanup=whitespace -F notes.txt vX.Y.Z`.  Without `--cleanup=whitespace`, git drops every `###` heading line from the message as a comment.
+* The tags exist before anything is reviewed or pushed.  Any review step that rewrites commits afterwards (rewording a message, adding a trailer) leaves the signed tags pointing at commits that are no longer on the branches - record the review without rewriting, or re-tag.
+* `python -m build` in each clone (the version comes from the tag), and check that every file name in `dist/` carries exactly the intended version.
+* Upload the patch releases first, then the new minor release, so trouble with the latter cannot delay the fix.  Then check: the SHA-256 of each file on `https://pypi.org/pypi/caldav/<version>/json` against `dist/`, and `pip install caldav==<version>` in a fresh venv (the index can lag the upload by some minutes).
+* Publish the advisory.
+* Push master, the maintenance and niquests-less branches and all release tags, a0 ones included - by name, not with `git push --tags` (see the mistakes below).
+* Create the GitHub releases as described in the checklist, with `--latest=false` for everything but the newest.
+* Remove the release clones.
 
 ## List of mistakes to be avoided
 
@@ -63,3 +102,5 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * Not adding the release to the "github releases" (I don't care much about this feature, but apparently some people check there to find the latest release version)
 * Not committing after running `towncrier build` (or, up to and including 3.5.0, after doing a s/unreleased/$VERSION/ on the CHANGELOG)
 * "Playing ball" with Claude on the CHANGELOG and committing the changes directly to master before a release, not going through the regular QA - and suddenly the master branch has 6-7 commits with various irrelevant prompts attached.
+* `git push --tags` pushes every local tag, backup tags and experiments included - push release tags by name.
+* Creating a GitHub release for an older version without `--latest=false`, so that it becomes the "Latest" release.
