@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from unittest import TestCase
 
@@ -386,6 +387,30 @@ END:VCALENDAR""",
         fixed_double = vcal.fix(ical_double)
         assert "SUMMARY:it's here" in fixed_single, "fix() must strip backslash before single quote"
         assert 'SUMMARY:it"s here' in fixed_double, "fix() must strip backslash before double quote"
+
+    def _assert_fix_is_fast(self, payload: str) -> None:
+        ical = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:test\n"
+            "DTSTAMP:20190103T070319Z\nDTSTART:20190117T180000Z\n"
+            f"SUMMARY:x{payload}x\nEND:VEVENT\nEND:VCALENDAR\n"
+        )
+        start = time.monotonic()
+        vcal.fix(ical)
+        assert time.monotonic() - start < 1, "vcal.fix() must not be quadratic"
+
+    def test_fix_is_linear_on_long_whitespace_run(self) -> None:
+        """GHSA-5h4q-xm57-3mh5: a long run of blanks not ending a line
+        made the trailing-whitespace substitution quadratic."""
+        self._assert_fix_is_fast(" " * 50000)
+
+    def test_fix_is_linear_on_long_backslash_run(self) -> None:
+        """GHSA-5h4q-xm57-3mh5: a long run of backslashes not followed
+        by a quote made the backslash substitution quadratic."""
+        self._assert_fix_is_fast("\\" * 50000)
+
+    def test_backslash_run_before_quote_is_stripped(self) -> None:
+        ical = "BEGIN:VCALENDAR\nSUMMARY:a\\\\\\'b \t\nEND:VCALENDAR\n"
+        assert "SUMMARY:a'b\n" in vcal.fix(ical)
 
     def test_completed_date_fixup_preserves_next_property(self) -> None:
         """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
