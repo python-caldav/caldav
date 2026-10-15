@@ -114,14 +114,17 @@ def fix(event):
     ## 2) CREATED timestamps prior to epoch does not make sense,
     ## change from year 0001 to epoch.
     fixed = re.sub("CREATED:00001231T000000Z", "CREATED:19700101T000000Z", fixed)
-    fixed = re.sub(r"\\+(['\"])", r"\1", fixed)
+    ## Unescape quotes.  The lookbehind (here and in 4 below) makes matching
+    ## start only where a run starts; without it re.sub is quadratic on a
+    ## long run, see GHSA-5h4q-xm57-3mh5.
+    fixed = re.sub(r"(?<!\\)\\+(['\"])", r"\1", fixed)
 
     ## 4) trailing whitespace probably never makes sense -- but only on a
     ## line that is not continued by a folded line.  RFC 5545 3.1 folds
     ## blind at 75 octets, so the fold may land right after a space that is
     ## part of the value; stripping it would join two words together.  The
     ## negative lookahead is what keeps that whitespace alone.
-    fixed = re.sub(r"[ \t]+$(?!\n[ \t])", "", fixed, flags=re.MULTILINE)
+    fixed = re.sub(r"(?<![ \t])[ \t]+$(?!\n[ \t])", "", fixed, flags=re.MULTILINE)
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
