@@ -122,6 +122,8 @@ finds none); all calls originate within the class itself plus `set_feature`.
 
 ## 7. Split this file
 
+Tracked in https://github.com/python-caldav/caldav/issues/778.
+
 Possibly into three files (or four, with the original compatibility_hints.py being a compatibility shim only importing things from the new files).
 
 There are three quite different things in the file now, the database of the feature names/flags, the database of server compatibility, and the match logic.
