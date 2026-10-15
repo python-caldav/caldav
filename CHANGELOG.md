@@ -30,7 +30,7 @@ After 3.5.0, changes since the last release are kept as fragments in [changes/](
 
 Yet another release primarily focusing on bugfixes and compatibility.  iCloud has now been tested and got its compatibility profile in `compatibility_hints.py`.  Test runs towards GMX, Posteo and Purelymail have been skipped for the last few releases; with 3.5.0 the tests pass towards those.  More work on getting synchronization right, and on avoiding overwriting changes when multiple clients update the same object.
 
-Also released without the niquests dependency as 3.5.0a0.
+Also released without the niquests dependency as 3.5.0a0 - install `caldav[niquests]`, or another supported HTTP library, alongside it.
 
 ### Security
 
@@ -43,7 +43,7 @@ These are bug fixes, but code relying on the old behaviour may notice them.
 * `get_calendars()` raises `NotFoundError` or `PropfindError` when the server answers the PROPFIND for the calendar home or the calendar list with an error.  Earlier it would return an empty list.  Transient errors may happen with any server.  The empty list could not be told apart from an account without calendars, and a Home Assistant user was reporting that their calendars would sometimes "disappear".  Code that relied on getting an empty list on such errors must now catch the exception; 2.x raised as well.  `NotFoundError` is raised for a 404, `PropfindError` otherwise, and the same goes for `CalendarSet.get_calendars()`.  https://github.com/python-caldav/caldav/issues/741 https://github.com/python-caldav/caldav/pull/742
 * A time-range search (also `date_search()`) filters the result client-side by default and drops objects the server returned outside the range.  This affects every server, for users not in UTC: CalDAV servers compare all-day events and floating times as UTC, so a search in another time zone missed all-day events at the edges of the range and returned some from the neighbour days (reported on Baïkal).  The server is now asked for one extra day on each side (also for alarm searches and server-side expansion), and the exact cut is made client-side: with a timezone-aware `start`/`end`, all-day events and floating times are matched in the time zone of the search, not in that of the Python process.  A search may therefore return fewer objects than before, and a plain `date` as `start`/`end` now means a day in UTC, also for matching all-day events (previously, client-side, a day in the time zone of the Python process).  Pass `post_filter=False` or `compatibility_workarounds=False` to send the range as given and get what the server returned.  https://github.com/python-caldav/caldav/issues/545 https://github.com/python-caldav/caldav/pull/758
 * A `save()` on an object loaded through `search()` or `multiget()` sends `If-Match` (or `If-Schedule-Tag-Match`) and raises `ETagMismatchError` (or `ScheduleTagMismatchError`) if someone else changed the object since it was loaded.  This affects every server that returns ETags, i.e. nearly all.  Previously no ETag was requested in searches, so such a save silently overwrote the other client's change.  Code that saves search results must now be prepared to reload the object and retry.  (Servers sending only weak ETags, like GMX, still get an unconditional save.)  https://github.com/python-caldav/caldav/pull/751
-* Sync: a 401/403 on the sync-collection REPORT naming a precondition other than `DAV:valid-sync-token` - or naming none, on a server configured with full sync-token support (not with no `features` configured, or `fragile`) - is raised instead of silently falling back to a full fetch.  An expired sync token (RFC 6578 section 3.2) could not be told apart from a permission error, so a real permission problem was hidden behind an expensive full fetch.  An expired token (also Xandikos' 412) and an unsupported sync-collection report (Zimbra) still lead to the fallback.  https://github.com/python-caldav/caldav/issues/738 https://github.com/python-caldav/caldav/issues/756 https://github.com/python-caldav/caldav/pull/748 https://github.com/python-caldav/caldav/pull/759
+* Sync: a 401/403 on the sync-collection REPORT naming a precondition other than `DAV:valid-sync-token` - or naming none, on a server configured with full sync-token support - is raised instead of silently falling back to a full fetch (with no `features` configured, or with sync-token support set to `fragile`, the fallback is still used).  An expired sync token (RFC 6578 section 3.2) could not be told apart from a permission error, so a real permission problem was hidden behind an expensive full fetch.  An expired token (also Xandikos' 412) and an unsupported sync-collection report (Zimbra) still lead to the fallback.  https://github.com/python-caldav/caldav/issues/738 https://github.com/python-caldav/caldav/issues/756 https://github.com/python-caldav/caldav/pull/748 https://github.com/python-caldav/caldav/pull/759
 * `FeatureSet.is_supported()` gave inverted answers for server observations (e.g. `get-current-user-principal.has-calendar`) and client features (e.g. `rate-limit`) when asked for a bool.  This concerns code querying the compatibility hints directly, not any particular server; code that compensated for the inverted answers will now be wrong.  Asking for a server-peculiarity, tests-behaviour or client-hints feature as a bool now raises `TypeError`, as no meaningful bool exists for those.  https://github.com/python-caldav/caldav/pull/732
 * icalendar-searcher 1.1.0 or later is required, for the negated searches and the time-zone-correct cut of time-range searches.  This matters to packagers and to environments pinning an older version.  https://github.com/python-caldav/caldav/pull/750
 
@@ -51,7 +51,7 @@ These are bug fixes, but code relying on the old behaviour may notice them.
 
 #### Library API
 
-* `SynchronizableCalendarObjectCollection.deleted_urls`: the URLs of the members a sync-collection report listed as removed (RFC 6578 section 3.2).  They are still among the returned objects, as before, but a caller no longer has to guess from a missing ETag, and `sync()` no longer fetches each removed object to find out.  The set is empty after the full-retrieval fallback, which reports no removals.  https://github.com/pycalendar/calendaring-sync/pull/19#issuecomment-6112378889
+* `SynchronizableCalendarObjectCollection.deleted_urls`: the URLs of the members a sync-collection report listed as removed (RFC 6578 section 3.2).  They are still among the returned objects, as before, but a caller no longer has to guess from a missing ETag, and `sync()` no longer fetches each removed object to find out.  The set is empty after the full-retrieval fallback, which reports no removals.  https://github.com/pycalendar/calendaring-sync/pull/19#issuecomment-6112378889 https://github.com/python-caldav/caldav/pull/760
 * `delete(if_match=...)` on events, todos and journals: with `if_match=True` the DELETE carries the same precondition `save()` sends (`If-Schedule-Tag-Match` if a Schedule-Tag is cached, else `If-Match` with the cached ETag); a string is sent as `If-Match`.  A 412 raises `ScheduleTagMismatchError` / `ETagMismatchError`, and a 404 raises `NotFoundError` instead of counting as success.  Plain `delete()` is unchanged.  `DAVClient.delete()` takes a `headers` argument, like `AsyncDAVClient.delete()` already did.  https://github.com/python-caldav/caldav/issues/740 https://github.com/python-caldav/caldav/pull/747
 * `save(precondition="etag")` and `delete(if_match=True, precondition="etag")` prefer `If-Match` with the cached ETag over a cached Schedule-Tag, so a 412 raises `ETagMismatchError` when anything changed, also an attendee's reply.  Under `If-Schedule-Tag-Match`, which the default `"auto"` still prefers, the server merges such a reply into the write (RFC 6638 section 3.2.10), and a sync client was never told its copy was stale.  With no strong ETag cached, `"etag"` falls back to the Schedule-Tag.  https://github.com/python-caldav/caldav/issues/762 https://github.com/python-caldav/caldav/pull/764
 * Negated searches: `add_property_filter()` passes the `!=` (alias `<>`), `!contains` and `def` operators of icalendar-searcher 1.1.0 on to the search.  They are decided client-side (unless `post_filter=False`): the server query leaves them out, as no server has been probed for `negate-condition` support yet.  `build_search_xml_query()` renders `!contains` as a negated `text-match`, and `!=` and `def` as a bare `prop-filter` - a negated `text-match` is a negated *substring* match, so it cannot express `!=`.  https://github.com/python-caldav/caldav/issues/568 https://github.com/python-caldav/caldav/pull/750
@@ -115,11 +115,11 @@ These are bug fixes, but code relying on the old behaviour may notice them.
 
 ## [3.4.1] - 2026-10-15
 
-Security release: 3.4.0 with only the fix below.  Also released without the niquests dependency as 3.4.1a0.
+Security release: 3.4.0 with only the fix below.  Also released without the niquests dependency as 3.4.1a0 - install `caldav[niquests]`, or another supported HTTP library, alongside it.
 
 ### Security
 
-* A small DoS-risk found.  An attacker controlling the icalendar data flowing through the library can aggressively burn CPU-cycles.  `vcal.fix()`, run on every iCalendar object fetched from a server, took quadratic time on a long run of blanks or backslashes - 100 kB took more than 20 s, so a hostile server or a shared calendar could stall the client.  The regexp has been fixed up and now takes linear time to run; the output is unchanged.  Reported by @BrianWillows.  https://github.com/python-caldav/caldav/security/advisories/GHSA-5h4q-xm57-3mh5  Also fixed in 3.5.0 and 3.3.2.
+* A small DoS-risk found.  An attacker controlling the icalendar data (a hostile server, a shared calendar, calendar invites, etc.) flowing through the library can aggressively burn CPU-cycles.  `vcal.fix()`, run on every iCalendar object fetched from a server, took quadratic time on a long run of blanks or backslashes - a 100 kB icalendar fragment was measured to take 20 s.  The regexp has been fixed up and now takes linear time to run; the output is unchanged.  Reported by @BrianWillows.  https://github.com/python-caldav/caldav/security/advisories/GHSA-5h4q-xm57-3mh5  Also fixed in 3.5.0 and 3.3.2.
 
 ## [3.4.0] - 2026-10-07
 
@@ -174,11 +174,11 @@ The JMAP support was declared experimental in 3.0, hence the changes below are d
 
 ## [3.3.2] - 2026-10-15
 
-Security release: 3.3.1 with only the fix below.  Also released without the niquests dependency as 3.3.2a0.
+Security release: 3.3.1 with only the fix below.  Also released without the niquests dependency as 3.3.2a0 - install `caldav[niquests]`, or another supported HTTP library, alongside it.
 
 ### Security
 
-* A small DoS-risk found.  An attacker controlling the icalendar data flowing through the library can aggressively burn CPU-cycles.  `vcal.fix()`, run on every iCalendar object fetched from a server, took quadratic time on a long run of blanks or backslashes - 100 kB took more than 20 s, so a hostile server or a shared calendar could stall the client.  The regexp has been fixed up and now takes linear time to run; the output is unchanged.  Reported by @BrianWillows.  https://github.com/python-caldav/caldav/security/advisories/GHSA-5h4q-xm57-3mh5  Also fixed in 3.5.0 and 3.4.1.
+* A small DoS-risk found.  An attacker controlling the icalendar data (a hostile server, a shared calendar, calendar invites, etc.) flowing through the library can aggressively burn CPU-cycles.  `vcal.fix()`, run on every iCalendar object fetched from a server, took quadratic time on a long run of blanks or backslashes - a 100 kB icalendar fragment was measured to take 20 s.  The regexp has been fixed up and now takes linear time to run; the output is unchanged.  Reported by @BrianWillows.  https://github.com/python-caldav/caldav/security/advisories/GHSA-5h4q-xm57-3mh5  Also fixed in 3.5.0 and 3.4.1.
 
 ## [3.3.1] - 2026-09-16
 
@@ -797,7 +797,10 @@ In addition, lots of time spent on things that aren't covered by the roadmap:
 * Communication and collaboration
 * The release itself (running tests towards lots of servers with quirks - like having to wait for several minutes from when an event is edited until it can be found through a search operation - looking through and making sure the CHANGELOG is complete, etc) is quite tedious and easily takes several days - weeks if it's needed to tweak on workarounds and compatibility hints to get the tests passing.
 
+[3.5.0]: https://github.com/python-caldav/caldav/compare/v3.4.0...v3.5.0
+[3.4.1]: https://github.com/python-caldav/caldav/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/python-caldav/caldav/compare/v3.3.1...v3.4.0
+[3.3.2]: https://github.com/python-caldav/caldav/compare/v3.3.1...v3.3.2
 [3.3.1]: https://github.com/python-caldav/caldav/compare/v3.3.0...v3.3.1
 [3.3.0]: https://github.com/python-caldav/caldav/compare/v3.2.1...v3.3.0
 [3.2.1]: https://github.com/python-caldav/caldav/compare/v3.2.0...v3.2.1
