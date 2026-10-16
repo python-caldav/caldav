@@ -699,7 +699,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
         },
         "sync-token.limit": {
-            "description": "Server honours DAV:limit in a sync-collection report from an issued token: it truncates the reply with a 507 for the collection and a checkpoint token, and following the checkpoints yields every change.  'unsupported' means the limit is ignored and everything comes in one reply, or the request is refused with a 507 carrying DAV:number-of-matches-within-limits as section 3.7 allows (CCS); both are harmless, as the library never sends DAV:limit.  'broken' means changes are lost, e.g. the reply is cut without a 507 (Xandikos, Nextcloud) or a checkpoint token skips changes",
+            "description": "Server honours DAV:limit in a sync-collection report from an issued token: it truncates the reply with a 507 for the collection and a checkpoint token, and following the checkpoints yields every change.  'unsupported' means the limit is ignored and everything comes in one reply, or the request is refused with a 507 carrying DAV:number-of-matches-within-limits as section 3.7 allows (CCS); both are harmless, as the library never sends DAV:limit.  'fragile' means nothing is lost, but the reply is cut without a 507, so a client takes it as complete and gets the rest only on its next sync (Bedework 5).  'broken' means changes are lost, e.g. the reply is cut without a 507 (Xandikos, Nextcloud) or a checkpoint token skips changes",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.7"],
         },
         "sync-token.limit.initial-sync": {
@@ -1684,6 +1684,9 @@ bedework_3_10_3 = {
     "search.text": False, ## sometimes ungraceful
     "search.recurrences": False,
     "sync-token": { "support": "fragile" },
+    "sync-token.invalid-token": {"support": "full"},
+    "sync-token.limit": {"support": "ungraceful", "behaviour": "sync-collection with DAV:limit answered 500"},
+    "sync-token.limit.initial-sync": {"support": "ungraceful", "behaviour": "sync-collection with DAV:limit answered 500"},
     'search.comp-type': {'support': 'broken', 'behaviour': 'Server returns everything when searching for events and nothing when searching for todos'},
     'search.comp-type.optional': {'support': 'full'},
     ## Flaps between full and unsupported across runs - the comp-type-less
@@ -1852,6 +1855,11 @@ bedework_5_0_0 = {
     ## "full" because its own modification happens to land a second later.  A
     ## delete is never reported, pause or not (0/11).
     "sync-token": {"support": "full", "behaviour": "time-based"},
+    ## Probed 2026-10-16 by the server tester, twice: the reply is cut at
+    ## DAV:limit without a 507, but following the tokens reports every change.
+    ## 'fragile', as a client takes the cut reply as complete.
+    "sync-token.limit": {"support": "fragile", "behaviour": "the reply is cut at DAV:limit without a 507"},
+    "sync-token.limit.initial-sync": {"support": "fragile", "behaviour": "the reply is cut at DAV:limit without a 507"},
     "sync-token.delete": {
         "support": "unsupported",
         "behaviour": "the sync-collection report after a delete listed no changes",
@@ -2011,6 +2019,9 @@ davical = {
     "search.time-range.comp-type-optional": { "support": "full" },
     "search.time-range.alarm": { "support": "unsupported" },
     'sync-token': {'support': 'fragile'},
+    "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
+    "sync-token.limit": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
+    "sync-token.limit.initial-sync": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
     'principal-search': {'support': 'unsupported'},
     ## DAViCal skips VTODOs without DTSTART in date-range searches.
     'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
@@ -2089,6 +2100,9 @@ sogo = {
     "sync-token": {
         "support": "fragile"
     },
+    "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
+    "sync-token.limit": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
+    "sync-token.limit.initial-sync": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
     "search.recurrences.expanded": {
         "support": "unsupported"
     },
@@ -2429,16 +2443,17 @@ purelymail = {
     ## 409 Conflict with <must-have-parent> when PUTting to a URL not under an existing calendar
     #'save-load.get-by-url': {'support': 'unknown'},
     #'save-load.todo': {'support': 'ungraceful'},
-    ## The search features below are unreliable on purelymail, likely due
-    ## to the search-cache delay.  Results flip between unsupported
-    ## and ungraceful across runs.  Marked fragile so the checker skips them.
-    ## was: (default, i.e. full) - observed ungraceful 2026-02
-    'search.is-not-defined': {'support': 'fragile'},
+    ## is-not-defined and the event/todo time-range searches flipped between
+    ## unsupported and ungraceful in 2026-02 and were marked fragile.  With
+    ## the search-cache wait applied to every filtered search, the server
+    ## tester found them all working on 2026-10-16, so they are left at the
+    ## default (full) again.
+
     'search.time-range.alarm': {'support': 'unsupported'},
-    ## was: unsupported - observed ungraceful 2026-02
-    'search.time-range.event': {'support': 'fragile'},
-    ## was: ungraceful - observed unsupported 2026-02 (for .old-dates)
-    'search.time-range.todo': {'support': 'fragile'},
+    ## Calendar colour and order work (probed 2026-10-16); set explicitly
+    ## since the feature default is the weaker 'fragile'.
+    'calendar-color': {'support': 'full'},
+    'calendar-order': {'support': 'full'},
     'principal-search': {'support': 'ungraceful'},
     'auto-connect.url': {
         'basepath': '/webdav/',
@@ -2666,8 +2681,9 @@ infomaniak = {
     ## Object writes were asynchronous too in 2026-06 (a 16s sleep after every
     ## write was configured), but a PUT is readable at once since 2026-10.
     'synchronous-write.create-calendar': {'support': 'unsupported', 'delay': 15},
-    ## Deletion measured at ~7s on 2026-10-06, too close to the former 8.
-    'synchronous-write.delete-calendar': {'support': 'unsupported', 'delay': 12},
+    ## Deletion measured at ~7s on 2026-10-06, too close to the former 8; on
+    ## 2026-10-16 the calendar was still there after 12s in two runs of three.
+    'synchronous-write.delete-calendar': {'support': 'unsupported', 'delay': 20},
     ## A PROPPATCH is not: PROPFIND returns the old display name or colour for
     ## a steady ~10s (2026-10-06), on a fresh connection as well, while a PUT,
     ## an overwrite and a DELETE of an object are visible at once.
