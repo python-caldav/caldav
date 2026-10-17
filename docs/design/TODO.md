@@ -51,3 +51,14 @@ A response whose `Content-Type` says XML but whose body is not XML (an HTML erro
 ## The UID-conflict check compares URLs as strings
 
 `save(no_overwrite=True)` in `caldav/calendarobjectresource.py`, when caldav searches for the UID itself, compares the found object's URL with the target URL as plain strings (`existing.url != target`).  A server that returns the object's own URL spelled differently (`%40` against `@`, or a canonicalised URL, as OX does) gets it reported as `UidConflictConsistencyError` instead of a plain `ConsistencyError`.  Harmless for `except ConsistencyError`, as it is a subclass.  Fix: compare normalised URLs.  Found in the review of https://github.com/python-caldav/caldav/pull/807.
+
+## iCloud misses a moved recurrence by its new date
+
+iCloud leaves a moved instance (`RECURRENCE-ID` 2026-10-31, `DTSTART` 2026-10-17) out of a time-range search that covers only the new date, against RFC 4791 sections 7.4 and 9.9 (https://github.com/python-caldav/caldav/issues/784).  Suggested fix:
+
+* Two new features, with a check in caldav-server-tester (one series, its first instance moved weeks earlier, searched on the new date and on the original one).  A moved instance is an override with its own `RECURRENCE-ID`, not an implicit RRULE instance, so it goes under `search.recurrences.exception` rather than `includes-implicit`:
+  * `search.recurrences.exception.by-moved-dt`: found by a time-range search over its new `DTSTART`.  `unsupported` for iCloud once the check confirms it.  Other servers may well fail it too.
+  * `search.recurrences.exception`: `quirk` for iCloud, as the instance can still be found, by its `RECURRENCE-ID`.
+* Workaround when `by-moved-dt` is unsupported: an extra query for VEVENTs that have a `RECURRENCE-ID`.  In CalDAV that is an empty `prop-filter` (RFC 4791 section 9.7.2; there is no `is-defined` element).  `search()` decides `def` client-side and leaves it out of the server query, so the filter must be sent server-side (`post_filter=False`, or a raw query), or the extra query fetches every event.  Filter the results client-side and merge them in, deduplicated on the resource URL, or on UID and `RECURRENCE-ID` when the search expands.  The `_TIME_RANGE_MARGIN` widening can't do it, as an instance may be moved any distance.  The tester check should probe the empty prop-filter on iCloud directly (`search.is-not-defined` being `fragile` there says little about it); else fall back to fetching all recurring events.
+* Cost: without a time range, the extra query downloads every event with overrides in the calendar, on every event time-range search, and that grows without bound.  Bound it (a range covering the RRULE horizon) or cache it, and make it opt-out.  Report it to Apple too.
+* The reporter (Home Assistant, https://github.com/home-assistant/core/issues/179125) offered to test.
