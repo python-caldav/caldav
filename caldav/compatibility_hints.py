@@ -234,7 +234,7 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc7235#section-2.1"],
         },
         "well-known": {
-            "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect was observed; 'unsupported' means the server returned 404 or similar; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
+            "description": "Server handles /.well-known/caldav discovery as specified in RFC 6764 section 5. A conformant server should respond with a redirect (301/302/307/308) from /.well-known/caldav to the actual CalDAV endpoint. 'full' means a redirect (or a direct 200) to an endpoint whose OPTIONS reply advertises calendar-access; 'unsupported' means the server returned 404 or similar, or the target does not advertise calendar-access; 'unknown' means the check was skipped (e.g. localhost or request failed). Note: well-known is often provided by infrastructure (reverse proxy/hosting) rather than the CalDAV server itself, so 'unknown' is the expected default for self-hosted or test setups.",
             "default": {"support": "unknown"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6764#section-5"],
         },
@@ -2669,10 +2669,11 @@ ox = {
     }
 }
 
-## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served at
-## https://sync.infomaniak.com/ (/.well-known/caldav redirects there).  Runs
-## SabreDAV 4.3.1.  Profiled 2026-06-15 against a freshly created dedicated
-## calendar; save-load and most search features work well.
+## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served
+## below https://sync.infomaniak.com/ (/.well-known/caldav redirects to that
+## root, which does not advertise calendar-access - see 'well-known' below).
+## Runs SabreDAV 4.3.1.  Profiled 2026-06-15 against a freshly created
+## dedicated calendar; save-load and most search features work well.
 infomaniak = {
     ## Calendar collections are created and deleted asynchronously: MKCALENDAR
     ## and DELETE return before the change takes effect, ~8s and ~6s measured
@@ -2718,6 +2719,9 @@ infomaniak = {
     ## on GET nor via PROPFIND).
     'scheduling.schedule-tag': {'support': 'unsupported', 'behaviour': 'no Schedule-Tag returned on GET or via PROPFIND'},
     'scheduling.schedule-tag.stable-partstat': {'support': 'unsupported'},
+    ## /.well-known/caldav redirects to the server root, whose OPTIONS reply
+    ## does not advertise calendar-access (server tester, 2026-10-16).
+    'well-known': {'support': 'unsupported', 'behaviour': 'redirects to https://sync.infomaniak.com/, which does not advertise calendar-access'},
     ## Principal search is effectively unsupported (lists nothing / errors out).
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
