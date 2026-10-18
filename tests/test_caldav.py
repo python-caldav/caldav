@@ -2416,6 +2416,25 @@ END:VCALENDAR"""
         with pytest.raises(error.NotFoundError):
             foo = c.get_object_by_uid("well_known_10")
 
+    def testFoldedLongUID(self):
+        """
+        A long UID may be folded over several lines; ``.id`` has to unfold it.
+        """
+        self.skip_unless_support("save-load.event")
+        c = self._fixCalendar()
+        uid = "040000008200E00074C5B7101A82E00800000000F0A1B2C3D4E5DA01000000000000000010000000AB12CD34EF56"
+        e = c.add_event(
+            near_now_ics(ev1).replace(
+                "UID:20010712T182145Z-123401@example.com", f"UID:{uid[:60]}\n {uid[60:]}"
+            )
+        )
+        assert uid in [x.id for x in c.get_events()]
+        ## a plain GET, so the data is not parsed
+        loaded = c.event_by_url(e.url)
+        assert loaded.id == uid
+        with pytest.raises(error.ConsistencyError):
+            loaded.save(no_overwrite=True)
+
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
