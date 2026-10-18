@@ -1925,12 +1925,10 @@ END:VEVENT
 END:VCALENDAR
 """
         event = Event(client, data=folded_uid_data)
-        # The cheap accessor uses regex which might not handle folded lines
-        # So we test that it falls back to full parsing when needed
-        uid = event._get_uid_cheap()
-        # Either the regex works or it falls back - either way we should get a UID
-        assert uid is not None
-        assert "this-is-a-very-long-uid" in uid
+        assert event._get_uid_cheap() == (
+            "this-is-a-very-long-uid-that-might-be-folded-across-multiple-lines-in-r"
+            "eal-world-icalendar-files@example.com"
+        )
 
         # Test that nested borrowing (even same type) raises error
         # This prevents confusing ownership semantics
@@ -5758,6 +5756,139 @@ class TestWrappedComponentHasNoCalendarUid:
         second.icalendar_instance = ievent
 
         assert first.data == second.data
+
+
+class TestFoldedUid:
+    """A long UID may be folded over several lines (RFC 5545 section 3.1), and
+    ``.id`` of an object not parsed yet has to unfold it."""
+
+    UID = "040000008200E00074C5B7101A82E00800000000F0A1B2C3D4E5DA01000000000000000010000000AB12CD34EF56"
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    @classmethod
+    def _ical(cls, fold: str) -> str:
+        if fold == "to_ical":
+            ievent = icalendar.Event()
+            ievent.add("uid", cls.UID)
+            ievent.add("dtstamp", datetime(2026, 1, 1, tzinfo=timezone.utc))
+            ievent.add("dtstart", datetime(2026, 1, 2, tzinfo=timezone.utc))
+            ievent.add("summary", "Long UID")
+            ical = icalendar.Calendar()
+            ical.add("prodid", "-//Example//EN")
+            ical.add("version", "2.0")
+            ical.add_component(ievent)
+            return ical.to_ical().decode()
+        eol = fold[:-1]
+        uid = fold.join((cls.UID[:30], cls.UID[30:70], cls.UID[70:]))
+        lines = [
+            "BEGIN:VCALENDAR",
+            "VERSION:2.0",
+            "PRODID:-//Example//EN",
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            "DTSTAMP:20260101T000000Z",
+            "DTSTART:20260102T000000Z",
+            "SUMMARY:Long UID",
+            "END:VEVENT",
+            "END:VCALENDAR",
+        ]
+        return eol.join(lines) + eol
+
+    def _calendar(self, ical: str):
+        """A fake server with one object, ``ev1.ics``.  Returns the calendar
+        and the (method, body) pairs sent."""
+        sent = []
+        ## keep CR through XML end-of-line normalisation
+        multistatus = (
+            '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">'
+            "<d:response><d:href>/dav/user/mycal/ev1.ics</d:href><d:propstat><d:prop>"
+            f"<cal:calendar-data>{ical.replace(chr(13), '&#13;')}</cal:calendar-data>"
+            "</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+            "</d:multistatus>"
+        )
+
+        class FakeServerClient(DAVClient):
+            def request(self, url, method="GET", body="", headers=None):
+                sent.append((method, body))
+                resp = mock.MagicMock()
+                resp.headers = {}
+                if method == "GET":
+                    resp.status_code, resp.reason = 200, "OK"
+                    resp.headers = {"Content-Type": "text/calendar"}
+                    resp.content = ical.encode()
+                elif method == "REPORT":
+                    resp.status_code, resp.reason = 207, "Multi-Status"
+                    resp.content = multistatus.encode()
+                else:
+                    resp.status_code, resp.reason = 204, "No Content"
+                    resp.content = b""
+                return DAVResponse(resp, self)
+
+        client = FakeServerClient(url="http://cal.example.com/dav/")
+        return Calendar(client, url=self.URL), sent
+
+    def _loaded(self, ical: str):
+        calendar, sent = self._calendar(ical)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar).load()
+        sent.clear()
+        return event, sent
+
+    @pytest.mark.parametrize("fold", ["\r\n ", "\n ", "\r\n\t", "to_ical"])
+    def test_cheap_accessor_unfolds(self, fold) -> None:
+        from caldav.datastate import RawDataState
+
+        ical = self._ical(fold)
+        assert self.UID not in ical
+        assert RawDataState(ical).get_uid() == self.UID
+        assert Event(data=ical).id == self.UID
+
+    def test_folded_uid_needs_no_full_parse(self) -> None:
+        from caldav.datastate import RawDataState
+
+        with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
+            assert RawDataState(self._ical("\r\n ")).get_uid() == self.UID
+
+    def test_escaped_uid_is_unescaped(self) -> None:
+        ical = self._ical("\n ").replace(self.UID[:30], "a\\,b" + self.UID[:30])
+        event = Event(data=ical)
+        assert event.id == "a,b" + self.UID
+        assert event.id == str(event.icalendar_component["UID"])
+
+    @pytest.mark.parametrize("fold", ["\r\n ", "to_ical"])
+    def test_search_and_load(self, fold) -> None:
+        calendar, _ = self._calendar(self._ical(fold))
+        assert [o.id for o in calendar.search(event=True)] == [self.UID]
+        assert [o.id for o in calendar.get_events()] == [self.UID]
+        assert Event(url=self.URL + "ev1.ics", parent=calendar).load().id == self.UID
+
+    def test_save_no_create_existing(self) -> None:
+        event, sent = self._loaded(self._ical("to_ical"))
+        event.save(no_create=True)
+        assert sent[-1][0] == "PUT"
+
+    def test_save_no_overwrite_existing(self) -> None:
+        event, sent = self._loaded(self._ical("to_ical"))
+        with pytest.raises(error.ConsistencyError):
+            event.save(no_overwrite=True)
+        assert "PUT" not in [method for method, _ in sent]
+
+    def test_save_unparsed_keeps_uid(self) -> None:
+        """This save() takes the UID from ``.id``."""
+        event, sent = self._loaded(self._ical("to_ical"))
+        event.save(increase_seqno=False, only_this_recurrence=False)
+        [(method, body)] = sent
+        assert method == "PUT"
+        put = icalendar.Calendar.from_ical(body)
+        assert [str(c["UID"]) for c in put.walk("VEVENT")] == [self.UID]
+
+    def test_save_unparsed_keeps_escaped_uid(self) -> None:
+        ical = self._ical("\r\n ").replace(self.UID[:30], "a\\,b" + self.UID[:30])
+        event, sent = self._loaded(ical)
+        event.save(increase_seqno=False, only_this_recurrence=False)
+        [(method, body)] = sent
+        assert method == "PUT"
+        put = icalendar.Calendar.from_ical(body)
+        assert [str(c["UID"]) for c in put.walk("VEVENT")] == ["a,b" + self.UID]
 
 
 class TestMkcalendarMultistatus:

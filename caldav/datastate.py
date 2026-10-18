@@ -140,11 +140,15 @@ class RawDataState(DataState):
         return vobject.readOne(self._data)
 
     def get_uid(self) -> str | None:
-        # Optimization: use regex instead of full parsing
-        match = re.search(r"^UID:(.+)$", self._data, re.MULTILINE)
+        # Optimization: use regex instead of full parsing.  A long UID
+        # may be folded over several lines, so unfold it.
+        match = re.search(r"^UID:([^\r\n]*(?:\r?\n[ \t][^\r\n]*)*)", self._data, re.MULTILINE)
         if match:
-            return match.group(1).strip()
-        # Fall back to parsing if regex fails (e.g., folded lines)
+            uid = re.sub(r"\r?\n[ \t]", "", match.group(1)).strip()
+            # leave backslash escapes to the full parse
+            if "\\" not in uid:
+                return uid
+        # Fall back to parsing if regex fails (e.g., UID with parameters)
         return super().get_uid()
 
     def get_component_type(self) -> str | None:
