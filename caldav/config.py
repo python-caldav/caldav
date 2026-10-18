@@ -105,8 +105,9 @@ def read_config(fn, interactive_error=False):
 
                 try:
                     with open(fn, "rb") as config_file:
-                        return yaml.load(config_file, yaml.Loader)
-                except (yaml.scanner.ScannerError, yaml.parser.ParserError) as e:
+                        ## safe_load: a config file, possibly in /etc/, must not build Python objects
+                        return yaml.safe_load(config_file)
+                except yaml.YAMLError as e:
                     # Re-raise YAML errors so they can be handled by caller
                     raise ValueError(f"config file {fn} is neither valid JSON nor YAML: {e}") from e
             except ImportError:

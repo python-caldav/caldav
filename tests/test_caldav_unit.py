@@ -4548,6 +4548,31 @@ class TestExpandEnvVars:
         assert results[0]["password"] == "s3cr3t"
 
 
+class TestReadConfigYaml:
+    """caldav.config.read_config must not let a config file build Python objects."""
+
+    def test_python_tag_is_refused(self, tmp_path):
+        from caldav.config import read_config
+
+        marker = tmp_path / "ran"
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            f"default:\n  caldav_url: !!python/object/apply:os.mkdir ['{marker}']\n"
+        )
+        with pytest.raises(ValueError, match="calendar.conf"):
+            read_config(str(config_file))
+        assert not marker.exists()
+
+    def test_plain_yaml_still_works(self, tmp_path):
+        from caldav.config import read_config
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text("default:\n  caldav_url: https://dav.example.com/\n")
+        assert read_config(str(config_file)) == {
+            "default": {"caldav_url": "https://dav.example.com/"}
+        }
+
+
 class TestGetAllFileConnectionParams:
     """Unit tests for caldav.config.get_all_file_connection_params."""
 
