@@ -161,7 +161,7 @@ def _collect_prop_elements(propstats: "list[_Element]") -> "dict[str, _Element]"
     parsers (via :func:`_extract_properties`) and the legacy
     :meth:`DAVResponse._find_objects_and_props` collect prop children, so both
     the validation and the quirk stop having to be maintained in two parallel
-    loops (code-review §5.7).
+    loops.
     """
     collected: dict[str, _Element] = {}
     for propstat in propstats:
@@ -782,7 +782,7 @@ class DAVResponse:
             ## The properties may be delivered either in one propstat
             ## with multiple props or in multiple propstats; the 404-skip
             ## quirk is shared with the dataclass parsers via
-            ## _collect_prop_elements (code-review §5.7).
+            ## _collect_prop_elements.
             props = _collect_prop_elements(propstats)
 
             ## RFC 4918 section 14.24 forbids an href to appear twice, but

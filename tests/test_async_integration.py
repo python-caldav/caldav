@@ -2645,7 +2645,7 @@ class _AsyncTestSchedulingBase:
         ## Just verify it completes without raising; response format varies per server.
         await coro
 
-        ## §1.5 regression: a Principal object (not a pre-resolved vCalAddress)
+        ## Regression: a Principal object (not a pre-resolved vCalAddress)
         ## must also work as an attendee.  Both the sync and async freebusy
         ## tests above only ever passed a resolved address, so the
         ## _async_freebusy_request branch that awaits Principal.get_vcal_address()
