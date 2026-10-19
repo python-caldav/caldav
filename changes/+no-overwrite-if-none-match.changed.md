@@ -1,0 +1,1 @@
+`save(no_overwrite=True)` (and `add_event(..., no_overwrite=True)` and friends) has improved handling on RFC-compliant servers: the server refuses an overwrite at the same URL in the same request as the write, so another client can no longer slip in between the check and the PUT there.  A refusal still raises `ConsistencyError`.

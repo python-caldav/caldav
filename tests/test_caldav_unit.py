@@ -2641,8 +2641,10 @@ END:VCALENDAR"""
         """save(only_this_recurrence=None) calls _create() rather than raising when master absent."""
         event, _ = self._make_orphan_event()
         created = []
-        event._create = lambda id=None, path=None, retry_on_failure=True, precondition="auto": (
-            created.append(True)
+        event._create = (
+            lambda id=None, path=None, retry_on_failure=True, precondition="auto", if_none_match=False: (
+                created.append(True)
+            )
         )
         event.save(only_this_recurrence=None)
         assert created, "_create() must be called (PUT as-is) when master not found"
@@ -2651,8 +2653,10 @@ END:VCALENDAR"""
         """save(only_this_recurrence=False) skips the master lookup entirely and PUTs directly."""
         event, mock_calendar = self._make_orphan_event()
         created = []
-        event._create = lambda id=None, path=None, retry_on_failure=True, precondition="auto": (
-            created.append(True)
+        event._create = (
+            lambda id=None, path=None, retry_on_failure=True, precondition="auto", if_none_match=False: (
+                created.append(True)
+            )
         )
         event.save(only_this_recurrence=False)
         mock_calendar.get_event_by_uid.assert_not_called()
@@ -2667,7 +2671,7 @@ END:VCALENDAR"""
         created = []
         original_create = CalendarObjectResource._create
         CalendarObjectResource._create = (
-            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto": (
+            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto", if_none_match=False: (
                 created.append(True)
             )
         )
@@ -2696,7 +2700,7 @@ END:VCALENDAR"""
         with mock.patch.object(
             CalendarObjectResource,
             "_create",
-            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto": (
+            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto", if_none_match=False: (
                 created.append(self_)
             ),
         ):
@@ -2728,7 +2732,12 @@ END:VCALENDAR"""
         created = []
 
         async def fake_create(
-            self_, id=None, path=None, retry_on_failure=True, precondition="auto"
+            self_,
+            id=None,
+            path=None,
+            retry_on_failure=True,
+            precondition="auto",
+            if_none_match=False,
         ):
             created.append(self_)
 
@@ -3215,7 +3224,7 @@ class TestSequenceOnSave:
         with mock.patch.object(
             CalendarObjectResource,
             "_create",
-            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto": (
+            lambda self_, id=None, path=None, retry_on_failure=True, precondition="auto", if_none_match=False: (
                 put.append(self_)
             ),
         ):
@@ -3230,7 +3239,12 @@ class TestSequenceOnSave:
         put = []
 
         async def fake_create(
-            self_, id=None, path=None, retry_on_failure=True, precondition="auto"
+            self_,
+            id=None,
+            path=None,
+            retry_on_failure=True,
+            precondition="auto",
+            if_none_match=False,
         ):
             put.append(self_)
 
@@ -7481,3 +7495,198 @@ class TestPreconditionsOnOtherStatuses:
         assert exc_info.value.preconditions == [MKCALENDAR_TAG]
         ## the message format of earlier versions is kept
         assert " - <?xml" in str(exc_info.value)
+
+
+EMPTY_MULTISTATUS = b'<?xml version="1.0" encoding="utf-8"?>\n<D:multistatus xmlns:D="DAV:"/>'
+
+
+class TestNoOverwriteIfNoneMatch:
+    """save(no_overwrite=True) sends If-None-Match: * (RFC 9110 section
+    13.1.2), so the server refuses an overwrite of the same URL in the
+    same request.  The UID search before the PUT is only skipped where
+    the server is known to refuse the UID under another URL as well
+    (CALDAV:no-uid-conflict, RFC 4791 section 5.3.2.1)."""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    @pytest.fixture(params=["sync", "async"])
+    def base(self, request):
+        if request.param == "sync":
+            return DAVClient
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient
+
+    def _client(self, base, put_status=201, put_body=b"", features=None, exc=None):
+        sent = []
+        client = base(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body_=None, headers=None):
+            method = method.upper()
+            sent.append((method, {k.lower(): v for k, v in (headers or {}).items()}))
+            if method == "PUT":
+                if exc is not None:
+                    raise exc
+                status, body = put_status, put_body
+            else:
+                status, body = 207, EMPTY_MULTISTATUS
+            resp = mock.MagicMock()
+            resp.status_code = status
+            resp.reason = "whatever"
+            resp.headers = {"Content-Type": "application/xml"} if body else {}
+            resp.content = body
+            resp.text = body.decode()
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = lambda url, method="GET", body="", headers=None: request(
+                url, method, body, headers
+            )
+        else:
+
+            async def async_request(url, method="GET", body="", headers=None):
+                return request(url, method, body, headers)
+
+            client.request = async_request
+        return client, sent
+
+    def _event(self, client, data=ev1, etag=None):
+        cal = Calendar(client, url=self.URL)
+        event = Event(client, data=data, parent=cal)
+        if etag:
+            event.url = URL(self.URL + "ev1.ics")
+            event.props[dav.GetEtag.tag] = etag
+        return event
+
+    _run = staticmethod(TestPreconditionsOnOtherStatuses._run)
+
+    NO_UID_CONFLICT = {"save.no-uid-conflict": {"support": "full"}}
+
+    def test_search_kept_by_default(self, base) -> None:
+        """Whether the server refuses the UID under another URL is not
+        known, so the search stays; the PUT is guarded all the same."""
+        client, sent = self._client(base)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+        assert sent[-1][1]["if-none-match"] == "*"
+
+    def test_search_skipped_where_no_uid_conflict_holds(self, base) -> None:
+        client, sent = self._client(base, features=self.NO_UID_CONFLICT)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+        assert sent[-1][1]["if-none-match"] == "*"
+
+    def test_plain_save_sends_no_if_none_match(self, base) -> None:
+        client, sent = self._client(base, features=self.NO_UID_CONFLICT)
+        self._run(self._event(client).save())
+        assert "if-none-match" not in sent[-1][1]
+
+    def test_412_raises_consistency_error(self, base) -> None:
+        client, sent = self._client(base, put_status=412, features=self.NO_UID_CONFLICT)
+        with pytest.raises(error.ConsistencyError):
+            self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_loaded_object_sends_only_if_none_match(self, base) -> None:
+        """If-Match with the cached ETag would contradict If-None-Match: *."""
+        client, sent = self._client(base, put_status=412, features=self.NO_UID_CONFLICT)
+        event = self._event(client, etag='"etag-a"')
+        with pytest.raises(error.ConsistencyError):
+            self._run(event.save(no_overwrite=True))
+        assert sent[-1][1]["if-none-match"] == "*"
+        assert "if-match" not in sent[-1][1]
+        assert "if-schedule-tag-match" not in sent[-1][1]
+
+    @pytest.mark.parametrize("status", [409, 412])
+    def test_uid_conflict_is_also_consistency_error(self, base, status) -> None:
+        """The same UID under another URL: before, the search found it and
+        ConsistencyError was raised, so handlers for that keep working."""
+        client, sent = self._client(
+            base, put_status=status, put_body=NO_UID_CONFLICT_BODY, features=self.NO_UID_CONFLICT
+        )
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(self._event(client).save(no_overwrite=True))
+        assert isinstance(exc_info.value, error.ConsistencyError)
+        assert exc_info.value.preconditions == ["{urn:ietf:params:xml:ns:caldav}no-uid-conflict"]
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_403_uid_conflict_is_also_consistency_error(self, base) -> None:
+        tag = "{urn:ietf:params:xml:ns:caldav}unique-scheduling-object-resource"
+        exc = error.AuthorizationError(
+            url=self.URL + "ev1.ics",
+            reason="Forbidden",
+            preconditions=[tag],
+            body=UNIQUE_SCHEDULING_BODY,
+        )
+        client, _ = self._client(base, features=self.NO_UID_CONFLICT, exc=exc)
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(self._event(client).save(no_overwrite=True))
+        assert isinstance(exc_info.value, error.ConsistencyError)
+        ## ... and still what earlier versions raised (issue #756)
+        assert isinstance(exc_info.value, error.AuthorizationError)
+
+    def test_server_ignoring_if_none_match_keeps_search(self, base) -> None:
+        """Where If-None-Match: * is known to overwrite (Zimbra, SOGo) the
+        old search-then-PUT is kept, and the header is not sent."""
+        features = {
+            "save.if-none-match": {"support": "unsupported"},
+            "save.no-uid-conflict": {"support": "full"},
+        }
+        client, sent = self._client(base, features=features)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+        assert "if-none-match" not in sent[-1][1]
+
+    def test_recurrence_instance_keeps_search(self, base) -> None:
+        """A recurrence instance is merged into its master, which the PUT
+        then overwrites - only the search can refuse that."""
+        client, sent = self._client(base, features=self.NO_UID_CONFLICT)
+        instance = ev1.replace("DTSTART", "RECURRENCE-ID:20060714T170000Z\nDTSTART", 1)
+        self._run(
+            self._event(client, data=instance).save(no_overwrite=True, only_this_recurrence=None)
+        )
+        assert [m for m, _ in sent][0] == "REPORT"
+        assert sent[-1][1]["if-none-match"] == "*"
+
+    @pytest.mark.parametrize("server", ["zimbra", "sogo"])
+    def test_hints_of_servers_overwriting(self, server) -> None:
+        from caldav import compatibility_hints
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet(getattr(compatibility_hints, server))
+        assert not fs.is_supported("save.if-none-match")
+
+    def test_if_none_match_default_full_no_uid_conflict_default_unknown(self) -> None:
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet()
+        assert fs.is_supported("save.if-none-match")
+        assert not fs.is_supported("save.no-uid-conflict")
+
+    def test_200_is_success_without_retry(self, base) -> None:
+        """A 200 is a successful PUT (RFC 9110 section 9.3.4).  Retrying it
+        would resend If-None-Match: *, which the object the first PUT
+        stored then refuses: the caller's own save would read as a
+        conflict."""
+        client, sent = self._client(base, put_status=200, features=self.NO_UID_CONFLICT)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_plain_save_200_is_success_without_retry(self, base) -> None:
+        client, sent = self._client(base, put_status=200, features=self.NO_UID_CONFLICT)
+        self._run(self._event(client).save())
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_failure_not_retried_with_wildcard(self, base) -> None:
+        """A 5xx may come after the object was written, so a retry with
+        If-None-Match: * could be refused by the caller's own object."""
+        client, sent = self._client(base, put_status=500, features=self.NO_UID_CONFLICT)
+        with pytest.raises(error.PutError):
+            self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_plain_save_failure_still_retried(self, base) -> None:
+        client, sent = self._client(base, put_status=500, features=self.NO_UID_CONFLICT)
+        with pytest.raises(error.PutError):
+            self._run(self._event(client).save())
+        assert [m for m, _ in sent] == ["PUT", "PUT"]

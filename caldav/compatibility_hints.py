@@ -510,7 +510,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.mutable.if-match-wildcard": {
-            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra, Radicale - both compare '*' as a literal etag).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) has no feature of its own; the behaviour text notes where it overwrites or refuses to create.  The library sends neither itself.",
+            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra, Radicale - both compare '*' as a literal etag).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) is save.if-none-match.  The library does not send If-Match: * itself.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1"],
         },
@@ -791,6 +791,16 @@ hence, "fragile".
             "description": "The ETag header of a PUT response is a valid entity-tag (RFC 9110 section 8.8.3: a quoted string, optionally prefixed W/), and a conditional PUT carrying it in If-Match is accepted.  'quirk' with behaviour 'percent-encoded' when the header comes back URL-encoded but the decoded form is accepted - Bedework 5 answers a PUT with ETag: %22...%22 while a GET gives the quoted form, and refuses the encoded form in If-Match with 412.  The library decodes a leading %22, so a client is not affected by that shape; 'broken' when the decoded form is refused too.  'quirk' with behaviour 'weak on PUT, strong on GET' when the PUT answers with a weak etag (W/...), which If-Match can never match (RFC 9110 section 13.1.1), while a GET of the object gives a strong one that If-Match accepts (GMX).  The library does not send a weak etag, so a save() right after a save() goes out without If-Match - no lost-update protection until the object is loaded again.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-8.8.3"],
+        },
+        "save.if-none-match": {
+            "description": "A PUT carrying If-None-Match: * to an existing object is refused with 412 Precondition Failed, and creates a missing object.  RFC 9110 section 13.1.2 has '*' hold only when the resource has no current representation, so it means 'create, but never overwrite'; RFC 4791 section 5.3.2 tells CalDAV clients to send it when creating.  save(no_overwrite=True) sends it, so the server enforces 'do not overwrite' in the same request rather than after a search.  When 'unsupported', the server overwrites the existing object (SOGo ignores the header; Zimbra compares '*' as a literal etag, so the condition always holds) - the library then does not send it, and relies on the UID search before the PUT, as before.  The default is 'full': RFC 4791 section 2 requires a CalDAV server to support ETags as RFC 2616 defines them, and RFC 2616 section 14.26 (now RFC 9110 section 13.1.2) says the server MUST NOT perform the method when '*' is given and the object exists.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2", "https://datatracker.ietf.org/doc/html/rfc4791#section-2", "https://datatracker.ietf.org/doc/html/rfc2616#section-14.26", "https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.2"],
+        },
+        "save.no-uid-conflict": {
+            "description": "A PUT of an object whose UID another object resource in the same calendar already holds is refused (RFC 4791 section 5.3.2.1, precondition CALDAV:no-uid-conflict; the library raises UidConflictError).  The RFC requires it, but whether a server does is only known where it was observed, hence the default 'unknown'.  'ungraceful': refused, but without a precondition the library recognises, so it cannot tell the refusal from any other failed PUT.  When 'full' and save.if-none-match holds, save(no_overwrite=True) skips the UID search before the PUT: If-None-Match: * covers the same URL, and this covers the same UID under another URL.",
+            "default": {"support": "unknown"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2.1"],
         },
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
@@ -1435,6 +1445,9 @@ xandikos = {
         "support": "broken",
         "behaviour": "the reply is cut at DAV:limit without a 507, and the token skips the rest",
     },
+    ## A second object with a UID already in the calendar is refused with 412
+    ## CALDAV:no-uid-conflict (testNoOverwriteSameUidOtherUrl, 2026-10-19).
+    "save.no-uid-conflict": {"support": "full"},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -1455,6 +1468,9 @@ radicale = {
         "support": "unsupported",
         "behaviour": "If-Match: * is compared as a literal etag: an overwrite of an existing object is refused with 412",
     },
+    ## A second object with a UID already in the calendar is refused with 409
+    ## CALDAV:no-uid-conflict (testNoOverwriteSameUidOtherUrl on 3.8.3, 2026-10-19).
+    "save.no-uid-conflict": {"support": "full"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "full"},
@@ -1473,6 +1489,8 @@ radicale = {
 ## matrix and test runs are rate limits, including how often a user is allowed
 ## to create a new calendar.  This may break test runs badly.
 nextcloud = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full"},
     'auto-connect.url': {
         'basepath': '/remote.php/dav',
     },
@@ -1564,6 +1582,8 @@ ecloud = nextcloud | {
 
 ## Zimbra is not very good at it's caldav support
 zimbra = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full"},
     'auto-connect.url': {'basepath': '/dav/'},
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
@@ -1588,6 +1608,7 @@ zimbra = {
     ## If-None-Match: * always does.  Measured 2026-09-15 against the docker
     ## image and, repeatedly, an external Zimbra.
     'save-load.mutable.if-match-wildcard': {'support': 'unsupported', 'behaviour': 'If-None-Match: * overwrote an existing object'},
+    'save.if-none-match': {'support': 'unsupported', 'behaviour': 'If-None-Match: * overwrote an existing object'},
     ## Zimbra DOES apply a display name set at creation (the name sticks, so
     ## set-displayname is 'full') - but it couples the display name to the
     ## calendar URL.  MKCALENDAR lands the calendar at the requested cal_id path;
@@ -1682,6 +1703,8 @@ zimbra = {
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.calendar-user-address-set': {'support': 'full'},
@@ -1746,6 +1769,8 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
     ## Writes are asynchronous: a read-back issued immediately after a PUT may
     ## 404 or hand back the pre-write copy.  That is what separated the two
     ## measurement runs - save-load.mutable came out "broken" (modification not
@@ -1887,6 +1912,8 @@ bedework_5_0_0 = {
 }
 
 baikal =  { ## version 0.10.1
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     # Baikal (sabre/dav) delivers iTIP notifications to the attendee inbox AND auto-schedules
     # into their calendar.
     "scheduling.schedule-tag": False,
@@ -1919,6 +1946,8 @@ baikal_old = baikal | {
 }
 
 cyrus = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full", "behaviour": "refused with 403 CALDAV:unique-scheduling-object-resource"},
     "search.comp-type.optional": {"support": "full"},
     "search.recurrences.includes-implicit.infinite-scope": False,
     "search.time-range.alarm": {"support": "ungraceful"},
@@ -2022,6 +2051,8 @@ icloud = {
 ## See the synology profile above: Synology Calendar ships a modified DAViCal,
 ## so the two profiles should be kept in sync where the fork has not diverged.
 davical = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     ## A fresh account comes without a calendar (observed on the docker test server)
     "get-current-user-principal.has-calendar": {"value": False},
     # Disable HTTP/2 multiplexing - davical doesn't support it well and niquests
@@ -2077,6 +2108,8 @@ synology = davical | {
 }
 
 sogo = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with 409, without the CALDAV:no-uid-conflict precondition"},
     "scheduling.schedule-tag": False,
     "scheduling.mailbox.inbox-delivery": False,
     ## SOGo rejects the calendar-color property with an error (left at the
@@ -2135,6 +2168,7 @@ sogo = {
         "support": "broken",
         "behaviour": "If-Match: * is ignored: it created a missing object (201); If-None-Match: * overwrote an existing object",
     },
+    "save.if-none-match": {"support": "unsupported", "behaviour": "If-None-Match: * is ignored: it overwrote an existing object"},
     ## Measured 2026-09-15.
     "create-calendar.with-supported-component-types": {
         "support": "unsupported",
@@ -2181,6 +2215,8 @@ sogo = {
 #]
 
 robur = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     "auto-connect.url": {
         'domain': 'calendar.robur.coop',
         'basepath': '/principals/', # TODO: this seems fishy
@@ -2216,6 +2252,8 @@ robur = {
 }
 
 posteo = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     'auto-connect.url': {
         'scheme': 'https',
         'domain': 'posteo.de:8443',
@@ -2266,6 +2304,8 @@ posteo = {
 ## Davis uses sabre/dav (same backend as Baikal), so hints are similar.
 ## TODO: consolidate, make a sabredav dict and let davis/baikal build on it
 davis = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     ## A fresh account comes without a calendar (observed on the docker test server)
     "get-current-user-principal.has-calendar": {"value": False},
     # Davis uses sabre/dav (same backend as Baikal): delivers iTIP notifications to the
@@ -2296,6 +2336,8 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-13: DAV:limit is refused with a 507 and
     ## number-of-matches-within-limits ("Report limit not supported"), as
     ## RFC 6578 section 3.7 says
@@ -2351,6 +2393,8 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-11.  calendaring-sync found that it also answers a token
     ## whose history is gone with a partial report and no error.
     "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
@@ -2445,6 +2489,8 @@ stalwart = {
 
 ## Lots of transient problems with purelymail
 purelymail = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with 403, with no-uid-conflict in the CardDAV namespace"},
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
     ## A plain listing reflects a new, edited, completed or deleted object at
@@ -2483,6 +2529,8 @@ purelymail = {
 }
 
 gmx = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full"},
     'auto-connect.url': {
         'scheme': 'https',
         'domain': 'caldav.gmx.net',
@@ -2562,6 +2610,8 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-11
     "sync-token.invalid-token": {"support": "broken", "behaviour": "'0000000000000000000000000000000000000000': 207, no error"},
     ## Renaming a calendar after creation via PROPPATCH is not supported, but
@@ -2692,6 +2742,8 @@ ox = {
 ## Runs SabreDAV 4.3.1.  Profiled 2026-06-15 against a freshly created
 ## dedicated calendar; save-load and most search features work well.
 infomaniak = {
+    ## Measured with caldav-server-tester, 2026-10-19.
+    "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     ## Calendar collections are created and deleted asynchronously: MKCALENDAR
     ## and DELETE return before the change takes effect, ~8s and ~6s measured
     ## 2026-10-05.  A PUT into a calendar created moments before 404s, so the
