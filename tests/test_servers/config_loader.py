@@ -6,10 +6,13 @@ This module loads test server configuration from:
 2. Main caldav config files with 'test_allowed: true' sections
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
-from caldav.config import expand_env_vars, get_all_test_servers, read_config
+import yaml
+
+from caldav.config import expand_env_vars, get_all_test_servers
 
 # Test-specific config file locations (don't need test_allowed)
 TEST_CONFIG_LOCATIONS = [
@@ -75,9 +78,18 @@ def load_test_server_config(
 
 
 def _load_config_file(path: str) -> dict[str, dict[str, Any]]:
-    """Load and parse a config file."""
+    """Load and parse a config file.
+
+    Not the shared config format (it may hold top-level lists such as
+    rfc6638_users), so it is parsed here: as JSON, else as YAML.
+    """
     try:
-        cfg = read_config(path)
+        with open(path, "rb") as f:
+            raw = f.read()
+        try:
+            cfg = json.loads(raw)
+        except json.JSONDecodeError:
+            cfg = yaml.safe_load(raw)
     except Exception as e:
         raise ConfigParseError(f"Config file '{path}' exists but could not be parsed: {e}") from e
 

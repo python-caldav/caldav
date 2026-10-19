@@ -4450,14 +4450,20 @@ class TestExpandConfigSection:
         }
         assert set(expand_config_section(config, "all")) == {"a", "b", "c"}
 
-    def test_missing_section_returns_empty(self):
-        """expand_config_section(config, "default") when "default" is absent must
-        return [] rather than raising KeyError."""
+    def test_missing_section_is_an_error(self):
+        """A section named directly that is not there is a ValueError, not a KeyError."""
         from caldav.config import expand_config_section
 
         config = {"work": {"caldav_url": "https://work.example.com/"}}
-        # Requesting a section that doesn't exist should return [] (no match), not crash
-        assert expand_config_section(config, "default") == []
+        with pytest.raises(ValueError, match="home"):
+            expand_config_section(config, "home")
+
+    def test_missing_default_is_no_configuration(self):
+        """plann asks for "default" when none was named; a file without one is not an error."""
+        from caldav.config import expand_config_section
+
+        assert expand_config_section({"work": {"caldav_url": "https://w.example.com/"}}) == []
+        assert expand_config_section({"default": {"caldav_url": "x", "disable": True}}) == []
 
     def test_disable_respected_for_named_sections(self):
         """disable:true must suppress named sections, not just glob '*' results.
@@ -4467,8 +4473,14 @@ class TestExpandConfigSection:
         """
         from caldav.config import expand_config_section
 
-        config = {"work": {"caldav_url": "https://work.example.com/", "disable": True}}
-        assert expand_config_section(config, "work") == []
+        config = {
+            "work": {"caldav_url": "https://work.example.com/", "disable": True},
+            "home": {"caldav_url": "https://home.example.com/"},
+            "all": {"contains": ["work", "home"]},
+        }
+        assert expand_config_section(config, "all") == ["home"]
+        with pytest.raises(ValueError, match="work"):
+            expand_config_section(config, "work")
 
 
 class TestConfigSectionInheritance:
@@ -4838,6 +4850,229 @@ class TestExplicitParamsMerge:
         assert result is not None
         assert result.get("url") == "https://testserver.example.com/"
         assert result.get("password") == "secret"
+
+
+class TestSharedConfigFormat:
+    """The config file is read through calendaring-config (issue 786)."""
+
+    @pytest.fixture(autouse=True)
+    def _clean_env(self, monkeypatch, tmp_path):
+        import os
+
+        for name in list(os.environ):
+            if name.startswith(("CALDAV_", "JMAP_", "CALENDARING_")):
+                monkeypatch.delenv(name)
+        monkeypatch.setenv("HOME", str(tmp_path / "home"))
+        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+
+    def _write(self, tmp_path, config, name="calendar.conf"):
+        import json
+
+        config_file = tmp_path / name
+        config_file.parent.mkdir(parents=True, exist_ok=True)
+        config_file.write_text(json.dumps(config))
+        config_file.chmod(0o600)
+        return str(config_file)
+
+    def test_kind_section(self, tmp_path):
+        from caldav.config import get_connection_params
+
+        config_file = self._write(
+            tmp_path, {"default": {"kind": "caldav", "url": "https://dav.example.com/"}}
+        )
+        assert get_connection_params(config_file=config_file) == {"url": "https://dav.example.com/"}
+
+    def test_password_command(self, tmp_path):
+        import sys
+
+        from caldav.config import get_connection_params
+
+        config_file = self._write(
+            tmp_path,
+            {
+                "default": {
+                    "caldav_url": "https://dav.example.com/",
+                    "caldav_password_command": [sys.executable, "-c", "print('s3cr3t')"],
+                }
+            },
+        )
+        assert get_connection_params(config_file=config_file)["password"] == "s3cr3t"
+
+    def test_environment_overrides_key_by_key(self, tmp_path, monkeypatch):
+        """https://github.com/python-caldav/caldav/issues/780"""
+        from caldav.config import get_connection_params
+
+        config_file = self._write(tmp_path, {"default": {"caldav_url": "https://dav.example.com/"}})
+        monkeypatch.setenv("CALDAV_PASSWORD", "from-env")
+        assert get_connection_params(config_file=config_file) == {
+            "url": "https://dav.example.com/",
+            "password": "from-env",
+        }
+        assert "password" not in get_connection_params(config_file=config_file, environment=False)
+
+    def test_environment_values_are_converted(self, monkeypatch):
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_REQUIRE_TLS", "false")
+        monkeypatch.setenv("CALDAV_HUGE_TREE", "1")
+        monkeypatch.setenv("CALDAV_SSL_VERIFY_CERT", "/etc/ssl/ca.pem")
+        monkeypatch.setenv("CALDAV_HEADERS", '{"X-Test": "1"}')
+        monkeypatch.setenv("CALDAV_FEATURES", "radicale")
+        params = get_connection_params(check_config_file=False)
+        assert params["require_tls"] is False
+        assert params["huge_tree"] is True
+        assert params["ssl_verify_cert"] == "/etc/ssl/ca.pem"
+        assert params["headers"] == {"X-Test": "1"}
+        assert isinstance(params["features"], dict)
+
+    def test_bad_headers_is_an_error(self, monkeypatch):
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_HEADERS", "X-Test: 1")
+        with pytest.raises(ValueError, match="headers"):
+            get_connection_params(check_config_file=False)
+
+    def test_unknown_key_is_warned_about(self, tmp_path, caplog):
+        from caldav.config import get_connection_params
+
+        config_file = self._write(
+            tmp_path,
+            {
+                "default": {
+                    "caldav_url": "https://dav.example.com/",
+                    "caldav_pasword": "typo",
+                    "calendar_name": "Work",
+                    "test_allowed": True,
+                    "testing_allowed": True,
+                    "x_colour": "blue",
+                    "extra_config": {},
+                }
+            },
+        )
+        with caplog.at_level("WARNING", logger="caldav"):
+            get_connection_params(config_file=config_file)
+        assert [r.getMessage() for r in caplog.records if r.levelname == "WARNING"] == [
+            "config section default: unknown key 'pasword'"
+        ]
+
+    def test_other_kinds_are_skipped(self, tmp_path):
+        from caldav.config import get_all_file_connection_params
+
+        config_file = self._write(
+            tmp_path,
+            {
+                "dav": {"kind": "caldav", "url": "https://dav.example.com/"},
+                "mail": {"kind": "jmap", "url": "https://jmap.example.com/"},
+                "files": {"url": "~/calendars"},
+                "plain": {"url": "https://plain.example.com/"},
+                "all": {"contains": ["*"]},
+            },
+        )
+        urls = [p["url"] for p in get_all_file_connection_params(config_file, "all")]
+        assert urls == ["https://dav.example.com/", "https://plain.example.com/"]
+
+    def test_pycal_path_is_searched_first(self, tmp_path):
+        from caldav.config import get_connection_params
+
+        home = tmp_path / "home" / ".config"
+        self._write(
+            home, {"default": {"caldav_url": "https://old.example.com/"}}, "caldav/calendar.conf"
+        )
+        self._write(
+            home, {"default": {"caldav_url": "https://new.example.com/"}}, "pycal/calendar.yaml"
+        )
+        assert get_connection_params()["url"] == "https://new.example.com/"
+
+    def test_jmap_url_does_not_hide_the_file(self, tmp_path, monkeypatch):
+        from caldav.config import get_all_file_connection_params, get_connection_params
+
+        config_file = self._write(tmp_path, {"default": {"caldav_url": "https://dav.example.com/"}})
+        monkeypatch.setenv("JMAP_URL", "https://jmap.example.com/")
+        assert get_connection_params(config_file=config_file)["url"] == "https://dav.example.com/"
+        assert get_all_file_connection_params(config_file, environment=True)[0]["url"] == (
+            "https://dav.example.com/"
+        )
+
+    def test_environment_secrets_without_the_file(self, monkeypatch):
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_PASSWORD_COMMAND", "pass show dav")
+        with pytest.raises(ValueError, match="must be a list"):
+            get_connection_params(check_config_file=False)
+
+    def test_headers_error_hides_the_value(self, monkeypatch):
+        from caldav.config import get_connection_params
+
+        monkeypatch.setenv("CALDAV_URL", "https://env.example.com/")
+        monkeypatch.setenv("CALDAV_HEADERS", "Authorization: Bearer s3cr3t")
+        with pytest.raises(ValueError) as e:
+            get_connection_params(check_config_file=False)
+        assert "s3cr3t" not in str(e.value)
+
+    def test_calendaring_variables_come_first(self, tmp_path, monkeypatch):
+        from caldav.config import get_connection_params
+
+        config_file = self._write(
+            tmp_path,
+            {
+                "a": {"caldav_url": "https://a.example.com/"},
+                "b": {"caldav_url": "https://b.example.com/"},
+            },
+        )
+        monkeypatch.setenv("CALDAV_CONFIG_FILE", config_file)
+        monkeypatch.setenv("CALDAV_CONFIG_SECTION", "a")
+        monkeypatch.setenv("CALENDARING_CONFIG_SECTION", "b")
+        assert get_connection_params()["url"] == "https://b.example.com/"
+
+    def test_extract_reads_the_new_format(self, tmp_path, caplog):
+        import sys
+
+        from caldav.config import extract_conn_params_from_section
+
+        config_file = self._write(tmp_path, {})
+        command = [sys.executable, "-c", "print('s3cr3t')"]
+        new = {"kind": "caldav", "url": "https://dav.example.com/", "password_command": command}
+        assert extract_conn_params_from_section(new, config_file) == {
+            "url": "https://dav.example.com/",
+            "password": "s3cr3t",
+        }
+        with pytest.raises(ValueError, match="file"):
+            extract_conn_params_from_section(new)
+        assert extract_conn_params_from_section({"kind": "jmap", "url": "x"}) is None
+        # plann passes its command line arguments too: no warnings about those
+        cli = {"caldav_url": "https://dav.example.com/", "caldav_proxy": None, "calendar_name": "W"}
+        with caplog.at_level("WARNING", logger="caldav"):
+            assert extract_conn_params_from_section({**cli, "debug": True}) == {
+                "url": "https://dav.example.com/"
+            }
+        assert not caplog.records
+        assert "features" in extract_conn_params_from_section({"features": "radicale"})
+
+    def test_test_servers_in_the_new_format(self, tmp_path):
+        import sys
+
+        from caldav.config import get_all_test_servers
+
+        command = [sys.executable, "-c", "print('s3cr3t')"]
+        config_file = self._write(
+            tmp_path,
+            {
+                "scratch": {
+                    "kind": "caldav",
+                    "url": "https://test.example.com/",
+                    "password_command": command,
+                    "test_allowed": True,
+                    "test_priority": 5,
+                }
+            },
+        )
+        params = get_all_test_servers(config_file)["scratch"]
+        assert params["url"] == "https://test.example.com/"
+        assert params["password"] == "s3cr3t"
+        assert params["test_priority"] == 5
 
 
 class TestResolveFeaturesMutation:

@@ -4,17 +4,23 @@ Config file format
 
 The :func:`caldav.davclient.get_davclient`, :func:`caldav.davclient.get_calendar`, and
 :func:`caldav.davclient.get_calendars` functions read connection parameters from a config
-file.  The file is searched in the following locations (first match wins):
+file.  The file is shared with other programs, such as plann and
+calendaring, and is read through the `calendaring-config
+<https://github.com/pycalendar/calendaring-config>`_ package, whose
+``docs/format.md`` is the full specification.  The file is searched in the
+following locations (the first that exists is used, even if it is empty):
 
+* ``$XDG_CONFIG_HOME/pycal/calendar.yaml`` (``$HOME/.config/pycal/calendar.yaml``)
 * ``$HOME/.config/caldav/calendar.conf``
 * ``$HOME/.config/caldav/calendar.yaml``
 * ``$HOME/.config/caldav/calendar.json``
 * ``$HOME/.config/calendar.conf``
-* ``/etc/caldav/calendar.conf``
 * ``/etc/calendar.conf``
+* ``/etc/caldav/calendar.conf``
 
 The config file must be valid JSON or YAML.  The path can also be given
-explicitly via the ``CALDAV_CONFIG_FILE`` environment variable.
+explicitly via the ``CALENDARING_CONFIG_FILE`` or ``CALDAV_CONFIG_FILE``
+environment variable; a file named this way must exist.
 
 Sections
 ========
@@ -26,8 +32,12 @@ wins):
 
 1. The ``config_section`` parameter passed to :func:`~caldav.davclient.get_davclient` /
    :func:`~caldav.davclient.get_calendars`.
-2. The ``CALDAV_CONFIG_SECTION`` environment variable.
+2. The ``CALENDARING_CONFIG_SECTION`` or ``CALDAV_CONFIG_SECTION``
+   environment variable.
 3. The ``default`` section.
+
+A section named this way that is missing or disabled is an error, except for
+an implicit ``default``.
 
 Connection parameters
 =====================
@@ -75,6 +85,23 @@ constructor can be given the same way, as long as it is listed in
 authentication object and can therefore only be passed from code, not from a
 config file.)
 
+A section may instead say ``kind: caldav`` and leave out the prefix.  Such a
+section can also describe the servers of other programs sharing the file
+(``kind: jmap``, a directory of ``.ics`` files); caldav skips those.  A
+section without ``kind`` and without ``caldav_`` keys is caldav's when its
+``url`` is ``http://`` or ``https://``.
+
+.. code-block:: yaml
+
+    work:
+        kind: caldav
+        url: https://caldav.example.com/
+        username: alice
+        password_command: [pass, show, dav/work]
+
+A key caldav does not know is logged as a warning and left out; see
+`Reserved keys`_ for the keys other programs may put in a section.
+
 The special ``features`` key (not prefixed with ``caldav_``) names a
 server-compatibility profile — e.g. ``xandikos``, ``radicale``, ``baikal``.
 See :mod:`caldav.compatibility_hints` for the full list of known profiles.
@@ -93,6 +120,23 @@ Values may reference environment variables using ``${VAR}`` or
         caldav_url: https://caldav.example.com/
         caldav_username: ${CALDAV_USER:-alice}
         caldav_password: ${CALDAV_PASSWORD}
+
+Passwords from a command or the keyring
+---------------------------------------
+
+Instead of ``password`` (or ``caldav_password``), a section may give
+``password_command``, a list of a program and its arguments whose output is
+the password, or ``password_keyring``, a service name to look up in the
+system keyring together with the username (this needs the ``keyring``
+package).  The command is run without a shell, and only when the file is not
+writable by group or others.
+
+.. code-block:: yaml
+
+    default:
+        caldav_url: https://caldav.example.com/
+        caldav_username: alice
+        caldav_password_command: [pass, show, dav/work]
 
 Calendar parameters
 ===================
@@ -171,8 +215,10 @@ aggregate calendars from all listed sections, including across multiple servers:
 Calling ``get_calendars(config_section="all")`` returns calendars from both
 servers.  Meta-sections are resolved recursively, so a meta-section may
 contain other meta-sections.  Circular references are detected and ignored.
+A listed name that matches no section is skipped with a warning.
 
-A section can also be disabled so it is skipped during expansion:
+A section can also be disabled so it is skipped during expansion; a disabled
+meta-section is skipped together with all its members:
 
 .. code-block:: yaml
 
@@ -208,18 +254,25 @@ be a glob or ``*``:
 ``get_calendars(config_section="work_*")`` and
 ``get_calendars(config_section="all_work")`` are therefore equivalent.
 ``get_calendars(config_section="*")`` returns calendars from every
-non-disabled section in the file.
+non-disabled section in the file that is not a meta-section.  A glob that
+matches no section is an error.
 
-Test servers
-============
+Reserved keys
+=============
 
-Keys starting with ``test_`` are reserved for test tooling, and are not passed
-on to the client.  With ``testconfig=True`` (or the
-``PYTHON_CALDAV_USE_TEST_SERVER`` environment variable), ``get_davclient()``
-only uses sections marked with ``test_allowed: true``, so a personal server is
-never used for testing by accident.  ``test_priority`` sets the order servers
-are tried in, lower first; the default is 30, while embedded servers come at 10
-and docker servers at 20.
+Some keys in a section are not caldav's, and caldav passes them by without
+a warning:
+
+* ``test_*`` is for test tooling;
+* ``x_*`` is for an application's own settings;
+* ``extra_config`` is plann's.
+
+With ``testconfig=True`` (or the ``PYTHON_CALDAV_USE_TEST_SERVER``
+environment variable), ``get_davclient()`` only uses sections marked with
+``test_allowed: true``, so a personal server is never used for testing by
+accident.  ``test_priority`` sets the order servers are tried in, lower
+first; the default is 30, while embedded servers come at 10 and docker
+servers at 20.
 
 .. code-block:: yaml
 
@@ -236,34 +289,29 @@ deprecated.
 Environment variables
 =====================
 
-Connection parameters can also be passed via environment variables without a
-config file.  The variables are mapped as follows:
+Every ``CALDAV_<KEY>`` environment variable is the key ``<key>`` of the
+section, as if written in the config file: ``CALDAV_PASSWORD`` is
+``password``, ``CALDAV_SSL_VERIFY_CERT`` is ``ssl_verify_cert``.
+``CALDAV_USER`` and ``CALDAV_PASS`` are short for ``CALDAV_USERNAME`` and
+``CALDAV_PASSWORD``.  Not keys are ``CALDAV_CONFIG_FILE`` and
+``CALDAV_CONFIG_SECTION``, which choose the file and the section, and
+``CALDAV_AUTH``, since ``auth`` takes an object.
 
-.. list-table::
-   :header-rows: 1
+* With ``CALDAV_URL`` set, the config file is not read at all: the
+  connection is the one the variables describe.
+* Otherwise, when the section is a single section, the variables override
+  its keys one by one: ``CALDAV_PASSWORD`` alone keeps the URL from the
+  file, and replaces a ``password_command`` there, which is then not run.
+* When the section expands to several sections, the variables without a URL
+  are not applied.
 
-   * - Environment variable
-     - Parameter
-   * - ``CALDAV_URL``
-     - ``url``
-   * - ``CALDAV_USERNAME`` or ``CALDAV_USER``
-     - ``username``
-   * - ``CALDAV_PASSWORD`` or ``CALDAV_PASS``
-     - ``password``
-   * - ``CALDAV_AUTH_TYPE``
-     - ``auth_type``
-   * - ``CALDAV_CONFIG_FILE``
-     - Path to config file
-   * - ``CALDAV_CONFIG_SECTION``
-     - Section name (may be a glob)
-
-``CALDAV_`` followed by the upper-cased name of any other connection
-parameter works as well.  Beware that environment variables are always
-strings and are not converted, so the boolean-ish parameters
-(``ssl_verify_cert``, ``huge_tree``, ``enable_rfc6764``, ``require_tls``)
-cannot be turned off this way — ``CALDAV_REQUIRE_TLS=false`` sets the
-parameter to the non-empty, hence true, string ``"false"``.  Use the config
-file or a keyword argument for those.
+Environment variables are strings, and caldav converts them:
+``true``/``yes``/``on``/``1`` and ``false``/``no``/``off``/``0`` become
+booleans for ``ssl_verify_cert``, ``huge_tree``, ``enable_rfc6764`` and
+``require_tls`` (``ssl_verify_cert`` may also be the path of a CA bundle),
+``CALDAV_HEADERS`` is a JSON object, ``CALDAV_TIMEOUT`` a number, and
+``CALDAV_FEATURES`` names a compatibility profile.  As in the file, a key
+caldav does not know is logged as a warning.
 
 Examples
 ========

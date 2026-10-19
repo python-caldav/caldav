@@ -85,6 +85,7 @@ dependencies = [
   "dnspython",
   "python-dateutil",
   "PyYAML",
+  "calendaring-config>=0.3", ## reads the config file, see issue 786
 ]
 dynamic = ["version"]
 
