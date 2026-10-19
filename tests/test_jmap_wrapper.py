@@ -48,8 +48,10 @@ class TestDeprecationWarning:
                     with warnings.catch_warnings(record=True) as caught:
                         warnings.simplefilter("always")
                         import caldav.jmap
+                    # Only the deprecation counts: a source checkout without a
+                    # generated _version.py adds a version UserWarning.
+                    caught = [w for w in caught if issubclass(w.category, DeprecationWarning)]
                     assert len(caught) == 1, caught
-                    assert issubclass(caught[0].category, DeprecationWarning)
                     assert "caldav.jmap is deprecated" in str(caught[0].message)
                     print("ok")
                     """
