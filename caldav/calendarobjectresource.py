@@ -54,6 +54,8 @@ log = logging.getLogger("caldav")
 ## Which tag save() and delete(if_match=True) send as precondition.
 ## https://github.com/python-caldav/caldav/issues/762
 Precondition = Literal["auto", "etag"]
+## The "*" header save(no_overwrite=True) or save(no_create=True) sends
+Wildcard = Literal["if-none-match", "if-match"]
 
 
 def _quote_uid(uid: str, features: Any = None) -> str:
@@ -1140,28 +1142,36 @@ class CalendarObjectResource(DAVObject):
         self.url = URL.objectify(path)
 
     def _put(
-        self, retry_on_failure=True, precondition: Precondition = "auto"
+        self,
+        retry_on_failure=True,
+        precondition: Precondition = "auto",
+        wildcard: Wildcard | None = None,
     ) -> "None | Coroutine[Any, Any, None]":
         ## TODO: quite much overlapping with _async_put, should consolidate
         ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
-        ## SECURITY TODO: we should probably have a check here to verify that no such object exists already
-        headers = self._precondition_headers(precondition) | ICALH
+        headers = self._put_headers(precondition, wildcard)
         if self.is_async_client:
-            return self._async_put(headers, retry_on_failure, precondition)
+            return self._async_put(headers, retry_on_failure, precondition, wildcard)
         try:
             r = self.client.put(self.url, self.data, headers)
         except error.AuthorizationError as e:
-            self._raise_uid_conflict(e)
+            self._raise_uid_conflict(e, wildcard is not None)
             raise
-        return self._post_put(r, retry_on_failure, precondition)
+        return self._post_put(r, retry_on_failure, precondition, wildcard)
 
-    async def _async_put(self, headers, retry_on_failure=True, precondition: Precondition = "auto"):
+    async def _async_put(
+        self,
+        headers,
+        retry_on_failure=True,
+        precondition: Precondition = "auto",
+        wildcard: Wildcard | None = None,
+    ):
         try:
             r = await self.client.put(str(self.url), str(self.data), headers | ICALH)
         except error.AuthorizationError as e:
-            self._raise_uid_conflict(e)
+            self._raise_uid_conflict(e, wildcard is not None)
             raise
-        result = self._post_put(r, retry_on_failure, precondition)
+        result = self._post_put(r, retry_on_failure, precondition, wildcard)
         if result is not None:
             # _post_put returned a retry coroutine (self._put(False) for async client)
             await result
@@ -1193,6 +1203,19 @@ class CalendarObjectResource(DAVObject):
             self.props[cdav.ScheduleTag.tag] = headers["Schedule-Tag"]
         else:
             self.props.pop(cdav.ScheduleTag.tag, None)
+
+    def _put_headers(self, precondition: Precondition, wildcard: Wildcard | None) -> dict[str, str]:
+        """Headers for the PUT of a save().
+
+        With a ``wildcard`` (see ``_save_plan()``) only that header is
+        sent, with the value ``*``.  For ``If-None-Match: *``
+        (``save(no_overwrite=True)``, RFC 9110 section 13.1.2) an
+        If-Match for a cached version would contradict it; ``If-Match: *``
+        (``no_create``, section 13.1.1) is only planned where no version
+        is cached."""
+        if wildcard:
+            return {wildcard: "*"} | ICALH
+        return self._precondition_headers(precondition) | ICALH
 
     @staticmethod
     def _check_precondition(precondition: Precondition) -> None:
@@ -1271,25 +1294,38 @@ class CalendarObjectResource(DAVObject):
         return self._delete(headers)
 
     @staticmethod
-    def _raise_uid_conflict(e: error.DAVError) -> None:
+    def _raise_uid_conflict(e: error.DAVError, consistency: bool = False) -> None:
         """Raise UidConflictError if ``e`` names a UID precondition.
 
         Where ``e`` is what earlier versions raised (AuthorizationError for
         Cyrus' 403, which the client raises before ``_post_put`` sees it, or
         an ETag/Schedule-Tag mismatch), the UidConflictError is that too,
-        so existing handlers keep catching it (issue #756)."""
+        so existing handlers keep catching it (issue #756).  With
+        ``consistency`` - a ``save(no_overwrite=True)`` or
+        ``save(no_create=True)`` that sent a wildcard instead of searching
+        for the UID - it is a ConsistencyError, which is what the search
+        raised."""
         if error.UID_CONFLICT_PRECONDITIONS.intersection(e.preconditions):
-            cls = error.UID_CONFLICT_ERRORS.get(type(e), error.UidConflictError)
+            if consistency:
+                cls = error.UID_CONFLICT_CONSISTENCY_ERRORS.get(
+                    type(e), error.UidConflictConsistencyError
+                )
+            else:
+                cls = error.UID_CONFLICT_ERRORS.get(type(e), error.UidConflictError)
             raise cls(e.url, e.reason, preconditions=e.preconditions, body=e.body) from e
 
     def _post_put(
-        self, r, retry_on_failure, precondition: Precondition = "auto"
+        self,
+        r,
+        retry_on_failure,
+        precondition: Precondition = "auto",
+        wildcard: Wildcard | None = None,
     ) -> "None | Coroutine[Any, Any, None]":
         if r.status >= 400:
             ## The UID is taken (RFC 4791 section 5.3.2.1): not something a
             ## retry would fix (issue #756).  A 412 on a conditional save
             ## used to raise the mismatch error, so it still is one.
-            headers = self._precondition_headers(precondition)
+            headers = {} if wildcard else self._precondition_headers(precondition)
             cls = error.PutError
             if r.status == 412 and headers:
                 cls = (
@@ -1297,7 +1333,22 @@ class CalendarObjectResource(DAVObject):
                     if "if-schedule-tag-match" in headers
                     else error.ETagMismatchError
                 )
-            self._raise_uid_conflict(error.error_from_response(cls, r))
+            self._raise_uid_conflict(error.error_from_response(cls, r), wildcard is not None)
+        if r.status == 412 and wildcard == "if-none-match":
+            ## If-None-Match: * failed - there is an object at this URL
+            raise error.error_from_response(
+                error.ConsistencyError,
+                r,
+                f"no_overwrite flag was set, but object already exists at {self.url} "
+                f"({error.errmsg(r)})",
+            )
+        if r.status == 412 and wildcard == "if-match":
+            ## If-Match: * failed - there is no object at this URL
+            raise error.error_from_response(
+                error.ConsistencyError,
+                r,
+                f"no_create flag was set, but there is no object at {self.url} ({error.errmsg(r)})",
+            )
         if r.status == 412:
             headers = self._precondition_headers(precondition)
             if headers:
@@ -1305,7 +1356,12 @@ class CalendarObjectResource(DAVObject):
             raise error.error_from_response(error.PutError, r)
         elif r.status == 302:
             self.url = URL.objectify(r.headers.get("location"))
-        elif r.status not in (204, 201):
+        elif r.status not in (200, 201, 204):
+            ## No retry with a wildcard: an object this very PUT may have
+            ## stored (a 5xx after writing) would refuse If-None-Match: *,
+            ## and the failure is reported as it was for If-Match: * too.
+            if wildcard:
+                retry_on_failure = False
             if retry_on_failure:
                 try:
                     import vobject  # noqa: F401
@@ -1315,27 +1371,35 @@ class CalendarObjectResource(DAVObject):
                 ## Accessing vobject_instance may "clean" the object.
                 ## See https://github.com/python-caldav/caldav/issues/43
                 self.get_vobject_instance()
-                return self._put(False, precondition)
+                return self._put(False, precondition, wildcard)
             else:
                 raise error.error_from_response(error.PutError, r)
         self._update_tag_props(r)
         return None
 
     def _create(
-        self, id=None, path=None, retry_on_failure=True, precondition: Precondition = "auto"
+        self,
+        id=None,
+        path=None,
+        retry_on_failure=True,
+        precondition: Precondition = "auto",
+        wildcard: Wildcard | None = None,
     ) -> "None | Coroutine[Any, Any, None]":
         ## TODO: Find a better method name
         self._find_id_path(id=id, path=path)
         if self.is_async_client:
-            return self._async_create(retry_on_failure, precondition)
-        self._put(retry_on_failure, precondition)
+            return self._async_create(retry_on_failure, precondition, wildcard)
+        self._put(retry_on_failure, precondition, wildcard)
         return None
 
     async def _async_create(
-        self, retry_on_failure=True, precondition: Precondition = "auto"
+        self,
+        retry_on_failure=True,
+        precondition: Precondition = "auto",
+        wildcard: Wildcard | None = None,
     ) -> None:
         """Async implementation of _create."""
-        await self._put(retry_on_failure, precondition)
+        await self._put(retry_on_failure, precondition, wildcard)
 
     def _generate_url(self):
         ## See https://github.com/python-caldav/caldav/issues/143 for the rationale behind double-quoting slashes
@@ -1465,7 +1529,11 @@ class CalendarObjectResource(DAVObject):
         """Save the object, can be used for creation and update.
 
         no_overwrite and no_create will check if the object exists.
-        Those two are mutually exclusive.  Some servers don't support
+        Those two are mutually exclusive.  Where the server handles it,
+        the PUT carries ``If-None-Match: *`` or ``If-Match: *`` so the
+        server enforces the flag in the same request, otherwise the UID
+        is searched for first; either way a violation raises
+        ``ConsistencyError``.  Some servers don't support
         searching for an object uid without explicitly specifying what
         kind of object it should be, hence obj_type can be passed.
         obj_type is only used in conjunction with no_overwrite and
@@ -1525,9 +1593,6 @@ class CalendarObjectResource(DAVObject):
 
         """
 
-        # TODO: the overwrite/no-overwrite logic can be handled server-side for
-        # servers that adheres to the RFC: "If-Match: *" and "If-None-Match: *"
-
         ## Checked before anything is sent
         self._check_precondition(precondition)
 
@@ -1569,7 +1634,10 @@ class CalendarObjectResource(DAVObject):
                     return None
             return None
 
-        if no_overwrite or no_create:
+        wildcard, search = self._save_plan(
+            no_overwrite, no_create, only_this_recurrence, all_recurrences, precondition
+        )
+        if search:
             uid = self.id or self.icalendar_component.get("uid")
             existing = get_self()
             self._validate_save_constraints(existing, uid, no_overwrite, no_create)
@@ -1606,8 +1674,70 @@ class CalendarObjectResource(DAVObject):
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
-        self._create(id=self.id, path=path, precondition=precondition)
+        self._create(id=self.id, path=path, precondition=precondition, wildcard=wildcard)
         return self
+
+    def _save_plan(
+        self,
+        no_overwrite: bool,
+        no_create: bool,
+        only_this_recurrence: bool | None,
+        all_recurrences: bool,
+        precondition: Precondition,
+    ) -> tuple[Wildcard | None, bool]:
+        """How save() enforces no_overwrite and no_create.
+
+        Returns (the header to send with the value ``*``, if any; whether
+        to search for the UID first).
+
+        A wildcard precondition makes the server enforce the flag in the
+        same request as the PUT, so there is no window between a check
+        and the write.  It is only sent where the server is not known to
+        get it wrong.  A recurrence instance is merged into its master,
+        which another save() then PUTs, so it always searches.
+
+        no_overwrite: If-None-Match: * (RFC 9110 section 13.1.2), unless
+        save.if-none-match says the server overwrites anyway.  It only
+        guards the URL: the search also finds the same UID under another
+        resource name, so it is left out only where the server is known
+        to refuse that (save.no-uid-conflict).
+
+        no_create: If-Match: * (section 13.1.1), unless
+        save-load.mutable.if-match-wildcard says the server gets it
+        wrong.  It replaces the search.  Not where a strong ETag or a
+        Schedule-Tag is cached: that precondition is sent as before
+        (stricter than ``*``, and two If-Match headers cannot be sent),
+        and the search is kept, since a 412 to it cannot tell a deleted
+        object (ConsistencyError) from a changed one (ETagMismatchError).
+
+        Both flags at once cannot hold; the search refuses either way.
+        """
+        if not (no_overwrite or no_create):
+            return None, False
+        if no_overwrite and no_create:
+            return None, True
+        features = self.client.features if self.client is not None else None
+
+        def supported(feature: str) -> bool:
+            return features is not None and features.is_supported(feature)
+
+        merges_recurrence = bool(
+            (only_this_recurrence is not False or all_recurrences)
+            and "RECURRENCE-ID" in self.icalendar_component
+        )
+        if no_overwrite:
+            if not (features is None or supported("save.if-none-match")):
+                return None, True
+            return "if-none-match", merges_recurrence or not supported("save.no-uid-conflict")
+        if self._precondition_headers(precondition) or not (
+            features is None or supported("save-load.mutable.if-match-wildcard")
+        ):
+            return None, True
+        if not (self.id or self.icalendar_component.get("uid")):
+            from caldav.lib import error
+
+            raise error.ConsistencyError("no_create flag was set, but no ID given")
+        return "if-match", merges_recurrence
 
     def _validate_save_constraints(self, existing, uid, no_overwrite, no_create):
         """Raise ConsistencyError if no_overwrite/no_create constraints are violated."""
@@ -1731,7 +1861,10 @@ class CalendarObjectResource(DAVObject):
                     return None
             return None
 
-        if no_overwrite or no_create:
+        wildcard, search = self._save_plan(
+            no_overwrite, no_create, only_this_recurrence, all_recurrences, precondition
+        )
+        if search:
             uid = self.id or self.icalendar_component.get("uid")
             existing = await get_self()
             self._validate_save_constraints(existing, uid, no_overwrite, no_create)
@@ -1762,7 +1895,7 @@ class CalendarObjectResource(DAVObject):
 
         self._maybe_increment_sequence(increase_seqno)
         path = self.url.path if self.url else None
-        await self._create(id=self.id, path=path, precondition=precondition)
+        await self._create(id=self.id, path=path, precondition=precondition, wildcard=wildcard)
         return self
 
     def is_loaded(self):

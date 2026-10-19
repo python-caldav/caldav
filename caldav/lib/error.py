@@ -280,11 +280,25 @@ class UidConflictAuthorizationError(UidConflictError, AuthorizationError):
     """A 403 UID conflict (Cyrus)."""
 
 
+class UidConflictConsistencyError(UidConflictError, ConsistencyError):
+    """A UID conflict on ``save(no_overwrite=True)`` or
+    ``save(no_create=True)``.  Their UID search, which may now be left to
+    the server, raised ConsistencyError for this."""
+
+
+class UidConflictConsistencyAuthorizationError(UidConflictConsistencyError, AuthorizationError):
+    """A 403 UID conflict (Cyrus) where a ConsistencyError is expected."""
+
+
 ## The UidConflictError to raise in place of what earlier versions raised
 UID_CONFLICT_ERRORS: dict[type[DAVError], type[UidConflictError]] = {
     AuthorizationError: UidConflictAuthorizationError,
     ETagMismatchError: UidConflictETagMismatchError,
     ScheduleTagMismatchError: UidConflictScheduleTagMismatchError,
+}
+## The same, where a ConsistencyError is expected too
+UID_CONFLICT_CONSISTENCY_ERRORS: dict[type[DAVError], type[UidConflictConsistencyError]] = {
+    AuthorizationError: UidConflictConsistencyAuthorizationError,
 }
 
 

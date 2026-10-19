@@ -2435,6 +2435,26 @@ END:VCALENDAR"""
         with pytest.raises(error.ConsistencyError):
             loaded.save(no_overwrite=True)
 
+    def testNoOverwriteSameUidOtherUrl(self):
+        """
+        save(no_overwrite=True) refuses an object whose UID is already in
+        the calendar under another resource name, not only one at the
+        same URL.  Where save.no-uid-conflict is full the library leaves
+        that to the server (CALDAV:no-uid-conflict, RFC 4791 section
+        5.3.2.1) and skips its own UID search.
+        """
+        self.skip_unless_support("save-load.event")
+        c = self._fixCalendar()
+        ev1_now = near_now_ics(ev1)
+        c.add_event(ev1_now)
+        other = Event(client=self.caldav, parent=c, data=ev1_now, url=c.url.join("other-name.ics"))
+        with pytest.raises(error.ConsistencyError) as exc_info:
+            other.save(no_overwrite=True)
+        if self.is_supported("save.no-uid-conflict") and self.is_supported("save.if-none-match"):
+            ## refused by the server, not by the library's UID search
+            assert isinstance(exc_info.value, error.UidConflictError)
+        assert len(c.get_events()) == 1
+
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.
