@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import unquote
 
 from caldav import __version__, config
-from caldav.base_client import BaseDAVClient
+from caldav.base_client import BaseDAVClient, _auto_url
 from caldav.base_client import get_calendars as _base_get_calendars
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.collection import Calendar, Principal
@@ -81,76 +81,6 @@ environmental variables, a configuration file or test configuration.
 # Import CONNKEYS from config to avoid duplication
 
 from caldav.config import resolve_features as _resolve_features
-
-
-def _auto_url(
-    url,
-    features,
-    timeout=10,
-    ssl_verify_cert=True,
-    enable_rfc6764=True,
-    username=None,
-    require_tls=True,
-):
-    """
-    Auto-construct URL from domain and features, with optional RFC6764 discovery.
-
-    Args:
-        url: User-provided URL, domain, or email address
-        features: FeatureSet object or dict
-        timeout: Timeout for RFC6764 well-known URI lookups
-        ssl_verify_cert: SSL verification setting
-        enable_rfc6764: Whether to attempt RFC6764 discovery
-        username: Username to use for discovery if URL is not provided
-        require_tls: Only accept TLS connections during discovery (default: True)
-
-    Returns:
-        A tuple of (url_string, discovered_username_or_None)
-        The discovered_username will be extracted from email addresses like user@example.com
-    """
-    if isinstance(features, dict):
-        features = FeatureSet(features)
-
-    # If URL already has a path component, don't do discovery
-    if url and "/" in str(url):
-        return (url, None)
-
-    # If no URL provided but username contains @, use username for discovery
-    if not url and username and "@" in str(username) and enable_rfc6764:
-        log.debug(f"No URL provided, using username for RFC6764 discovery: {username}")
-        url = username
-
-    # Try RFC6764 discovery first if enabled and we have a bare domain/email
-    if enable_rfc6764 and url:
-        from caldav.discovery import DiscoveryError, discover_caldav
-
-        try:
-            service_info = discover_caldav(
-                identifier=url,
-                timeout=timeout,
-                ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
-                require_tls=require_tls,
-            )
-            if service_info:
-                log.info(
-                    f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
-                )
-                if service_info.username:
-                    log.debug(f"Username discovered from email: {service_info.username}")
-                return (service_info.url, service_info.username)
-        except DiscoveryError as e:
-            log.debug(f"RFC6764 discovery failed: {e}")
-        except Exception as e:
-            log.debug(f"RFC6764 discovery error: {e}")
-
-    # Fall back to feature-based URL construction
-    url_hints = features.is_supported("auto-connect.url", dict)
-    # If URL is still empty or looks like an email (from failed discovery attempt),
-    # replace it with the domain from hints
-    if (not url or (url and "@" in str(url))) and "domain" in url_hints:
-        url = url_hints["domain"]
-    url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
-    return (url, None)
 
 
 class DAVClient(BaseDAVClient):

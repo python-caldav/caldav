@@ -7,6 +7,7 @@ functionality for both sync (DAVClient) and async (AsyncDAVClient) clients.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
@@ -81,6 +82,83 @@ def _raise_unless_propfind_ok(response: Any) -> None:
         raise error.error_from_response(error.NotFoundError, response)
     if not 200 <= response.status < 300:
         raise error.error_from_response(error.PropfindError, response)
+
+
+def _auto_url(
+    url,
+    features,
+    timeout=10,
+    ssl_verify_cert=True,
+    enable_rfc6764=True,
+    username=None,
+    require_tls=True,
+):
+    """
+    Auto-construct URL from domain and features, with optional RFC6764 discovery.
+
+    Args:
+        url: User-provided URL, domain, or email address
+        features: FeatureSet object or dict
+        timeout: Timeout for RFC6764 well-known URI lookups
+        ssl_verify_cert: SSL verification setting
+        enable_rfc6764: Whether to attempt RFC6764 discovery
+        username: Username to use for discovery if URL is not provided
+        require_tls: Only accept TLS connections during discovery (default: True)
+
+    Returns:
+        A tuple of (url_string, discovered_username_or_None)
+        The discovered_username will be extracted from email addresses like user@example.com
+    """
+    if isinstance(features, dict):
+        from caldav.compatibility_hints import FeatureSet
+
+        features = FeatureSet(features)
+
+    # If URL already has a path component, don't do discovery
+    if url and "/" in str(url):
+        return (url, None)
+
+    # If no URL provided but username contains @, use username for discovery
+    if not url and username and "@" in str(username) and enable_rfc6764:
+        log.debug(f"No URL provided, using username for RFC6764 discovery: {username}")
+        url = username
+
+    # Try RFC6764 discovery first if enabled and we have a bare domain/email
+    if enable_rfc6764 and url:
+        ## caldav.discovery needs the sync HTTP library, which an
+        ## httpx-only install lacks.  Fall back as on a failed discovery.
+        try:
+            from caldav.discovery import DiscoveryError, discover_caldav
+        except ImportError:
+            log.warning("RFC6764 discovery needs niquests or requests; skipping it")
+        else:
+            try:
+                service_info = discover_caldav(
+                    identifier=url,
+                    timeout=timeout,
+                    ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
+                    require_tls=require_tls,
+                )
+                if service_info:
+                    log.info(
+                        f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
+                    )
+                    if service_info.username:
+                        log.debug(f"Username discovered from email: {service_info.username}")
+                    return (service_info.url, service_info.username)
+            except DiscoveryError as e:
+                log.debug(f"RFC6764 discovery failed: {e}")
+            except Exception as e:
+                log.debug(f"RFC6764 discovery error: {e}")
+
+    # Fall back to feature-based URL construction
+    url_hints = features.is_supported("auto-connect.url", dict)
+    # If URL is still empty or looks like an email (from failed discovery attempt),
+    # replace it with the domain from hints
+    if (not url or (url and "@" in str(url))) and "domain" in url_hints:
+        url = url_hints["domain"]
+    url = f"{url_hints.get('scheme', 'https')}://{url}{url_hints.get('basepath', '')}"
+    return (url, None)
 
 
 class BaseDAVClient(ABC):
@@ -1061,6 +1139,55 @@ def get_calendars(
             for cal in cals:
                 print(cal.get_display_name())
     """
+    targets = _get_calendars_targets(
+        client_class,
+        calendar_url=calendar_url,
+        calendar_name=calendar_name,
+        check_config_file=check_config_file,
+        config_file=config_file,
+        config_section=config_section,
+        testconfig=testconfig,
+        environment=environment,
+        name=name,
+        raise_errors=raise_errors,
+        **config_data,
+    )
+    clients = [t[0] for t in targets]
+    calendars: list = []
+    try:
+        for client, eff_cal_url, eff_cal_name in targets:
+            calendars.extend(
+                _fetch_calendars_for_client(client, eff_cal_url, eff_cal_name, raise_errors)
+            )
+    except Exception:
+        for client in clients:
+            with contextlib.suppress(Exception):
+                client.close()
+        raise
+    return CalendarCollection(calendars, clients=clients)
+
+
+def _get_calendars_targets(
+    client_class: type,
+    calendar_url: Any | None = None,
+    calendar_name: Any | None = None,
+    check_config_file: bool = True,
+    config_file: str | None = None,
+    config_section: str | None = None,
+    testconfig: bool = False,
+    environment: bool = True,
+    name: str | None = None,
+    raise_errors: bool = False,
+    **config_data,
+) -> list[tuple[Any, Any, Any]]:
+    """
+    Resolve the configuration of :func:`get_calendars` into
+    ``(client, calendar_url, calendar_name)`` triples, one per server.
+
+    Shared by the sync and the async ``get_calendars()``.  It does
+    blocking I/O (config file, RFC 6764 discovery), so the async caller
+    runs it in a thread.
+    """
     from caldav import config as _config
 
     # ── Priority 1-3: explicit params / test mode / env vars ──────────────
@@ -1078,14 +1205,13 @@ def get_calendars(
     )
 
     if client is not None:
-        calendars = _fetch_calendars_for_client(client, calendar_url, calendar_name, raise_errors)
-        return CalendarCollection(calendars, client=client)
+        return [(client, calendar_url, calendar_name)]
 
     # ── Priority 4: config file (may expand to multiple sections) ─────────
     if not check_config_file:
         if raise_errors:
             raise ValueError("Could not create DAV client - no configuration found")
-        return CalendarCollection()
+        return []
 
     # Resolve config_file path from env if not given (mirrors get_connection_params)
     resolved_config_file = config_file
@@ -1105,13 +1231,11 @@ def get_calendars(
     if not all_params:
         if raise_errors:
             raise ValueError("Could not create DAV client - no configuration found")
-        return CalendarCollection()
+        return []
 
     from caldav.config import CONNKEYS
 
-    all_calendars: list = []
-    all_clients: list = []
-
+    targets: list[tuple[Any, Any, Any]] = []
     for params in all_params:
         # Per-section calendar filters — function-level args override them
         sec_cal_url = params.pop("calendar_url", None)
@@ -1120,12 +1244,9 @@ def get_calendars(
         eff_cal_name = calendar_name if calendar_name is not None else sec_cal_name
 
         conn_params = {k: v for k, v in params.items() if k in CONNKEYS}
-        c = client_class(**conn_params)
-        section_cals = _fetch_calendars_for_client(c, eff_cal_url, eff_cal_name, raise_errors)
-        all_calendars.extend(section_cals)
-        all_clients.append(c)
+        targets.append((client_class(**conn_params), eff_cal_url, eff_cal_name))
 
-    return CalendarCollection(all_calendars, clients=all_clients)
+    return targets
 
 
 def get_davclient(

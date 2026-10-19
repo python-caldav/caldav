@@ -253,6 +253,36 @@ class TestAsyncOnlyInstall:
             + (result.stderr or result.stdout)
         )
 
+    def test_constructing_a_client_works(self) -> None:
+        ## https://github.com/python-caldav/caldav/issues/794
+        code = textwrap.dedent(
+            """
+            import sys
+
+            class Blocker:
+                def find_spec(self, fullname, path=None, target=None):
+                    if fullname.split(".")[0] in ("niquests", "requests"):
+                        raise ImportError("blocked by the test: " + fullname)
+                    return None
+
+            sys.meta_path.insert(0, Blocker())
+            from caldav.async_davclient import AsyncDAVClient
+            client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+            assert str(client.url) == "https://caldav.example.com/dav/"
+            ## A bare domain needs RFC 6764 discovery, which uses the sync
+            ## HTTP library; without it the client falls back to the
+            ## feature-based URL rather than failing.
+            client = AsyncDAVClient(url="caldav.example.com")
+            assert "caldav.example.com" in str(client.url)
+            print("ok")
+            """
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert result.returncode == 0, (
+            "an httpx-only install must be able to create a client:\n"
+            + (result.stderr or result.stdout)
+        )
+
 
 @needs_sync_library
 class TestBackwardCompatibleReExports:

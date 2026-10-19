@@ -235,6 +235,9 @@ class XandikosServer(EmbeddedServer):
             self.thread.join(timeout=5)
             self.thread = None
 
+        if self.xapp_loop and not self.xapp_loop.is_running():
+            self.xapp_loop.close()
+
         if self.serverdir:
             self.serverdir.__exit__(None, None, None)
             self.serverdir = None
@@ -310,6 +313,7 @@ class RadicaleServer(EmbeddedServer):
         configuration = radicale.config.load("")
         configuration.update(
             {
+                "server": {"hosts": f"{self.host}:{self.port}"},
                 "storage": {"filesystem_folder": self.serverdir.name},
                 "auth": {"type": "none"},
             }
@@ -339,11 +343,14 @@ class RadicaleServer(EmbeddedServer):
         if self.shutdown_socket:
             self.shutdown_socket.close()
             self.shutdown_socket = None
-            self.shutdown_socket_out = None
 
         if self.thread:
             self.thread.join(timeout=5)
             self.thread = None
+
+        if self.shutdown_socket_out:
+            self.shutdown_socket_out.close()
+            self.shutdown_socket_out = None
 
         if self.serverdir:
             self.serverdir.__exit__(None, None, None)

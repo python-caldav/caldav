@@ -6,11 +6,19 @@ with get_davclient() support.
 """
 
 import os
+import socket
 from contextlib import contextmanager
 
 from caldav import DAVClient
 
 from .registry import get_registry
+
+
+def free_port() -> int:
+    """A TCP port on localhost that was free a moment ago."""
+    with socket.socket() as s:
+        s.bind(("localhost", 0))
+        return s.getsockname()[1]
 
 
 @contextmanager
