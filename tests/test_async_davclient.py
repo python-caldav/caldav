@@ -698,12 +698,11 @@ class TestGetDAVClient:
             assert client.password == "parampass"
 
     @pytest.mark.asyncio
+    @pytest.mark.usefixtures("no_config_files")
     async def test_get_davclient_missing_url(self) -> None:
         """Test that get_davclient raises error without URL."""
-        # Clear any env vars that might be set
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="No configuration found"):
-                await get_davclient(username="user", password="pass", probe=False)
+        with pytest.raises(ValueError, match="No configuration found"):
+            await get_davclient(username="user", password="pass", probe=False)
 
     @pytest.mark.asyncio
     async def test_get_davclient_probe_failure(self) -> None:

@@ -4856,14 +4856,8 @@ class TestSharedConfigFormat:
     """The config file is read through calendaring-config (issue 786)."""
 
     @pytest.fixture(autouse=True)
-    def _clean_env(self, monkeypatch, tmp_path):
-        import os
-
-        for name in list(os.environ):
-            if name.startswith(("CALDAV_", "JMAP_", "CALENDARING_")):
-                monkeypatch.delenv(name)
-        monkeypatch.setenv("HOME", str(tmp_path / "home"))
-        monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    def _clean_env(self, no_config_files):
+        pass
 
     def _write(self, tmp_path, config, name="calendar.conf"):
         import json
