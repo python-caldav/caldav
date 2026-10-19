@@ -635,6 +635,30 @@ class TestGetDAVClient:
         assert isinstance(client, AsyncDAVClient)
 
     @pytest.mark.asyncio
+    async def test_get_davclient_discovers_off_the_event_loop(self) -> None:
+        """RFC 6764 discovery does blocking DNS and HTTP, so it must not run
+        on the event loop's thread, ref
+        https://github.com/python-caldav/caldav/issues/794"""
+        import threading
+
+        from caldav.discovery import DiscoveryError
+
+        threads = []
+
+        def fake_discover(**kwargs):
+            threads.append(threading.current_thread())
+            raise DiscoveryError("no discovery in unit tests")
+
+        with patch("caldav.discovery.discover_caldav", fake_discover):
+            client = await get_davclient(
+                url="caldav.example.com", username="user", password="pass", probe=False
+            )
+
+        assert threads and threads[0] is not threading.current_thread()
+        assert client.url.hostname == "caldav.example.com"
+        await client.close()
+
+    @pytest.mark.asyncio
     async def test_get_davclient_env_vars(self) -> None:
         """Test get_davclient with environment variables."""
         with patch.dict(

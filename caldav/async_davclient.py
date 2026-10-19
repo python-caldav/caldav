@@ -7,6 +7,7 @@ For sync usage, see the davclient.py wrapper.
 """
 
 import asyncio
+import contextlib
 import importlib
 import inspect
 import logging
@@ -96,7 +97,7 @@ if not _USE_HTTPX and not _USE_NIQUESTS:
     raise ImportError(_NO_ASYNC_LIBRARY_ERROR)
 
 from caldav import __version__
-from caldav.base_client import BaseDAVClient
+from caldav.base_client import BaseDAVClient, _auto_url
 from caldav.base_client import get_davclient as _base_get_davclient
 from caldav.compatibility_hints import FeatureSet, at_spellings_are_aliased
 from caldav.lib import error
@@ -153,6 +154,8 @@ class AsyncDAVClient(BaseDAVClient):
 
         Args:
             url: CalDAV server URL, domain, or email address.
+                A domain or email address triggers RFC 6764 discovery, which
+                blocks; use :func:`get_davclient` to run it outside the event loop.
             proxy: Proxy server (e.g. http://proxy.example.com:8080).
             username: Username for authentication.
             password: Password for authentication.
@@ -214,8 +217,6 @@ class AsyncDAVClient(BaseDAVClient):
         self._create_session()
 
         # Auto-construct URL if needed (RFC6764 discovery, etc.)
-        from caldav.davclient import _auto_url
-
         url_str, discovered_username = _auto_url(
             url,
             self.features,
@@ -1208,7 +1209,11 @@ async def get_davclient(probe: bool = True, **kwargs: Any) -> AsyncDAVClient:
         async with await get_davclient(url="...", username="...", password="...") as client:
             principal = await client.principal()
     """
-    client = _base_get_davclient(AsyncDAVClient, **kwargs)
+    ## Reading the config file and RFC 6764 discovery (done by the client
+    ## constructor for a bare domain or e-mail address) are blocking, so the
+    ## client is created in a thread, ref
+    ## https://github.com/python-caldav/caldav/issues/794
+    client = await asyncio.to_thread(_base_get_davclient, AsyncDAVClient, **kwargs)
 
     if client is None:
         raise ValueError(
@@ -1261,11 +1266,51 @@ async def get_calendars(
                 for cal in calendars:
                     print(await cal.get_display_name())
     """
-    from caldav.base_client import (
-        CalendarCollection,
-        _normalize_to_list,
-        _warn_unreadable_display_name,
-    )
+    from caldav.base_client import CalendarCollection, _get_calendars_targets
+
+    ## Reading the config file and RFC 6764 discovery are blocking, so the
+    ## clients are resolved in a thread, ref
+    ## https://github.com/python-caldav/caldav/issues/794
+    try:
+        targets = await asyncio.to_thread(
+            _get_calendars_targets,
+            AsyncDAVClient,
+            calendar_url=calendar_url,
+            calendar_name=calendar_name,
+            raise_errors=raise_errors,
+            **kwargs,
+        )
+    except Exception as e:
+        if raise_errors:
+            raise
+        log.error(f"Failed to create async client: {e}")
+        return CalendarCollection()
+
+    clients = [t[0] for t in targets]
+    calendars: list = []
+    try:
+        for client, eff_cal_url, eff_cal_name in targets:
+            calendars.extend(
+                await _fetch_calendars_for_async_client(
+                    client, eff_cal_url, eff_cal_name, raise_errors
+                )
+            )
+    except Exception:
+        for client in clients:
+            with contextlib.suppress(Exception):
+                await client.close()
+        raise
+    return CalendarCollection(calendars, clients=clients)
+
+
+async def _fetch_calendars_for_async_client(
+    client: AsyncDAVClient,
+    calendar_url: Any | None,
+    calendar_name: Any | None,
+    raise_errors: bool,
+) -> list:
+    """Async counterpart of :func:`caldav.base_client._fetch_calendars_for_client`."""
+    from caldav.base_client import _normalize_to_list, _warn_unreadable_display_name
 
     def _try(coro_result, errmsg):
         """Handle errors based on raise_errors flag."""
@@ -1276,90 +1321,83 @@ async def get_calendars(
         return coro_result
 
     try:
-        client = await get_davclient(probe=True, **kwargs)
+        principal = await client.get_principal()
     except Exception as e:
+        log.error(f"Problems fetching calendar information: getting principal - {e}")
         if raise_errors:
             raise
-        log.error(f"Failed to create async client: {e}")
-        return CalendarCollection()
+        return []
+    if not principal:
+        _try(None, "getting principal")
+        return []
 
-    try:
-        principal = await client.get_principal()
-        if not principal:
-            _try(None, "getting principal")
-            return CalendarCollection(client=client)
+    calendars = []
+    calendar_urls = _normalize_to_list(calendar_url)
+    calendar_names = _normalize_to_list(calendar_name)
 
-        calendars = []
-        calendar_urls = _normalize_to_list(calendar_url)
-        calendar_names = _normalize_to_list(calendar_name)
+    # Fetch specific calendars by URL/ID
+    for cal_url in calendar_urls:
+        if "/" in str(cal_url):
+            calendar = principal.calendar(cal_url=cal_url)
+        else:
+            calendar = principal.calendar(cal_id=cal_url)
+        ## A bare cal_id has to resolve the calendar home set first, so
+        ## principal.calendar() hands back a coroutine here.  Without the
+        ## await the AttributeError below was caught by the broad except
+        ## and the calendar was silently dropped from the collection.
+        if inspect.isawaitable(calendar):
+            calendar = await calendar
 
-        # Fetch specific calendars by URL/ID
-        for cal_url in calendar_urls:
-            if "/" in str(cal_url):
-                calendar = principal.calendar(cal_url=cal_url)
-            else:
-                calendar = principal.calendar(cal_id=cal_url)
-            ## A bare cal_id has to resolve the calendar home set first, so
-            ## principal.calendar() hands back a coroutine here.  Without the
-            ## await the AttributeError below was caught by the broad except
-            ## and the calendar was silently dropped from the collection.
-            if inspect.isawaitable(calendar):
-                calendar = await calendar
-
-            try:
-                display_name = await calendar.get_display_name()
-                if display_name is not None:
-                    calendars.append(calendar)
-            except Exception as e:
-                log.error(f"Problems fetching calendar {cal_url}: {e}")
-                if raise_errors:
-                    raise
-
-        # Fetch specific calendars by name
-        if calendar_names:
-            try:
-                all_cals_for_name = await principal.get_calendars()
-                for cal_name in calendar_names:
-                    for cal in all_cals_for_name:
-                        try:
-                            display_name = await cal.get_display_name()
-                            if display_name == cal_name:
-                                calendars.append(cal)
-                                break
-                        except Exception as e:
-                            # Skip calendars whose display name can't be read; warn
-                            # only when the failure is unexpected (see helper).
-                            # Continuing ensures one unreadable calendar doesn't abort
-                            # the whole name lookup.
-                            _warn_unreadable_display_name(client, cal, cal_name, e)
-                            continue
-                    else:
-                        log.error(f"No calendar with name '{cal_name}' found")
-                        if raise_errors:
-                            raise error.NotFoundError(f"No calendar with name '{cal_name}' found")
-            except error.NotFoundError:
+        try:
+            display_name = await calendar.get_display_name()
+            if display_name is not None:
+                calendars.append(calendar)
+        except Exception as e:
+            log.error(f"Problems fetching calendar {cal_url}: {e}")
+            if raise_errors:
                 raise
-            except Exception as e:
-                log.error(f"Problems fetching calendars by name: {e}")
-                if raise_errors:
-                    raise
 
-        # If no specific calendars requested, get all calendars
-        if not calendars and not calendar_urls and not calendar_names:
-            try:
-                all_cals = await principal.get_calendars()
-                if all_cals:
-                    calendars = all_cals
-            except Exception as e:
-                log.error(f"Problems fetching all calendars: {e}")
-                if raise_errors:
-                    raise
+    # Fetch specific calendars by name
+    if calendar_names:
+        try:
+            all_cals_for_name = await principal.get_calendars()
+            for cal_name in calendar_names:
+                for cal in all_cals_for_name:
+                    try:
+                        display_name = await cal.get_display_name()
+                        if display_name == cal_name:
+                            calendars.append(cal)
+                            break
+                    except Exception as e:
+                        # Skip calendars whose display name can't be read; warn
+                        # only when the failure is unexpected (see helper).
+                        # Continuing ensures one unreadable calendar doesn't abort
+                        # the whole name lookup.
+                        _warn_unreadable_display_name(client, cal, cal_name, e)
+                        continue
+                else:
+                    log.error(f"No calendar with name '{cal_name}' found")
+                    if raise_errors:
+                        raise error.NotFoundError(f"No calendar with name '{cal_name}' found")
+        except error.NotFoundError:
+            raise
+        except Exception as e:
+            log.error(f"Problems fetching calendars by name: {e}")
+            if raise_errors:
+                raise
 
-        return CalendarCollection(calendars, client=client)
+    # If no specific calendars requested, get all calendars
+    if not calendars and not calendar_urls and not calendar_names:
+        try:
+            all_cals = await principal.get_calendars()
+            if all_cals:
+                calendars = all_cals
+        except Exception as e:
+            log.error(f"Problems fetching all calendars: {e}")
+            if raise_errors:
+                raise
 
-    except Exception:
-        await client.__aexit__(None, None, None)
-        raise
+    return calendars
 
 
 async def get_calendar(**kwargs: Any) -> "CalendarResult":
