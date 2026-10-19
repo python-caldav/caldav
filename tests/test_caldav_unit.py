@@ -2283,7 +2283,7 @@ END:VCALENDAR"""
             "https://p49-caldav.example.com:443/123/calendars/cal/"
         ]
         assert client.url.hostname == "p49-caldav.example.com"
-        assert "caldav.example.com" in client.url.host_aliases
+        assert client.url.host_aliases == {"caldav.example.com"}
 
     def testFilters(self):
         filter = cdav.Filter().append(

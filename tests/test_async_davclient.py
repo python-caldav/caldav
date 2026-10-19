@@ -144,7 +144,7 @@ class TestAsyncDAVClient:
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
 
         assert client.url.scheme == "https"
-        assert "caldav.example.com" in str(client.url)
+        assert client.url.hostname == "caldav.example.com"
         assert "User-Agent" in client.headers
         assert "caldav-async" in client.headers["User-Agent"]
 
@@ -671,7 +671,7 @@ class TestGetDAVClient:
         ):
             client = await get_davclient(probe=False)
 
-            assert "env.example.com" in str(client.url)
+            assert client.url.hostname == "env.example.com"
             assert client.username == "envuser"
             assert client.password == "envpass"
 
@@ -693,7 +693,7 @@ class TestGetDAVClient:
                 probe=False,
             )
 
-            assert "param.example.com" in str(client.url)
+            assert client.url.hostname == "param.example.com"
             assert client.username == "paramuser"
             assert client.password == "parampass"
 

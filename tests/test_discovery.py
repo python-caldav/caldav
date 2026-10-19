@@ -69,7 +69,7 @@ class TestRequireTLSDowngradeBlocked:
 
         assert result is not None
         assert result.tls is True
-        assert "caldav.example.com" in result.url
+        assert result.url == "https://caldav.example.com/dav/"
 
     @mock.patch("caldav.discovery.requests.get")
     @mock.patch("caldav.discovery._srv_lookup", return_value=[])
