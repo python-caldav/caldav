@@ -1828,7 +1828,7 @@ END:VCALENDAR
         assert event._has_data() is False
 
     def test_set_data_updates_state_cache(self) -> None:
-        """§2.9: _set_data (raw string branch) must reset _state so that
+        """_set_data (raw string branch) must reset _state so that
         get_data()/get_icalendar_instance()/id return the new content.
 
         Bug: _set_data cleared _data/_vobject_instance/_icalendar_instance
@@ -1868,7 +1868,7 @@ END:VCALENDAR
         assert "Updated Event" in event.get_data()
 
     def test_vfreebusy_component_type_detection(self) -> None:
-        """§2.10: RawDataState.get_component_type() tested for 'BEGIN:FREEBUSY'
+        """RawDataState.get_component_type() tested for 'BEGIN:FREEBUSY'
         but real iCalendar data uses 'BEGIN:VFREEBUSY', so FreeBusy objects
         got component_type=None → is_loaded()/has_component() False → save()
         silent no-op and load(only_if_unloaded=True) spuriously reloads.
@@ -2033,7 +2033,7 @@ END:VCALENDAR
         assert my_todo4.component["duration"].dt == timedelta(2)
 
     def testTodoDurationTimedDtstart(self):
-        """§2.11: _get_duration must return timedelta(0) for a VTODO with a timed DTSTART
+        """_get_duration must return timedelta(0) for a VTODO with a timed DTSTART
         and no DUE/DURATION — not timedelta(days=1).
 
         isinstance(i["DTSTART"], datetime) tested the vDDDTypes wrapper (always False),
@@ -2154,13 +2154,13 @@ END:VCALENDAR"""
             == URL("//www.example.com/bar/").canonical()
         )
 
-        # 9b) canonical() must strip credentials (§2.5a)
+        # 9b) canonical() must strip credentials
         cred_url = URL("https://user:pass@example.com/cal/")
         canon = cred_url.canonical()
         assert "user" not in str(canon), "canonical() leaked username"
         assert "pass" not in str(canon), "canonical() leaked password"
 
-        # 9c) canonical() must not mutate self (§2.5b):
+        # 9c) canonical() must not mutate self:
         #     a URL with no auth — unauth() returns self, canonical() must
         #     still return a fresh object and leave self unchanged.
         plain_url = URL("http://example.com/cal/path/")
@@ -2168,7 +2168,7 @@ END:VCALENDAR"""
         _ = plain_url.canonical()
         assert str(plain_url) == before, "canonical() mutated self"
 
-        # 9d) __eq__ calls canonical() — must not mutate self (§2.5b)
+        # 9d) __eq__ calls canonical() — must not mutate self
         #     A literal '+' in the path would become '%2B' after quote(unquote()),
         #     silently changing what resource subsequent requests target.
         plus_url = URL("http://example.com/cal/foo+bar/")
@@ -2345,7 +2345,7 @@ END:VCALENDAR"""
                 "basic",
                 "digest",
             }
-            # §1.8: trailing comma (seen in the wild) must not raise IndexError
+            # Trailing comma (seen in the wild) must not raise IndexError
             assert client.extract_auth_types("Basic,") == {"basic"}
             assert client.extract_auth_types('Basic realm="x",') == {"basic"}
 
@@ -4224,7 +4224,7 @@ class TestSyncReportsRemovals:
 
 
 class TestAsyncProbeResponseNotReturnedAsReal:
-    """§2.15: async _async_request: when the probe GET for issue-#158 workaround does
+    """async _async_request: when the probe GET for issue-#158 workaround does
     not receive a 401+WWW-Authenticate response, the original exception must be re-raised.
 
     Before the fix, a probe response with status != 401 (e.g. 200 HTML login page) fell
@@ -4260,7 +4260,7 @@ class TestAsyncProbeResponseNotReturnedAsReal:
 
 
 class TestRateLimitNoPlusNone:
-    """§1.3: rate-limit retry must not raise TypeError when second 429 has no usable Retry-After.
+    """Rate-limit retry must not raise TypeError when second 429 has no usable Retry-After.
 
     sleep_seconds += rate_limit_time_slept / 2 executed before the is-None check,
     so None += 2.5 raised TypeError instead of the documented RateLimitError.
@@ -4437,7 +4437,7 @@ class TestExpandConfigSection:
         assert set(expand_config_section(config, "all")) == {"a", "b", "c"}
 
     def test_missing_section_returns_empty(self):
-        """§1.9: expand_config_section(config, "default") when "default" is absent must
+        """expand_config_section(config, "default") when "default" is absent must
         return [] rather than raising KeyError."""
         from caldav.config import expand_config_section
 
@@ -4446,7 +4446,7 @@ class TestExpandConfigSection:
         assert expand_config_section(config, "default") == []
 
     def test_disable_respected_for_named_sections(self):
-        """§2.17: disable:true must suppress named sections, not just glob '*' results.
+        """disable:true must suppress named sections, not just glob '*' results.
 
         The old code used the literal string 'section' instead of the variable,
         so disable was only effective under the '*' glob path.
@@ -4678,7 +4678,7 @@ class TestGetAllFileConnectionParams:
 
 
 class TestExplicitParamsMerge:
-    """§2.18: get_connection_params explicit kwargs must be merged with env/file config.
+    """get_connection_params explicit kwargs must be merged with env/file config.
 
     The old code only returned explicit_params when 'url' or 'features' was present;
     params like password-only were silently discarded when an env/file source was found.
@@ -4748,7 +4748,7 @@ class TestExplicitParamsMerge:
 
 
 class TestResolveFeaturesMutation:
-    """§2.19: resolve_features and testing.py server classes must deepcopy hint dicts.
+    """resolve_features and testing.py server classes must deepcopy hint dicts.
 
     Returning or shallow-copying a module-level dict then mutating a nested key
     permanently corrupts the module-level dict for all subsequent users.
@@ -5093,7 +5093,7 @@ END:VCALENDAR
 
 
 class TestAddAttendee:
-    """§1.6: add_attendee() crashes with UnboundLocalError on uppercase MAILTO: scheme.
+    """add_attendee() crashes with UnboundLocalError on uppercase MAILTO: scheme.
 
     RFC 3986 §3.1 specifies URI schemes are case-insensitive, so "MAILTO:user@example.com"
     is valid and common in real-world iCalendar data.  The old code only matched lowercase
@@ -5130,7 +5130,7 @@ END:VCALENDAR
 
 
 class TestChangeAttendeeStatusNoAttendees:
-    """§1.7: change_attendee_status() raises bare KeyError when event has no ATTENDEE property.
+    """change_attendee_status() raises bare KeyError when event has no ATTENDEE property.
 
     ical_obj["attendee"] raises KeyError when the key is absent; the NotFoundError-catching
     loop in the Principal branch never sees it, so the "Principal is not invited" message
@@ -5171,13 +5171,13 @@ END:VCALENDAR
 
 
 class TestFeatureSetCopyFeatureSet:
-    """§1.10 + §1.11: FeatureSet.copyFeatureSet() correctness bugs.
+    """FeatureSet.copyFeatureSet() correctness bugs.
 
-    §1.10: Merging a plain-string feature over an existing string-valued feature raised
+    Merging a plain-string feature over an existing string-valued feature raised
     bare AssertionError because the 'support' not in server_node guard prevented the
     update branch from running.
 
-    §1.11: An unknown feature name produced a UserWarning but was still stored in
+    An unknown feature name produced a UserWarning but was still stored in
     _server_features; a later collapse()/is_supported() then hit a message-less
     AssertionError far from the originating config.  Unknown features must be skipped
     (continue after warning) so bad keys never contaminate the feature set.
@@ -5216,7 +5216,7 @@ class TestFeatureSetCopyFeatureSet:
 
 
 class TestXMLEntityHardening:
-    """§3.2: XML parser must not expand entity references from untrusted server data.
+    """XML parser must not expand entity references from untrusted server data.
 
     etree.XMLParser without resolve_entities=False expands inline DOCTYPE
     entities, allowing a malicious server to inject arbitrary text into
@@ -5247,7 +5247,7 @@ class TestXMLEntityHardening:
 
 
 class TestDAVClientCredentialPrecedence:
-    """§1.2: DAVClient credential handling bugs.
+    """DAVClient credential handling bugs.
 
     - URL with username but no password (user@host) crashed with TypeError inside
       urllib.parse.unquote(None).
@@ -5445,7 +5445,7 @@ class TestAsyncDAVClientCredentialPairing:
 
 
 class TestPostPutRedirect:
-    """§1.1: 302 response to PUT must update event.url from Location header.
+    """302 response to PUT must update event.url from Location header.
 
     Bug: `[x[1] for x in r.headers if x[0] == "location"]` iterates the
     headers dict yielding key *strings*, so x[0] is the first character of
@@ -5481,7 +5481,7 @@ class TestPostPutRedirect:
 
 
 class TestWarnUnreadableDisplayName:
-    """§5 (DRY): the shared helper backing the sync/async name-matching loops.
+    """The shared helper backing the sync/async name-matching loops.
 
     Warn unless we positively know the server can't read DAV:displayname via
     PROPFIND (propfind.displayname non-supported); warn when the feature is
@@ -5544,7 +5544,6 @@ class TestRecurringCompleteHelpers:
 
     These exercise the icalendar-mutation logic shared by the sync and async
     ``complete()`` paths without touching a server.
-    ref https://github.com/python-caldav/caldav code-review §5.6
     """
 
     def _make_todo(self, data: str = todo6) -> Todo:

@@ -144,7 +144,7 @@ CATEGORIES:WORK,SOCIAL
 END:VEVENT
 END:VCALENDAR"""
 
-# Two events for §2.6 combined-is-logical-and tests
+# Two events for combined-is-logical-and tests
 SPECIAL_EVENT = """BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Test//Test//EN
@@ -1528,7 +1528,7 @@ class TestSearchDriverExceptionHandling:
 
 
 class TestCombinedIsLogicalAndWorkaround:
-    """§2.6: combined-is-logical-and workaround must apply property filters client-side.
+    """combined-is-logical-and workaround must apply property filters client-side.
 
     When search.combined-is-logical-and is False, the workaround strips all
     property filters from the server query (sending only the time range) and
@@ -1595,7 +1595,7 @@ class TestCombinedIsLogicalAndWorkaround:
 
 
 class TestExactMatchOperator:
-    """§2.8: operator='==' must be enforced client-side via post-filtering.
+    """operator='==' must be enforced client-side via post-filtering.
 
     The docstring documents that '==' means exact match enforced client-side,
     but no code path inspected the '==' operator — post_filter was never set
@@ -1672,7 +1672,7 @@ END:VCALENDAR"""
 class TestBatchLoadObjects:
     """Calendar._batch_load_objects fetches N objects with one _multiget REPORT.
 
-    Replaces the per-object LOAD_OBJECT loop in search post-processing (issue #5.4).
+    Replaces the per-object LOAD_OBJECT loop in search post-processing.
     Before this fix, a 200-event search triggered 200 individual GET requests;
     after, one batched calendar-multiget REPORT is sent.
     """

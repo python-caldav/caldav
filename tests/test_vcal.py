@@ -132,7 +132,7 @@ class TestVcal(TestCase):
         )
         assert re.search(b"DTSTART(;VALUE=DATE-TIME)?:20321010T101010Z", some_ical)
 
-        ## ical_fragment with alarm_* props: fragment must land in VEVENT, not VALARM (§2.2)
+        ## ical_fragment with alarm_* props: fragment must land in VEVENT, not VALARM
         raw_ical = create_ical(
             summary="alarm-test",
             dtstart=datetime(2032, 10, 10, 10, 10, 10, tzinfo=utc),
@@ -300,7 +300,7 @@ END:VCALENDAR""",
             assert vcal.fix(ical) == ical
 
     def test_trailing_whitespace_stripped_per_line(self) -> None:
-        """Bug §2.3: re.sub(' *$', '', fixed) without re.MULTILINE only strips
+        """re.sub(' *$', '', fixed) without re.MULTILINE only strips
         trailing spaces at the very end of the document, leaving per-line
         trailing spaces intact.  Trailing whitespace on a line that is not
         continued by a folded line cannot be part of the value, so it is
@@ -397,7 +397,7 @@ END:VCALENDAR""",
         assert "server" not in "\n".join(logs.output).lower()
 
     def test_backslash_unescape_single_and_double_quotes(self) -> None:
-        """Bug §2.4: re.sub(r"\\+('\")", r"\1", fixed) used a group ('\"')
+        """re.sub(r"\\+('\")", r"\1", fixed) used a group ('\"')
         which matches only the literal two-char sequence '\" — not a character
         class.  Backslash before a lone single quote or lone double quote was
         therefore not unescaped."""
@@ -469,7 +469,7 @@ END:VCALENDAR""",
                     assert re.sub(new, repl, s, flags=flags) == expected, (old, s)
 
     def test_completed_date_fixup_preserves_next_property(self) -> None:
-        """Bug §2.1: COMPLETED date fixup regex consumed the trailing newline,
+        """COMPLETED date fixup regex consumed the trailing newline,
         merging the next property line into COMPLETED and destroying it."""
         ical = """BEGIN:VCALENDAR
 VERSION:2.0
@@ -573,7 +573,7 @@ END:VCALENDAR"""
             self.verifyICal(fixed)
 
     def test_fix_does_not_crash_on_truncated_input(self) -> None:
-        """§1.12: vcal.fix() must not raise AssertionError on truncated/garbage iCalendar.
+        """vcal.fix() must not raise AssertionError on truncated/garbage iCalendar.
 
         Truncated data (no END: line) previously triggered a bare assert on line 93
         which gave no useful error message and failed silently under python -O.

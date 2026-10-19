@@ -376,7 +376,7 @@ END:VCALENDAR</C:calendar-data>
 
 
 class TestParserStackEquivalence:
-    """Guard the shared propstat-collection logic (code-review §5.7).
+    """Guard the shared propstat-collection logic.
 
     The dataclass parsers (parse_propfind -> _extract_properties) and the
     legacy _find_objects_and_props path must agree on the duplicated quirks
