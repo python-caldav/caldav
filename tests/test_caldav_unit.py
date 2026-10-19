@@ -4587,6 +4587,60 @@ class TestReadConfigYaml:
         }
 
 
+class TestTestKeyPrefix:
+    """Keys starting with ``test_`` are reserved for test tooling (issue 786)."""
+
+    def _write(self, tmp_path, section):
+        import json
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            json.dumps({"srv": {"caldav_url": "https://dav.example.com/", **section}})
+        )
+        return str(config_file)
+
+    def test_test_allowed(self, tmp_path):
+        from caldav.config import get_all_test_servers
+
+        assert "srv" in get_all_test_servers(self._write(tmp_path, {"test_allowed": True}))
+
+    def test_testing_allowed_is_deprecated(self, tmp_path):
+        from caldav.config import get_all_test_servers
+
+        config_file = self._write(tmp_path, {"testing_allowed": True})
+        with pytest.warns(DeprecationWarning, match="test_allowed"):
+            assert "srv" in get_all_test_servers(config_file)
+
+    def test_test_priority(self, tmp_path):
+        from caldav.config import _ConfiguredServer, get_all_test_servers
+
+        config_file = self._write(tmp_path, {"test_allowed": True, "test_priority": 5})
+        params = get_all_test_servers(config_file)["srv"]
+        assert _ConfiguredServer("srv", params).priority == 5
+        assert "test_priority" not in extract_conn_keys(params)
+
+    def test_priority_is_deprecated(self, tmp_path):
+        from caldav.config import _ConfiguredServer, get_all_test_servers
+
+        config_file = self._write(tmp_path, {"test_allowed": True, "priority": 5})
+        with pytest.warns(DeprecationWarning, match="test_priority"):
+            params = get_all_test_servers(config_file)["srv"]
+            assert _ConfiguredServer("srv", params).priority == 5
+
+    def test_embedded_server_priority(self):
+        from caldav.testing import RadicaleServer
+
+        assert RadicaleServer({"test_priority": 3}).priority == 3
+        with pytest.warns(DeprecationWarning, match="test_priority"):
+            assert RadicaleServer({"priority": 4}).priority == 4
+
+
+def extract_conn_keys(params):
+    from caldav.config import CONNKEYS
+
+    return {k for k in params if k in CONNKEYS}
+
+
 class TestGetAllFileConnectionParams:
     """Unit tests for caldav.config.get_all_file_connection_params."""
 

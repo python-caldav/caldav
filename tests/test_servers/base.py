@@ -15,6 +15,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import IO, Any
 
+from caldav.config import get_test_setting
+
 try:
     import niquests as requests
 except ImportError:
@@ -108,9 +110,9 @@ class TestServer(ABC):
         """Return the sort priority for this server.
 
         Lower values are returned first by the registry.  Can be overridden
-        per-server via ``priority: <int>`` in the server config.
+        per-server via ``test_priority: <int>`` in the server config.
         """
-        return int(self.config.get("priority", self._default_priority))
+        return int(get_test_setting(self.config, "test_priority", self._default_priority))
 
     @property
     def features(self) -> Any:

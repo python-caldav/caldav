@@ -3,7 +3,7 @@ Configuration loader for test servers.
 
 This module loads test server configuration from:
 1. Test-specific config files (tests/caldav_test_servers.yaml)
-2. Main caldav config files with 'testing_allowed: true' sections
+2. Main caldav config files with 'test_allowed: true' sections
 """
 
 from pathlib import Path
@@ -11,7 +11,7 @@ from typing import Any
 
 from caldav.config import expand_env_vars, get_all_test_servers, read_config
 
-# Test-specific config file locations (don't need testing_allowed)
+# Test-specific config file locations (don't need test_allowed)
 TEST_CONFIG_LOCATIONS = [
     "tests/caldav_test_servers.yaml",
     "tests/caldav_test_servers.json",
@@ -35,7 +35,7 @@ def load_test_server_config(
     Priority:
     1. Explicit config_file argument
     2. Test-specific config files (tests/caldav_test_servers.yaml, etc.)
-    3. Main caldav config sections with 'testing_allowed: true'
+    3. Main caldav config sections with 'test_allowed: true'
 
     Args:
         config_file: Optional explicit path to config file
@@ -62,7 +62,7 @@ def load_test_server_config(
         if path.exists():
             return _load_config_file(str(path))
 
-    # Try main caldav config (sections with testing_allowed)
+    # Try main caldav config (sections with test_allowed)
     servers = get_all_test_servers()
     if servers:
         # Add type: external for registry to use ExternalTestServer

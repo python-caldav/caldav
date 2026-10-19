@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import warnings
 from fnmatch import fnmatch
 from typing import Any
 
@@ -248,6 +249,30 @@ CONNKEYS = frozenset(
     ]
 )
 
+# Keys starting with ``test_`` in a config section are reserved for test
+# tooling; other users of the config file (like the calendaring library)
+# drop them.  The old names are still read, with a deprecation warning.
+_DEPRECATED_TEST_KEYS = {
+    "test_allowed": "testing_allowed",
+    "test_priority": "priority",
+}
+
+
+def get_test_setting(section_data: dict[str, Any], key: str, default: Any = None) -> Any:
+    """Read the test-tooling setting ``key`` (e.g. ``test_priority``) from a
+    config section, falling back to its deprecated name."""
+    if key in section_data:
+        return section_data[key]
+    old_key = _DEPRECATED_TEST_KEYS.get(key)
+    if old_key and old_key in section_data:
+        warnings.warn(
+            f"The config key '{old_key}' is deprecated, use '{key}' instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return section_data[old_key]
+    return default
+
 
 def get_connection_params(
     check_config_file: bool = True,
@@ -272,7 +297,7 @@ def get_connection_params(
 
     Test Server Mode:
         When testconfig=True or PYTHON_CALDAV_USE_TEST_SERVER env var is set,
-        only config file sections with 'testing_allowed: true' will be used.
+        only config file sections with 'test_allowed: true' will be used.
         This prevents accidentally using personal/production servers for testing.
 
         If no test server is found, returns None (does NOT fall through to
@@ -331,8 +356,8 @@ def get_connection_params(
         # In test mode, don't fall through to regular config - return None
         # This prevents accidentally using personal/production servers for testing
         logging.info(
-            "Test server mode enabled but no server with testing_allowed=true found. "
-            "Add 'testing_allowed: true' to a config section to enable it for testing."
+            "Test server mode enabled but no server with test_allowed=true found. "
+            "Add 'test_allowed: true' to a config section to enable it for testing."
         )
         return None
 
@@ -393,18 +418,18 @@ def _get_test_server_config(
 
     Uses the priority-ordered server list as the single source of truth.
     Embedded servers (xandikos priority 10, radicale priority 10) beat docker
-    (20) and configured / testing_allowed servers (30) by default.  Any server
+    (20) and configured / test_allowed servers (30) by default.  Any server
     can override its priority via ``priority: <int>`` in its config.
 
     When running from the source tree the full registry is used (embedded +
     docker + external).  When caldav is pip-installed without the test
     infrastructure, only embedded servers from ``caldav.testing`` plus any
-    ``testing_allowed`` config-file sections are available.
+    ``test_allowed`` config-file sections are available.
 
     Args:
         name: Optional server name or server_type to restrict selection.
         environment: Whether to read PYTHON_CALDAV_TEST_SERVER_NAME.
-        config_file: Explicit config file path (for testing_allowed fallback).
+        config_file: Explicit config file path (for test_allowed fallback).
 
     Returns:
         Connection parameters dict, or None if no server could be started.
@@ -431,7 +456,7 @@ def _get_test_server_config(
 
     logging.info(
         "PYTHON_CALDAV_USE_TEST_SERVER is set but no test server is available. "
-        "Install xandikos or radicale, or add 'testing_allowed: true' to a config section."
+        "Install xandikos or radicale, or add 'test_allowed: true' to a config section."
     )
     return None
 
@@ -441,7 +466,7 @@ def _collect_test_servers(name: str | None, config_file: str | None) -> list[Any
     Return a priority-ordered list of available test servers.
 
     Tries the full registry first (source tree); falls back to embedded
-    servers from ``caldav.testing`` plus ``testing_allowed`` config sections
+    servers from ``caldav.testing`` plus ``test_allowed`` config sections
     (pip-installed users).
     """
     try:
@@ -460,7 +485,7 @@ def _get_pip_test_servers(config_file: str | None) -> list[Any]:
     """
     Build a server list for pip-installed users (no tests/ available).
 
-    Includes embedded servers from caldav.testing and any testing_allowed
+    Includes embedded servers from caldav.testing and any test_allowed
     sections from config files, all sorted by priority.
     """
     from caldav.testing import RadicaleServer, XandikosServer
@@ -489,7 +514,7 @@ def _get_pip_test_servers(config_file: str | None) -> list[Any]:
 
 class _ConfiguredServer:
     """
-    Thin wrapper around a ``testing_allowed`` config-file section.
+    Thin wrapper around a ``test_allowed`` config-file section.
 
     Used only in pip-installed mode; in the source tree these sections are
     loaded into the registry as ``ExternalTestServer`` instances instead.
@@ -504,7 +529,7 @@ class _ConfiguredServer:
 
     @property
     def priority(self) -> int:
-        return int(self._params.get("priority", 30))
+        return int(self._params.get("test_priority", 30))
 
     @property
     def url(self) -> str:
@@ -632,7 +657,7 @@ def get_all_test_servers(
     """
     Get all test servers from config file.
 
-    Finds all sections with 'testing_allowed: true' and returns their
+    Finds all sections with 'test_allowed: true' and returns their
     connection parameters.
 
     Args:
@@ -650,11 +675,14 @@ def get_all_test_servers(
     result: dict[str, dict[str, Any]] = {}
     for section_name in cfg:
         section_data = config_section(cfg, section_name)
-        if section_data.get("testing_allowed"):
+        if get_test_setting(section_data, "test_allowed"):
             conn_params = extract_conn_params_from_section(section_data)
             if conn_params:
+                priority = get_test_setting(section_data, "test_priority")
+                if priority is not None:
+                    conn_params["test_priority"] = priority
                 # Also copy the raw section data for keys not in CONNKEYS
-                # (e.g., testing_allowed itself, or custom keys)
+                # (e.g., test_allowed itself, or custom keys)
                 conn_params["_raw_config"] = section_data
                 result[section_name] = conn_params
 

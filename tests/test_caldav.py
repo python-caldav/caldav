@@ -514,12 +514,12 @@ class TestGetDAVClient:
     """
 
     def testTestConfig(self):
-        """Test that get_davclient(testconfig=True) finds config with testing_allowed."""
+        """Test that get_davclient(testconfig=True) finds config with test_allowed."""
         # Start a test server using test_servers framework
         server_params = caldav_servers[0]
         with client(**server_params) as conn:
-            # Create a config file with testing_allowed: true
-            config = {"testing_allowed": True}
+            # Create a config file with test_allowed: true
+            config = {"test_allowed": True}
             for key in ("username", "password", "proxy"):
                 if key in server_params:
                     config[f"caldav_{key}"] = server_params[key]
