@@ -281,8 +281,9 @@ class UidConflictAuthorizationError(UidConflictError, AuthorizationError):
 
 
 class UidConflictConsistencyError(UidConflictError, ConsistencyError):
-    """A UID conflict on ``save(no_overwrite=True)``.  Its UID search, which
-    may now be left to the server, raised ConsistencyError for this."""
+    """A UID conflict on ``save(no_overwrite=True)`` or
+    ``save(no_create=True)``.  Their UID search, which may now be left to
+    the server, raised ConsistencyError for this."""
 
 
 class UidConflictConsistencyAuthorizationError(UidConflictConsistencyError, AuthorizationError):
