@@ -1,9 +1,17 @@
 ## This file was originally made to fascilitate support for both python2 and python3.
 
 
+class WireBytes(bytes):
+    """Bytes that are sent exactly as they are: ``to_wire()`` leaves
+    them alone instead of normalising their line endings to CRLF.  Used
+    by ``save(raw_data=...)``."""
+
+
 def to_wire(text):
     if text is None:
         return None
+    if isinstance(text, WireBytes):
+        return text
     if isinstance(text, str):
         text = bytes(text, "utf-8")
     text = text.replace(b"\n", b"\r\n")

@@ -2455,6 +2455,66 @@ END:VCALENDAR"""
             assert isinstance(exc_info.value, error.UidConflictError)
         assert len(c.get_events()) == 1
 
+    def testRawDataRoundTrip(self):
+        """
+        save(raw_data=...) sends the bytes unchanged, and load() keeps the
+        body the server sends back in raw_data.  Servers may store their
+        own serialisation, so what comes back is compared with a plain
+        GET, not with what was sent.
+        https://github.com/python-caldav/caldav/issues/763
+        """
+        self.skip_unless_support("save-load.event")
+        c = self._fixCalendar()
+        uid = f"raw-{uuid.uuid4()}"
+        ## an unusual but valid layout: an X- property first, VERSION
+        ## after PRODID, a folded line, and SEQUENCE (not to be bumped)
+        body = (
+            "BEGIN:VCALENDAR\r\n"
+            "X-WR-ODD:first\r\n"
+            "PRODID:-//Example//EN\r\n"
+            "VERSION:2.0\r\n"
+            "BEGIN:VEVENT\r\n"
+            "SUMMARY:A folded summary that goes on and on and on and on and o\r\n"
+            " n until it is folded\r\n"
+            f"UID:{uid}\r\n"
+            "SEQUENCE:3\r\n"
+            "DTSTAMP:20260101T000000Z\r\n"
+            "DTSTART:20260102T100000Z\r\n"
+            "DTEND:20260102T110000Z\r\n"
+            "X-ODD-PROP;X-PARAM=1:value\r\n"
+            "END:VEVENT\r\n"
+            "END:VCALENDAR\r\n"
+        ).encode()
+        e = Event(client=c.client, parent=c)
+        e.save(raw_data=body)
+        assert e.raw_data is None
+
+        def plain_get():
+            r = c.client.session.request(
+                "GET", str(e.url), auth=c.client.auth, verify=c.client.ssl_verify_cert
+            )
+            assert r.status_code == 200
+            return r.content
+
+        loaded = Event(client=c.client, url=e.url, parent=c).load()
+        assert isinstance(loaded.raw_data, bytes)
+        assert loaded.raw_data == plain_get()
+        assert loaded.icalendar_component["SEQUENCE"] == 3
+        stored = loaded.raw_data
+        ## the snapshot outlives an edit, and can be sent back as it is
+        loaded.icalendar_component["SUMMARY"] = "edited"
+        assert loaded.raw_data == stored
+        loaded.save(raw_data=stored)
+        again = Event(client=c.client, url=e.url, parent=c).load()
+        assert again.raw_data == plain_get()
+        assert "edited" not in again.data
+        assert again.icalendar_component["SEQUENCE"] == 3
+        ## from a REPORT: servers may serialise it differently from the
+        ## GET body (Bedework, Purelymail), so only the UID is compared
+        (found,) = c.multiget([e.url])
+        assert found.raw_data is not None
+        assert f"UID:{uid}".encode() in found.raw_data
+
     def testObjectBySyncToken(self):
         """
         Support for sync-collection reports, ref https://github.com/python-caldav/caldav/issues/87.

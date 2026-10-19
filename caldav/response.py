@@ -263,6 +263,11 @@ class DAVResponse:
     headers: Any = None
     status: int = 0
     _raw: Any = ""
+    ## A body that is not XML, as received (after any Content-Encoding is
+    ## undone), before the CRLF normalisation applied to ``_raw``.  load()
+    ## keeps it as CalendarObjectResource.raw_data.  Empty for XML, whose
+    ## calendar data is taken from the parsed tree.
+    _raw_body: bytes = b""
     huge_tree: bool = False
     reason: str = ""
     davclient: Any = None
@@ -331,6 +336,10 @@ class DAVResponse:
         log.debug("response status: " + str(self.status))
 
         self._raw = response.content
+        if isinstance(self._raw, bytes):
+            self._raw_body = bytes(self._raw)
+        elif isinstance(self._raw, str):
+            self._raw_body = self._raw.encode("utf-8")
         self.davclient = davclient
         if davclient:
             self.huge_tree = davclient.huge_tree
@@ -390,6 +399,8 @@ class DAVResponse:
                 if expect_xml:
                     raise
             else:
+                ## not needed for XML; no reason to hold the body twice
+                self._raw_body = b""
                 if log.level <= logging.DEBUG:
                     log.debug(etree.tostring(self.tree, pretty_print=True))
 

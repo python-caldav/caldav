@@ -99,6 +99,45 @@ When a single recurrence is saved (see :ref:`tutorial:Modifying Events`), the
 event.  Replying to an invitation (``accept_invite()`` and friends) never
 increments ``SEQUENCE``; only the organizer revises an event.
 
+The Server's Bytes
+~~~~~~~~~~~~~~~~~~
+
+``data``, ``wire_data`` and the parsed instances are caldav's normalised copy
+of an object: incoming data goes through ``vcal.fix()``, and ``wire_data`` is
+re-serialised after an edit.  To compare or copy what a server actually
+stores, use
+:attr:`~caldav.calendarobjectresource.CalendarObjectResource.raw_data` and
+``save(raw_data=...)``:
+
+.. code-block:: python
+
+    source = source_cal.get_event_by_uid(uid).load()
+    raw = source.raw_data          # bytes, as the server sent them
+
+    ## a new object in the target calendar; its URL comes from the UID
+    Event(parent=target_cal).save(raw_data=raw)
+    ## or overwrite an object loaded from the target, with its If-Match
+    target_cal.get_event_by_uid(uid).save(raw_data=raw)
+
+``raw_data`` is a snapshot of the last read: editing the object does not change
+it, a successful ``save()`` clears it (the server's bytes are only known after
+the next load), and it is ``None`` for an object built locally or copied,
+including the occurrences ``search(expand=True)`` returns.  An object a search
+filtered or expanded in place keeps what the server sent, which after a
+server-side expansion is the expanded text: ``load()`` before copying.
+``save(raw_data=None)`` raises ``ValueError`` instead of saving something else.
+After ``load()`` (a GET) it is the response body byte for byte.  From a
+REPORT (``search()``, ``multiget()``, a ``load()`` that falls back to
+multiget) it is the text of the ``calendar-data`` XML element, UTF-8
+encoded: the XML parser has decoded entities such as ``&amp;`` and turned
+CRLF into LF, so call ``load()`` first when the exact bytes matter.
+
+``save(raw_data=...)`` sends the bytes without ``vcal.fix()``, re-serialising,
+line ending changes, ``SEQUENCE`` bump or merging a recurrence into its master,
+and they replace any local edit, even if the PUT fails.  The bytes must be
+UTF-8.  ``If-Match`` / ``If-Schedule-Tag-Match``,
+``no_overwrite`` and ``no_create`` apply as for any save.
+
 Backing Up a Calendar
 ---------------------
 

@@ -7827,3 +7827,342 @@ class TestNoCreateIfMatch(_SaveRequests):
 
         fs = FeatureSet(getattr(compatibility_hints, server))
         assert not fs.is_supported("save-load.mutable.if-match-wildcard")
+
+
+class TestRawData:
+    """``raw_data`` keeps the calendar data as the server sent it, and
+    ``save(raw_data=...)`` sends given bytes unchanged.
+    https://github.com/python-caldav/caldav/issues/763"""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+    ## An unusual but valid layout: X- property first, a folded line,
+    ## SEQUENCE (no bump expected), a trailing blank that vcal.fix()
+    ## strips, a duplicated DTSTAMP that vcal.fix() drops, and CRLF.
+    BODY = (
+        b"BEGIN:VCALENDAR\r\n"
+        b"X-WR-ODD:first\r\n"
+        b"PRODID:-//Example//EN\r\n"
+        b"VERSION:2.0\r\n"
+        b"BEGIN:VEVENT\r\n"
+        b"SUMMARY:A folded summary that goes on and on and on and on and o\r\n"
+        b" n until it is folded\r\n"
+        b"UID:raw-1\r\n"
+        b"SEQUENCE:3\r\n"
+        b"DTSTAMP:20260101T000000Z\r\n"
+        b"DTSTAMP:20260101T000001Z\r\n"
+        b"DTSTART:20260102T100000Z\r\n"
+        b"X-TRAILING:blank \r\n"
+        b"END:VEVENT\r\n"
+        b"END:VCALENDAR\r\n"
+    )
+
+    @pytest.fixture(params=["sync", "async"])
+    def base(self, request):
+        if request.param == "sync":
+            return DAVClient
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient
+
+    @staticmethod
+    def _run(result):
+        import asyncio
+
+        if asyncio.iscoroutine(result):
+            return asyncio.run(result)
+        return result
+
+    def _calendar(self, base, body=BODY, put_status=204, features=None, get_status=200):
+        """A fake server with one object, ``ev1.ics``.  Returns the
+        calendar and the (method, headers, body) triples sent."""
+        sent = []
+        ## &#13; keeps the CR through XML end-of-line normalisation, and
+        ## &amp; is an entity the XML parser decodes
+        text = body.decode().replace("\r", "&#13;").replace("&", "&amp;")
+        text = text.replace("&amp;#13;", "&#13;")
+        multistatus = (
+            '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">'
+            "<d:response><d:href>/dav/user/mycal/ev1.ics</d:href><d:propstat><d:prop>"
+            '<d:getetag>"etag-r"</d:getetag>'
+            f"<cal:calendar-data>{text}</cal:calendar-data>"
+            "</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+            "</d:multistatus>"
+        ).encode()
+        client = base(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body="", headers=None):
+            sent.append((method, {k.lower(): v for k, v in (headers or {}).items()}, body))
+            resp = mock.MagicMock()
+            resp.headers = {}
+            if method == "GET" and get_status == 404:
+                resp.status_code, resp.reason = 404, "Not Found"
+                resp.content = b""
+            elif method == "GET":
+                resp.status_code, resp.reason = 200, "OK"
+                resp.headers = {"Content-Type": "text/calendar", "Etag": '"etag-g"'}
+                resp.content = body_get
+            elif method == "REPORT":
+                resp.status_code, resp.reason = 207, "Multi-Status"
+                resp.content = multistatus
+            else:
+                resp.status_code, resp.reason = put_status, "whatever"
+                resp.headers = {"Etag": '"etag-p"'}
+                resp.content = b""
+            return DAVResponse(resp, client)
+
+        body_get = body
+        if base is DAVClient:
+            client.request = request
+        else:
+
+            async def async_request(*args, **kwargs):
+                return request(*args, **kwargs)
+
+            client.request = async_request
+        return Calendar(client, url=self.URL), sent
+
+    def _loaded(self, base, **kwargs):
+        calendar, sent = self._calendar(base, **kwargs)
+        event = self._run(Event(url=self.URL + "ev1.ics", parent=calendar).load())
+        sent.clear()
+        return event, sent
+
+    def test_load_keeps_the_body(self, base) -> None:
+        event, _ = self._loaded(base)
+        assert event.raw_data == self.BODY
+        assert isinstance(event.raw_data, bytes)
+        ## the parsed view is still caldav's normalised copy
+        assert event.wire_data != self.BODY
+        assert event.etag == '"etag-g"'
+
+    def test_load_keeps_bare_lf_and_odd_bytes(self, base) -> None:
+        body = self.BODY.replace(b"\r\n", b"\n").replace(b"blank", b"bl\xc3\xa5nk")
+        event, _ = self._loaded(base, body=body)
+        assert event.raw_data == body
+
+    def test_raw_data_is_a_snapshot(self, base) -> None:
+        event, _ = self._loaded(base)
+        event.icalendar_component["SUMMARY"] = "changed"
+        event.data = event.data.replace("X-WR-ODD", "X-WR-EVEN")
+        with event.edit_icalendar_instance() as cal:
+            cal.subcomponents[0]["SUMMARY"] = "changed again"
+        assert event.raw_data == self.BODY
+
+    def test_local_object_has_no_raw_data(self) -> None:
+        assert Event(data=self.BODY.decode()).raw_data is None
+        assert Event(data=self.BODY).raw_data is None
+
+    def test_raw_data_is_read_only(self) -> None:
+        with pytest.raises(AttributeError):
+            Event(data=self.BODY).raw_data = self.BODY
+
+    def test_search_keeps_calendar_data(self, base) -> None:
+        calendar, _ = self._calendar(base)
+        (event,) = self._run(calendar.search(event=True))
+        ## the text of the calendar-data element, entities decoded
+        assert event.raw_data == self.BODY
+        assert event.etag == '"etag-r"'
+
+    def test_entities_are_decoded(self, base) -> None:
+        body = self.BODY.replace(b"X-WR-ODD:first", b"X-WR-ODD:fish & chips")
+        calendar, _ = self._calendar(base, body=body)
+        (event,) = self._run(calendar.search(event=True))
+        assert event.raw_data == body
+
+    def test_multiget_keeps_calendar_data(self, base) -> None:
+        calendar, _ = self._calendar(base)
+        (event,) = self._run(calendar.multiget([URL(self.URL + "ev1.ics")]))
+        assert event.raw_data == self.BODY
+
+    def test_load_by_multiget_keeps_calendar_data(self, base) -> None:
+        calendar, _ = self._calendar(base)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        self._run(event.load_by_multiget())
+        assert event.raw_data == self.BODY
+
+    def test_batch_load_keeps_calendar_data(self, base) -> None:
+        """search() loads objects the server listed without calendar-data
+        in one multiget"""
+        calendar, _ = self._calendar(base)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        if base is DAVClient:
+            calendar._batch_load_objects([event])
+        else:
+            self._run(calendar._async_batch_load_objects([event]))
+        assert event.raw_data == self.BODY
+
+    def test_copy_has_no_raw_data(self, base) -> None:
+        """A copy is not read from the server; like the ETag, raw_data
+        stays with the original"""
+        event, _ = self._loaded(base)
+        assert event.copy(keep_uid=True).raw_data is None
+        assert event.copy().raw_data is None
+
+    def test_xml_body_is_not_kept_twice(self) -> None:
+        response = DAVResponse.from_bytes(b'<d:multistatus xmlns:d="DAV:"/>')
+        assert response._raw_body == b""
+        response = DAVResponse.from_bytes(self.BODY)
+        assert response._raw_body == self.BODY
+
+    def test_save_raw_data_sends_the_bytes(self, base) -> None:
+        event, sent = self._loaded(base)
+        ## bare LF and CRLF mixed: neither is to be touched
+        body = self.BODY.replace(b"VERSION:2.0\r\n", b"VERSION:2.0\n")
+        self._run(event.save(raw_data=body))
+        assert [(m, b) for m, _, b in sent] == [("PUT", body)]
+        assert sent[0][1]["if-match"] == '"etag-g"'
+        ## the parsed view follows the bytes sent; no SEQUENCE bump
+        assert event.icalendar_component["SEQUENCE"] == 3
+        assert event.etag == '"etag-p"'
+
+    def test_save_raw_data_wins_over_edits(self, base) -> None:
+        event, sent = self._loaded(base)
+        event.icalendar_component["SUMMARY"] = "an edit that is discarded"
+        self._run(event.save(raw_data=self.BODY))
+        assert sent[0][2] == self.BODY
+        assert "discarded" not in event.data
+
+    def test_save_clears_raw_data(self, base) -> None:
+        event, _ = self._loaded(base)
+        self._run(event.save(raw_data=self.BODY))
+        assert event.raw_data is None
+        event, _ = self._loaded(base)
+        self._run(event.save())
+        assert event.raw_data is None
+
+    def test_save_raw_data_of_a_new_object(self, base) -> None:
+        calendar, sent = self._calendar(base)
+        event = Event(parent=calendar)
+        self._run(event.save(raw_data=self.BODY))
+        assert [(m, b) for m, _, b in sent] == [("PUT", self.BODY)]
+        assert str(event.url) == self.URL + "raw-1.ics"
+        assert "if-match" not in sent[0][1]
+
+    def test_save_raw_data_does_not_merge_a_recurrence(self, base) -> None:
+        calendar, sent = self._calendar(base)
+        body = self.BODY.replace(b"SEQUENCE:3\r\n", b"RECURRENCE-ID:20260102T100000Z\r\n")
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        self._run(event.save(raw_data=body))
+        assert [(m, b) for m, _, b in sent] == [("PUT", body)]
+
+    def test_save_raw_data_no_overwrite_sends_if_none_match(self, base) -> None:
+        features = {"save.no-uid-conflict": {"support": "full"}}
+        calendar, sent = self._calendar(base, put_status=201, features=features)
+        event = Event(parent=calendar)
+        self._run(event.save(raw_data=self.BODY, no_overwrite=True))
+        assert [(m, b) for m, _, b in sent] == [("PUT", self.BODY)]
+        assert sent[0][1]["if-none-match"] == "*"
+
+    def test_save_raw_data_no_create_sends_if_match_star(self, base) -> None:
+        calendar, sent = self._calendar(base)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        self._run(event.save(raw_data=self.BODY, no_create=True))
+        assert [(m, b) for m, _, b in sent] == [("PUT", self.BODY)]
+        assert sent[0][1]["if-match"] == "*"
+
+    def test_save_raw_data_no_create_412_is_consistency_error(self, base) -> None:
+        calendar, sent = self._calendar(base, put_status=412)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        with pytest.raises(error.ConsistencyError):
+            self._run(event.save(raw_data=self.BODY, no_create=True))
+        assert [m for m, _, _ in sent] == ["PUT"]
+
+    def test_save_raw_data_recurrence_no_create_skips_search(self, base) -> None:
+        """No merge into a master, so nothing to search for."""
+        calendar, sent = self._calendar(base)
+        body = self.BODY.replace(b"SEQUENCE:3\r\n", b"RECURRENCE-ID:20260102T100000Z\r\n")
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        self._run(event.save(raw_data=body, no_create=True))
+        assert [(m, b) for m, _, b in sent] == [("PUT", body)]
+        assert sent[0][1]["if-match"] == "*"
+
+    def test_save_raw_data_none_is_refused(self, base) -> None:
+        """save(raw_data=source.raw_data) with nothing read must not
+        turn into a plain save()"""
+        event, sent = self._loaded(base)
+        with pytest.raises(ValueError):
+            self._run(event.save(raw_data=None))
+        assert sent == []
+
+    def test_save_raw_data_empty_is_refused(self, base) -> None:
+        event, sent = self._loaded(base)
+        data = event.data
+        with pytest.raises(ValueError):
+            self._run(event.save(raw_data=b""))
+        assert sent == []
+        assert event.data == data
+
+    def test_save_raw_data_not_utf8_is_refused(self, base) -> None:
+        event, sent = self._loaded(base)
+        with pytest.raises(ValueError, match="UTF-8"):
+            self._run(event.save(raw_data=self.BODY.replace(b"on and on", b"\xe6\xf8\xe5")))
+        assert sent == []
+
+    def test_save_raw_data_sends_cached_schedule_tag(self, base) -> None:
+        event, sent = self._loaded(base)
+        event.props[cdav.ScheduleTag.tag] = '"stag-r"'
+        self._run(event.save(raw_data=self.BODY))
+        assert sent[0][1]["if-schedule-tag-match"] == '"stag-r"'
+        assert "if-match" not in sent[0][1]
+
+    def test_save_raw_data_precondition_etag(self, base) -> None:
+        event, sent = self._loaded(base)
+        event.props[cdav.ScheduleTag.tag] = '"stag-r"'
+        self._run(event.save(raw_data=self.BODY, precondition="etag"))
+        assert sent[0][1]["if-match"] == '"etag-g"'
+        assert "if-schedule-tag-match" not in sent[0][1]
+
+    def test_report_text_is_not_kept_twice(self, base) -> None:
+        """The calendar-data text is kept as parsed and encoded on read."""
+        calendar, _ = self._calendar(base)
+        (event,) = self._run(calendar.multiget([URL(self.URL + "ev1.ics")]))
+        assert isinstance(event._raw_data, str)
+        assert isinstance(event.raw_data, bytes)
+
+    def test_load_by_uid_fallback_keeps_raw_data(self) -> None:
+        calendar, _ = self._calendar(DAVClient, get_status=404)
+        found = Event(url=self.URL + "moved.ics", parent=calendar)._keep_raw_data(self.BODY)
+        found.data = self.BODY
+        calendar.get_object_by_uid = lambda uid: found
+        event = Event(url=self.URL + "ev1.ics", parent=calendar, data=self.BODY)
+        event.load(only_if_unloaded=False, multiget_fallback=False)
+        assert event.raw_data == self.BODY
+        assert str(event.url) == self.URL + "moved.ics"
+
+    def test_save_raw_data_must_be_bytes(self, base) -> None:
+        calendar, sent = self._calendar(base)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        with pytest.raises(TypeError):
+            self._run(event.save(raw_data=self.BODY.decode()))
+        assert sent == []
+
+    def test_save_raw_data_without_uid_or_url(self, base) -> None:
+        calendar, sent = self._calendar(base)
+        event = Event(parent=calendar)
+        with pytest.raises(ValueError):
+            self._run(event.save(raw_data=self.BODY.replace(b"UID:raw-1\r\n", b"")))
+        assert sent == []
+
+    def test_save_raw_data_is_not_retried_altered(self, base) -> None:
+        calendar, sent = self._calendar(base, put_status=500)
+        event = Event(url=self.URL + "ev1.ics", parent=calendar)
+        with pytest.raises(error.PutError):
+            self._run(event.save(raw_data=self.BODY))
+        assert [(m, b) for m, _, b in sent] == [("PUT", self.BODY)]
+
+    def test_save_raw_data_reaches_the_http_session_unchanged(self, base) -> None:
+        """The client's own line ending normalisation is skipped too"""
+        body = self.BODY.replace(b"VERSION:2.0\r\n", b"VERSION:2.0\n")
+        client = base(url="http://cal.example.com/dav/")
+        resp = mock.MagicMock()
+        resp.status_code, resp.reason = 201, "Created"
+        resp.headers = {}
+        resp.content = b""
+        if base is DAVClient:
+            client.session.request = mock.MagicMock(return_value=resp)
+        else:
+            client.session.request = mock.AsyncMock(return_value=resp)
+        event = Event(url=self.URL + "ev1.ics", parent=Calendar(client, url=self.URL))
+        self._run(event.save(raw_data=body))
+        kwargs = client.session.request.call_args.kwargs
+        assert (kwargs.get("data") or kwargs.get("content")) == body
