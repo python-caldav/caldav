@@ -192,9 +192,6 @@ class AsyncFunctionalTestsBaseClass:
             msg = self._features.find_feature(feature).get("description", feature)
             pytest.skip("Test skipped due to server incompatibility issue: " + msg)
 
-    def check_compatibility_flag(self, flag: str) -> bool:
-        return flag in getattr(self._features, "_old_flags", [])
-
     @pytest.fixture(scope="class")
     @classmethod
     def test_server(cls) -> TestServer:
@@ -1740,13 +1737,10 @@ class AsyncFunctionalTestsBaseClass:
         foo = 5
         if not self.is_supported("search.recurrences.includes-implicit.todo"):
             foo -= 1
-        if not self.is_supported(
-            "search.time-range.todo.no-dtstart"
-        ) or self.check_compatibility_flag(
-            "vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range"
-        ):
-            foo -= 2
-        elif self.check_compatibility_flag("vtodo_datesearch_notime_task_is_skipped"):
+        if not self.is_supported("search.time-range.todo.no-dtstart"):
+            foo -= 1
+        ## follows no-dtstart unless set
+        if not self.is_supported("search.time-range.todo.no-dtstart.no-due"):
             foo -= 1
 
         if implicit_fragile:
@@ -1779,14 +1773,9 @@ class AsyncFunctionalTestsBaseClass:
 
     # ==================== Group E – Properties & Meta ====================
 
-    def _skip_on_compatibility_flag(self, flag: str) -> None:
-        if self.check_compatibility_flag(flag):
-            pytest.skip(f"Test skipped due to compatibility flag: {flag}")
-
     @pytest.mark.asyncio
     async def test_support(self, async_client: Any) -> None:
         """check_dav_support / check_cdav_support / check_scheduling_support."""
-        self._skip_on_compatibility_flag("dav_not_supported")
         assert await async_client.check_dav_support()
         assert await async_client.check_cdav_support()
         if self.is_supported("scheduling", return_type=str) != "unknown":

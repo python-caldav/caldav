@@ -44,26 +44,13 @@ and once in the post-loop block (line 606).  The second call (line 606) uses the
 Needs careful review; may be an off-by-one in the loop termination logic, or the two
 conditions are truly independent and the second call is simply redundant.
 
-## 3. `_old_flags` — in-progress migration, clear removal path
+## 3. `_old_flags` (fixed)
 
-**Location**: `FeatureSet.__init__`, `FeatureSet.copy_feature_set`, and ~12 server config
-dicts in `compatibility_hints.py`
-
-`_old_flags` is explicitly marked `## TODO: remove this when it can be removed`.  It is
-a shim that carries forward the legacy flat-list quirk system while server configs are
-being migrated to the new dotted-feature style.
-
-`test_caldav.py:1006` still reads `self.caldav.features._old_flags` to validate that old
-flags are known strings.  The test at line 1015-1016 confirms all flags are present in
-`incompatibility_description`.
-
-**Fix**: For each server dict that still has `'old_flags': [...]`, translate the listed
-flags into equivalent new-style features and remove the `old_flags` key.  Once all server
-dicts are migrated:
-- Remove the `if feature == 'old_flags':` special-case in `copy_feature_set`
-- Remove `self._old_flags = []` from `__init__`
-- Remove the `_old_flags` copy in the copy-constructor branch
-- Remove the validation in `test_caldav.py`
+The last old-style flags are gone (https://github.com/python-caldav/caldav/issues/585):
+the two still set by a server profile became `save-load.todo.uncomplete` and
+`search.time-range.todo.no-dtstart.no-due`, each probed by caldav-server-tester, and the
+rest were set by no profile.  `incompatibility_description`, the `old_flags` key and the
+test helpers reading them are removed.
 
 ## 4. `feature_tree` / `_dots_to_tree` — internal detail that can be simplified
 
@@ -104,8 +91,7 @@ return (
 
 The `enable`, `value` and `observed` slots exist to correctly compare `client-feature` and
 `server-observation` nodes during collapse.  In practice, collapse is only ever invoked
-on server-feature nodes (the only type that appears in the server config dicts, aside
-from `old_flags`).  The extra slots add noise without effect.
+on server-feature nodes (the only type that appears in the server config dicts).  The extra slots add noise without effect.
 
 **Fix**: Simplify to `return feature_dict.get('support')` once the broader type-system
 simplification is settled.
@@ -150,5 +136,5 @@ want a second look at the same time.
 
 ## Ordering / dependencies
 
-Items 3 (old_flags) and 6 (rename) are independent and safe to do first.  Items 1, 2,
+Items 3 (old_flags) and 6 (rename) are done.  Items 1, 2,
 4, 5 are interrelated around the type-system simplification and are best tackled together.

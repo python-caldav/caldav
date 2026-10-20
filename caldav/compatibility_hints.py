@@ -32,11 +32,6 @@ VALID_SUPPORT_LEVELS = frozenset({
 ## caldav_server_checker, and things got messy from there.  We should
 ## double-check the values where there is any doubt, and clean up.
 
-## NEW STYLE
-## (we're gradually moving stuff from the good old
-## "incompatibility_description" below over to
-## "compatibility_features")
-
 class FeatureSet:
     """Work in progress ... TODO: write a better class description.
 
@@ -433,6 +428,7 @@ hence, "fragile".
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
+        "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
         "save-load.journal": {
             "description": "The server will even accept journals",
             "default": { "support": "full" }
@@ -546,7 +542,12 @@ hence, "fragile".
         },
         "search.time-range.todo": {"description": "basic time range searches for tasks works", "default": {"support": "full"}},
         "search.time-range.todo.no-dtstart": {
-            "description": "A VTODO without DTSTART (but with DUE) is returned by a date-range search.  RFC5545 and RFC4791 section 9.9 say such a task has a defined time span and should be found, so 'full' (the default) is the compliant behaviour; some servers (Davical, Stalwart, Synology) skip any task lacking DTSTART.  Probed with a closed window; servers that skip such tasks only in closed ranges (returning them in open-ended ones) are instead tracked by the 'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range' flag.",
+            "description": "A VTODO without DTSTART (but with DUE) is returned by a date-range search.  RFC5545 and RFC4791 section 9.9 say such a task has a defined time span and should be found, so 'full' (the default) is the compliant behaviour; some servers (Davical, Stalwart, Synology) skip any task lacking DTSTART.  Probed with a closed window.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.todo.no-dtstart.no-due": {
+            "description": "A VTODO with neither DTSTART nor DUE (nor COMPLETED or CREATED) is returned by a date-range search.  RFC4791 section 9.9 says such a task overlaps every time range.  Zimbra only finds tasks with DTSTART or DUE set.  Unless set, it follows search.time-range.todo.no-dtstart, as a server skipping tasks without DTSTART skips these too.  Probed with a closed window.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
@@ -850,7 +851,6 @@ hence, "fragile".
         if isinstance(feature_set_dict, FeatureSet):
             self._server_features = copy.deepcopy(feature_set_dict._server_features)
             self.backward_compatibility_mode = feature_set_dict.backward_compatibility_mode
-            self._old_flags = copy.copy(feature_set_dict._old_flags) if hasattr(feature_set_dict, '_old_flags') else []
             return
 
         ## TODO: copy the FEATURES dict, or just the feature_set dict?
@@ -858,8 +858,6 @@ hence, "fragile".
         ## changed ... but we need test code in place)
         self.backward_compatibility_mode = feature_set_dict is None
         self._server_features = {}
-        ## TODO: remove this when it can be removed
-        self._old_flags = []
         if feature_set_dict:
             self._copy_feature_set(feature_set_dict, collapse=False)
 
@@ -908,10 +906,6 @@ hence, "fragile".
     ## warning with stacklevel=3 points at the user's code
     def _copy_feature_set(self, feature_set, collapse=True):
         for feature in feature_set:
-            ## TODO: temp - should be removed
-            if feature == 'old_flags':
-                self._old_flags = feature_set[feature]
-                continue
             if feature == 'write-delay':
                 warnings.warn(
                     "The 'write-delay' feature is deprecated - use 'synchronous-write', "
@@ -1357,60 +1351,10 @@ hence, "fragile".
                 )
         return mismatches
 
-#### OLD STYLE
-
-## THE LIST BELOW IS TO BE REMOVED COMPLETELY.  DO NOT USE IT.
-
-## It's not considered to be part of the public API (though, it should
-## have been prefixed with _ to make it clear).  The list is being
-## removed little-by-little, without regards of SemVer.
-
-## The lists below are specifying what tests should be skipped or
-## modified to accept non-conforming resultsets from the different
-## calendar servers.  In addition there are some hacks in the library
-## code itself to work around some known compatibility issues, like
-## the caldav.lib.vcal.fix function.
-## Here is a list of all observed (in)compatibility issues the test framework needs to know about
-## TODO:
-## * references to the relevant parts of the RFC would be nice.
-## * Research should be done to triple-check that the issue is on the server side, and not on the client side
-## * Some of the things below should be possible to probe the server for.
-## * Perhaps some more readable format should be considered (yaml?).
-## * Consider how to get this into the documentation
-incompatibility_description = {
-    'event_by_url_is_broken':
-        """A GET towards a valid calendar object resource URL will yield 404 (wtf?)""",
-
-    'vtodo_datesearch_nodtstart_task_is_skipped_in_closed_date_range':
-        """only open-ended date searches for todo-items will find tasks without a dtstart""",
-
-    'vtodo_datesearch_notime_task_is_skipped':
-        """date searches for todo-items will (only) find tasks that has either """
-        """a dtstart or due set""",
-
-    'vtodo_no_due_infinite_duration':
-        """date search will find todo-items without due if dtstart is """
-        """before the date search interval.  This is in breach of rfc4791"""
-        """section 9.9""",
-
-    'vtodo-cannot-be-uncompleted':
-        """If a VTODO object has been set with STATUS:COMPLETE, it's not possible to delete the COMPLTEDED attribute and change back to STATUS:IN-ACTION""",
-
-    'sticky_events':
-        """Events should be deleted before the calendar is deleted, """
-        """and/or deleting a calendar may not have immediate effect""",
-
-    'dav_not_supported':
-        """when asked, the server may claim it doesn't support the DAV protocol.  Observed by one baikal server, should be investigated more (TODO) and robur""",
-
-   'fastmail_buggy_noexpand_date_search':
-        """The 'blissful anniversary' recurrent example event is returned when asked for a no-expand date search for some timestamps covering a completely different date""",
-
-    'robur_rrule_freq_yearly_expands_monthly':
-        """Robur expands a yearly event into a monthly event.  I believe I've reported this one upstream at some point, but can't find back to it""",
-
-}
-
+## Server profiles.  Each dict below is a feature set (see
+## FeatureSet.FEATURES above) describing one server.  In addition there
+## are some hacks in the library code itself to work around some known
+## compatibility issues, like the caldav.lib.vcal.fix function.
 xandikos = {
     ## Probed 2026-10-11 on 0.4.8, unchanged on master (0.4.9): a token that
     ## isn't a hex SHA crashes the git store lookup, and a hex one is refused
@@ -1677,20 +1621,14 @@ zimbra = {
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'search.time-range.open.start': {'support': 'broken'},
 
-    "old_flags": [
-    ## setting display name in zimbra does not work (display name,
-    ## calendar-ID and URL is the same, the display name cannot be
-    ## changed, it can only be given if no calendar-ID is given.  In
-    ## earlier versions of Zimbra display-name could be changed, but
-    ## then the calendar would not be available on the old URL
-    ## anymore)
-    ## 'event_by_url_is_broken' removed - works in zimbra/zcs-foss:latest
-    'vtodo_datesearch_notime_task_is_skipped',
+    ## Probed 2026-10-20: a task with DUE but no DTSTART is found by a
+    ## date search, one with neither is not
+    'search.time-range.todo.no-dtstart.no-due': {'support': 'unsupported'},
 
     ## TODO: I just discovered that when searching for a date some
     ## years after a recurring daily event was made, the event does
     ## not appear.
-    ],
+
     ## extra properties not specified in RFC4791/RFC5545.  Zimbra stores
     ## calendar-order, and stores calendar-color only when set as a hex value -
     ## it rejects/ignores a colour name like "blue".  (The old 'calendar_color'
@@ -2079,12 +2017,6 @@ davical = {
     'principal-search': {'support': 'unsupported'},
     ## DAViCal skips VTODOs without DTSTART in date-range searches.
     'search.time-range.todo.no-dtstart': {'support': 'unsupported'},
-    "old_flags": [
-        #'no_journal', ## it threw a 500 internal server error! ## for old versions
-        #'nofreebusy', ## for old versions
-        ## 'fragile_sync_tokens' removed - covered by 'sync-token': {'support': 'fragile'}
-        'vtodo_datesearch_notime_task_is_skipped',
-    ],
     ## extra properties not specified in RFC4791/RFC5545
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
@@ -2184,7 +2116,10 @@ sogo = {
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 
 }
-## Old notes for sogo (todo - incorporate them in the structure above)
+## Old notes for sogo (todo - incorporate them in the structure above).
+## The commented-out lists here and below name flags of the old-style
+## system, removed in https://github.com/python-caldav/caldav/issues/585 -
+## kept only as a record of what was once observed on those servers.
 ## https://www.sogo.nu/bugs/view.php?id=3065
 ## left a note about time-based sync tokens on https://www.sogo.nu/bugs/view.php?id=5163
 ## https://www.sogo.nu/bugs/view.php?id=5282
@@ -2606,10 +2541,11 @@ gmx = {
     ## Open-start searches used to work (no hint, so full), but were
     ## rejected with 403 Forbidden 2026-10-11
     'search.time-range.open.start': {'support': 'fragile'},
-    "old_flags":  [
-        #"text_search_is_case_insensitive",
-        "vtodo-cannot-be-uncompleted",
-    ]
+    ## Probed 2026-10-20
+    "save-load.todo.uncomplete": {
+        "support": "unsupported",
+        "behaviour": "the task is saved as pending, but loads back with STATUS:COMPLETED",
+    },
 }
 
 ## https://ox.io/

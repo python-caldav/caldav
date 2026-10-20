@@ -535,7 +535,7 @@ Also related: [#697](https://github.com/python-caldav/caldav/issues/697) - smart
 - **Related issues:** [#585](https://github.com/python-caldav/caldav/issues/585), [#482](https://github.com/python-caldav/caldav/issues/482), [#128](https://github.com/python-caldav/caldav/issues/128), [#619](https://github.com/python-caldav/caldav/issues/619), [#515](https://github.com/python-caldav/caldav/issues/515)
 
 **Tasks:**
-- [ ] Remove old incompatibility flags ([#585](https://github.com/python-caldav/caldav/issues/585))
+- [x] Remove old incompatibility flags ([#585](https://github.com/python-caldav/caldav/issues/585))
 - [ ] Obsolete `get_duration`, `get_due`, `get_dtend` ([#482](https://github.com/python-caldav/caldav/issues/482))
 - [ ] v4.0: remove everything that raises a `DeprecationWarning`, and add the
       warning to methods deprecated without one ([#619](https://github.com/python-caldav/caldav/issues/619))
