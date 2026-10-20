@@ -43,3 +43,7 @@ A response whose `Content-Type` says XML but whose body is not XML (an HTML erro
 ## Config errors from extract_conn_params_from_section name no section
 
 `extract_conn_params_from_section()` in `caldav/config.py` passes the fixed name `"section"` to calendaring-config's `section_connection()`, so a failing `password_command` reads "password_command of section section exited with status 3" for plann users.  Fix: an optional `section_name` parameter, passed on, and plann giving its section names.  Found in the review of plann's switch to caldav 3.6, see https://github.com/python-caldav/caldav/issues/786.
+
+## calendar_multiget() fails on an async client
+
+`Calendar.calendar_multiget()` in `caldav/collection.py` does `list(self.multiget(...))`, but `multiget()` returns a coroutine for an async client, so the call raises `TypeError`.  `calendar_multiget()` has no return annotation, so a type checker does not catch it.  Fix: return `self.multiget(...)` for an async client (or annotate it like `multiget()`), with an async unit test.  Found in the review of the fix for https://github.com/python-caldav/caldav/issues/799.
