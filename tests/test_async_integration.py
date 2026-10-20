@@ -1451,6 +1451,38 @@ class AsyncFunctionalTestsBaseClass:
         assert "RRULE" not in r2[1].data
 
     @pytest.mark.asyncio
+    async def test_cancel_single_recurrence(self, async_calendar: Any) -> None:
+        """Async twin of testCancelSingleRecurrence: cancel() keeps an
+        occurrence in its series, as cancelled."""
+        self.skip_unless_support("search.recurrences.includes-implicit.event")
+        c = async_calendar
+        base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
+            hour=8, minute=7, second=6, microsecond=0
+        )
+        await c.add_event(
+            uid="test1",
+            summary="daily test",
+            dtstart=base,
+            dtend=base + timedelta(hours=1),
+            rrule={"FREQ": "DAILY"},
+        )
+
+        async def search(offset: int) -> list:
+            day = (base + timedelta(days=offset)).replace(hour=0, minute=0, second=0)
+            return await c.search(event=True, start=day, end=day + timedelta(days=1), expand=True)
+
+        [occurrence] = await search(3)
+        await occurrence.cancel()
+        assert len(await search(4)) == 1
+        ## checked on the stored series, as a cancelled occurrence may be
+        ## left out of search results
+        series = await c.get_event_by_uid("test1")
+        if self.is_supported("save-load.event.recurrences.exception.cancelled"):
+            assert [str(x["STATUS"]) for x in series.icalendar_instance.walk("VEVENT")[1:]] == [
+                "CANCELLED"
+            ]
+
+    @pytest.mark.asyncio
     async def test_recurring_date_with_exception_search(self, async_calendar: Any) -> None:
         """Bi-weekly event with exception: expanded search returns correct RECURRENCE-IDs."""
         self.skip_unless_support("search")

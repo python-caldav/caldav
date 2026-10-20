@@ -7945,6 +7945,126 @@ class _SaveRequests:
     _run = staticmethod(TestPreconditionsOnOtherStatuses._run)
 
 
+SERIES = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:daily
+DTSTAMP:20260101T000000Z
+DTSTART:20260105T080000Z
+DTEND:20260105T090000Z
+SEQUENCE:2
+RRULE:FREQ=DAILY
+SUMMARY:daily
+END:VEVENT
+BEGIN:VEVENT
+UID:daily
+DTSTAMP:20260101T000000Z
+RECURRENCE-ID:20260107T080000Z
+DTSTART:20260107T100000Z
+DTEND:20260107T110000Z
+SUMMARY:moved
+END:VEVENT
+END:VCALENDAR
+"""
+
+
+def _occurrence(series: str, rid: str) -> str:
+    """An occurrence as search(expand=True) returns it."""
+    return (
+        series.split("BEGIN:VEVENT")[0]
+        + "BEGIN:VEVENT\nUID:daily\nDTSTAMP:20260101T000000Z\n"
+        + f"RECURRENCE-ID:{rid}\nDTSTART:{rid}\nSUMMARY:daily\nEND:VEVENT\nEND:VCALENDAR\n"
+    )
+
+
+def _multistatus(data: str) -> bytes:
+    """A REPORT answer holding ``data`` at daily.ics."""
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        "<D:response><D:href>/dav/user/mycal/daily.ics</D:href><D:propstat><D:prop>"
+        f'<D:getetag>"e1"</D:getetag><C:calendar-data>{data}</C:calendar-data></D:prop>'
+        "<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>"
+        "</D:multistatus>"
+    ).encode()
+
+
+class TestCancel(_SaveRequests):
+    """cancel() sets STATUS:CANCELLED and saves; on an occurrence, only
+    that occurrence is cancelled (issue
+    https://github.com/python-caldav/caldav/issues/598)."""
+
+    def _series_client(self, base, series=SERIES):
+        sent = []
+        client = base(url="http://cal.example.com/dav/")
+        statuses = {"GET": 200, "REPORT": 207, "PUT": 204}
+
+        def request(url, method="GET", body="", headers=None):
+            method = method.upper()
+            sent.append((method, body))
+            resp = mock.MagicMock()
+            resp.status_code = statuses[method]
+            resp.reason = "whatever"
+            ## save() of an occurrence finds the series by its UID
+            content = {"GET": series.encode(), "REPORT": _multistatus(series)}.get(method, b"")
+            content_type = "text/calendar" if method == "GET" else "application/xml"
+            ## a plain dict: the key is spelled as the client looks it up
+            resp.headers = {"Content-Type": content_type, "Etag": '"e1"'} if content else {}
+            resp.content = content
+            resp.text = content.decode()
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = lambda url, method="GET", body="", headers=None: request(
+                url, method, body, headers
+            )
+        else:
+
+            async def async_request(url, method="GET", body="", headers=None):
+                return request(url, method, body, headers)
+
+            client.request = async_request
+        return client, sent
+
+    def _instance(self, client, data):
+        cal = Calendar(client, url=self.URL)
+        return Event(client, data=data, parent=cal, url=self.URL + "daily.ics")
+
+    def _put(self, sent):
+        [body] = [body for method, body in sent if method == "PUT"]
+        return icalendar.Calendar.from_ical(to_normal_str(body))
+
+    def test_cancel_occurrence(self, base) -> None:
+        client, sent = self._series_client(base)
+        occurrence = self._instance(client, _occurrence(SERIES, "20260106T080000Z"))
+        self._run(occurrence.cancel())
+        master, override, cancelled = self._put(sent).walk("VEVENT")
+        assert "EXDATE" not in master and "STATUS" not in master
+        assert str(override["SUMMARY"]) == "moved"
+        assert str(cancelled["STATUS"]) == "CANCELLED"
+        assert cancelled["RECURRENCE-ID"].dt == datetime(2026, 1, 6, 8, tzinfo=timezone.utc)
+
+    def test_cancel_series_cancels_overrides(self, base) -> None:
+        """An override replaces its occurrence, so it is cancelled too."""
+        client, sent = self._series_client(base)
+        self._run(self._instance(client, SERIES).cancel())
+        assert [str(x["STATUS"]) for x in self._put(sent).walk("VEVENT")] == [
+            "CANCELLED",
+            "CANCELLED",
+        ]
+
+    def test_cancel_replaces_status(self, base) -> None:
+        client, sent = self._series_client(base)
+        single = (
+            SERIES.split("RRULE:FREQ=DAILY\n")[0] + "STATUS:CONFIRMED\nEND:VEVENT\nEND:VCALENDAR\n"
+        )
+        self._run(self._instance(client, single).cancel())
+        [event] = self._put(sent).walk("VEVENT")
+        assert event.to_ical().count(b"STATUS") == 1
+        assert str(event["STATUS"]) == "CANCELLED"
+
+
 class TestNoOverwriteIfNoneMatch(_SaveRequests):
     """save(no_overwrite=True) sends If-None-Match: * (RFC 9110 section
     13.1.2), so the server refuses an overwrite of the same URL in the

@@ -4729,6 +4729,42 @@ END:VCALENDAR"""
                 datetime(2024, 4, 25, 12, 30, 0),
             }
 
+    def testCancelSingleRecurrence(self):
+        """
+        cancel() on an occurrence from an expanded search keeps it in the
+        series, as an override with STATUS:CANCELLED.  Issue
+        https://github.com/python-caldav/caldav/issues/598
+        """
+        self.skip_unless_support("search.recurrences.includes-implicit.event")
+        cal = self._fixCalendar()
+        ## future days, in UTC - see testEditSingleRecurrence
+        base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
+            hour=8, minute=7, second=6, microsecond=0
+        )
+        cal.add_event(
+            uid="test1",
+            summary="daily test",
+            dtstart=base,
+            dtend=base + timedelta(hours=1),
+            rrule={"FREQ": "DAILY"},
+        )
+
+        def search(offset):
+            day = (base + timedelta(days=offset)).replace(hour=0, minute=0, second=0)
+            return cal.search(event=True, start=day, end=day + timedelta(days=1), expand=True)
+
+        [occurrence] = search(3)
+        occurrence.cancel()
+        assert len(search(4)) == 1
+
+        ## checked on the stored series, as a cancelled occurrence may be
+        ## left out of search results
+        series = cal.get_event_by_uid("test1")
+        if self.is_supported("save-load.event.recurrences.exception.cancelled"):
+            assert [str(x["STATUS"]) for x in series.icalendar_instance.walk("VEVENT")[1:]] == [
+                "CANCELLED"
+            ]
+
     def testEditSingleRecurrence(self):
         """
         It should be possible to fetch a single recurrence from

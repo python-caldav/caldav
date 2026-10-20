@@ -287,6 +287,8 @@ This is not best practice - the thing above may even break due to line wrapping,
 
 How does the new may17-event look from a technical point of view, when we're editing only the 2026-edition?  Enable the breakpoint and find out!  Use ``.get_icalendar_instance()`` or ``.data``
 
+A single recurrence from an expanded search can also be cancelled: ``my_events[0].cancel()`` marks only the 2026-edition as cancelled (``STATUS:CANCELLED``), while the other years stay.  On most servers, the cancelled recurrence stays in the calendar.
+
 
 Tasks
 -----

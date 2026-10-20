@@ -1350,6 +1350,25 @@ class CalendarObjectResource(DAVObject):
             headers = {"if-match": if_match}
         return self._delete(headers)
 
+    def cancel(self, **kwargs: Any) -> "Self | Coroutine[Any, Any, Self]":
+        """Mark the object as cancelled (``STATUS:CANCELLED``) and save it.
+
+        On a single occurrence, as from ``search(..., expand=True)``, it
+        cancels that occurrence only: it becomes an override in its
+        series, which stays in the calendar.  This is for an occurrence
+        that was planned but will not take place.  On a whole series,
+        the overrides of it are cancelled too.  ``kwargs`` are passed to
+        :meth:`save`, and its return value is returned - for an
+        occurrence, that is the series it was saved into.  See
+        https://github.com/python-caldav/caldav/issues/598
+        """
+        for component in self.icalendar_instance.subcomponents:
+            if isinstance(component, icalendar.Timezone):
+                continue
+            component.pop("STATUS", None)
+            component.add("STATUS", "CANCELLED")
+        return self.save(**kwargs)
+
     @staticmethod
     def _raise_uid_conflict(e: error.DAVError, consistency: bool = False) -> None:
         """Raise UidConflictError if ``e`` names a UID precondition.
