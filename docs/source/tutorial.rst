@@ -287,7 +287,7 @@ This is not best practice - the thing above may even break due to line wrapping,
 
 How does the new may17-event look from a technical point of view, when we're editing only the 2026-edition?  Enable the breakpoint and find out!  Use ``.get_icalendar_instance()`` or ``.data``
 
-A single recurrence from an expanded search can also be cancelled: ``my_events[0].cancel()`` marks only the 2026-edition as cancelled (``STATUS:CANCELLED``), while the other years stay.  On most servers, the cancelled recurrence stays in the calendar.
+A single recurrence from an expanded search can also be deleted: ``my_events[0].delete()`` takes only the 2026-edition out of the series, by adding it to the ``EXDATE`` of the event, while the other years stay.  Use ``.cancel()`` instead for a recurrence that was planned but will not take place: on most servers it stays in the calendar, marked as cancelled.  To delete the whole series, call ``delete()`` on the event from ``get_event_by_uid()``, or pass ``only_this_recurrence=False``.
 
 
 Tasks

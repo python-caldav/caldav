@@ -7968,6 +7968,20 @@ END:VEVENT
 END:VCALENDAR
 """
 
+ORPHANS = """BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Example Corp.//CalDAV Client//EN
+BEGIN:VEVENT
+UID:orphan
+DTSTAMP:20260101T000000Z
+RECURRENCE-ID:20260107T080000Z
+DTSTART:20260107T100000Z
+DTEND:20260107T110000Z
+SUMMARY:invited to one
+END:VEVENT
+END:VCALENDAR
+"""
+
 
 def _occurrence(series: str, rid: str) -> str:
     """An occurrence as search(expand=True) returns it."""
@@ -7978,16 +7992,270 @@ def _occurrence(series: str, rid: str) -> str:
     )
 
 
-def _multistatus(data: str) -> bytes:
-    """A REPORT answer holding ``data`` at daily.ics."""
+def _multistatus(data: str, *more: tuple[str, str]) -> bytes:
+    """A REPORT answer holding ``data`` at daily.ics, and ``more`` as
+    (name, data) pairs."""
+    responses = "".join(
+        f"<D:response><D:href>/dav/user/mycal/{name}</D:href><D:propstat><D:prop>"
+        f'<D:getetag>"e1"</D:getetag><C:calendar-data>{body}</C:calendar-data></D:prop>'
+        "<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>"
+        for name, body in (("daily.ics", data), *more)
+    )
     return (
         '<?xml version="1.0" encoding="utf-8"?>\n'
         '<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
-        "<D:response><D:href>/dav/user/mycal/daily.ics</D:href><D:propstat><D:prop>"
-        f'<D:getetag>"e1"</D:getetag><C:calendar-data>{data}</C:calendar-data></D:prop>'
-        "<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>"
-        "</D:multistatus>"
+        + responses
+        + "</D:multistatus>"
     ).encode()
+
+
+class TestDeleteOccurrence(_SaveRequests):
+    """Deleting one occurrence of a recurring event excludes it from the
+    series with EXDATE instead of deleting the whole series (issue
+    https://github.com/python-caldav/caldav/issues/598)."""
+
+    def _series_client(self, base, series=SERIES, status=None, report=None, features=None):
+        """``status`` overrides the answer per method; ``report`` the REPORT body."""
+        sent = []
+        client = base(url="http://cal.example.com/dav/", features=features)
+        statuses = {"GET": 200, "REPORT": 207, "PUT": 204, "DELETE": 204, **(status or {})}
+
+        def request(url, method="GET", body="", headers=None):
+            method = method.upper()
+            sent.append(
+                (method, {k.lower(): v for k, v in (headers or {}).items()}, body, str(url))
+            )
+            resp = mock.MagicMock()
+            resp.status_code = statuses[method]
+            resp.reason = "whatever"
+            ## save() of an occurrence finds the series by its UID
+            content = {
+                "GET": series.encode(),
+                "REPORT": _multistatus(series) if report is None else report,
+            }.get(method, b"")
+            if resp.status_code >= 400:
+                content = b""
+            content_type = "text/calendar" if method == "GET" else "application/xml"
+            ## a plain dict: the key is spelled as the client looks it up
+            resp.headers = {"Content-Type": content_type, "Etag": '"e1"'} if content else {}
+            resp.content = content
+            resp.text = content.decode()
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = lambda url, method="GET", body="", headers=None: request(
+                url, method, body, headers
+            )
+        else:
+
+            async def async_request(url, method="GET", body="", headers=None):
+                return request(url, method, body, headers)
+
+            client.request = async_request
+        return client, sent
+
+    def _instance(self, client, data):
+        cal = Calendar(client, url=self.URL)
+        return Event(client, data=data, parent=cal, url=self.URL + "daily.ics")
+
+    def _put(self, sent):
+        [(method, headers, body, _)] = [x for x in sent if x[0] not in ("GET", "REPORT")]
+        assert method == "PUT"
+        return headers, icalendar.Calendar.from_ical(to_normal_str(body))
+
+    def test_occurrence_gets_exdate(self, base) -> None:
+        client, sent = self._series_client(base)
+        self._run(self._instance(client, _occurrence(SERIES, "20260106T080000Z")).delete())
+        headers, cal = self._put(sent)
+        master, override = cal.walk("VEVENT")
+        assert [d.dt for d in master["EXDATE"].dts] == [
+            datetime(2026, 1, 6, 8, tzinfo=timezone.utc)
+        ]
+        ## EXDATE is a change to the series (RFC 5545 section 3.8.7.4)
+        assert master["SEQUENCE"] == 3
+        assert str(override["SUMMARY"]) == "moved"
+        ## the series is saved over the version just read
+        assert headers["if-match"] == '"e1"'
+
+    def test_overridden_occurrence_drops_override(self, base) -> None:
+        client, sent = self._series_client(base)
+        self._run(self._instance(client, _occurrence(SERIES, "20260107T080000Z")).delete())
+        _, cal = self._put(sent)
+        [master] = cal.walk("VEVENT")
+        assert [d.dt for d in master["EXDATE"].dts] == [
+            datetime(2026, 1, 7, 8, tzinfo=timezone.utc)
+        ]
+
+    def test_last_orphan_override_deletes_resource(self, base) -> None:
+        client, sent = self._series_client(base, series=ORPHANS)
+        self._run(self._instance(client, ORPHANS).delete())
+        ## the REPORT looks for a master stored elsewhere; there is none
+        assert "REPORT" in [x[0] for x in sent]
+        assert [x[0] for x in sent if x[0] != "REPORT"] == ["GET", "DELETE"]
+        ## nothing asked for a precondition, so a 404 would be fine
+        assert "if-match" not in sent[-1][1]
+
+    def test_override_stored_apart_from_master(self, base) -> None:
+        """A server that keeps overrides in resources of their own: the
+        EXDATE goes on the master, and the override's resource goes."""
+        master_only = (
+            SERIES[: SERIES.index("BEGIN:VEVENT", SERIES.index("END:VEVENT"))] + "END:VCALENDAR\n"
+        )
+        moved = ORPHANS.replace("UID:orphan", "UID:daily")
+        client, sent = self._series_client(
+            base, series=moved, report=_multistatus(moved, ("master.ics", master_only))
+        )
+        self._run(self._instance(client, _occurrence(SERIES, "20260107T080000Z")).delete())
+        assert [(x[0], x[3].rsplit("/", 1)[-1]) for x in sent if x[0] != "REPORT"] == [
+            ("GET", "daily.ics"),
+            ("PUT", "master.ics"),
+            ("DELETE", "daily.ics"),
+        ]
+        put = icalendar.Calendar.from_ical(to_normal_str([x for x in sent if x[0] == "PUT"][0][2]))
+        [master] = put.walk("VEVENT")
+        assert [d.dt for d in master["EXDATE"].dts] == [
+            datetime(2026, 1, 7, 8, tzinfo=timezone.utc)
+        ]
+
+    def test_gone_occurrence_is_success(self, base) -> None:
+        """A 404 counts as success, as for any delete() without if_match."""
+        client, sent = self._series_client(base, status={"GET": 404, "REPORT": 404})
+        self._run(self._instance(client, _occurrence(SERIES, "20260106T080000Z")).delete())
+        assert "PUT" not in [x[0] for x in sent]
+
+    def test_gone_occurrence_with_if_match_raises(self, base) -> None:
+        client, _ = self._series_client(base, status={"GET": 404, "REPORT": 404})
+        with pytest.raises(error.NotFoundError):
+            self._run(
+                self._instance(client, _occurrence(SERIES, "20260106T080000Z")).delete(
+                    if_match='"e0"'
+                )
+            )
+
+    def test_explicit_if_match_reaches_the_put(self, base) -> None:
+        client, sent = self._series_client(base)
+        occurrence = self._instance(client, _occurrence(SERIES, "20260106T080000Z"))
+        self._run(occurrence.delete(if_match='"mine"'))
+        headers, _ = self._put(sent)
+        assert headers["if-match"] == '"mine"'
+
+    def test_cached_schedule_tag_reaches_the_put(self, base) -> None:
+        client, sent = self._series_client(base)
+        occurrence = self._instance(client, _occurrence(SERIES, "20260106T080000Z"))
+        occurrence.props[cdav.ScheduleTag.tag] = '"stag"'
+        self._run(occurrence.delete(if_match=True))
+        headers, _ = self._put(sent)
+        assert headers["if-schedule-tag-match"] == '"stag"'
+        assert "if-match" not in headers
+
+    def test_412_on_the_put_raises(self, base) -> None:
+        client, _ = self._series_client(base, status={"PUT": 412})
+        with pytest.raises(error.ETagMismatchError):
+            self._run(self._instance(client, _occurrence(SERIES, "20260106T080000Z")).delete())
+
+    def test_occurrence_without_url_found_by_uid(self, base) -> None:
+        client, sent = self._series_client(base)
+        occurrence = self._instance(client, _occurrence(SERIES, "20260106T080000Z"))
+        occurrence.url = None
+        self._run(occurrence.delete())
+        methods = [x[0] for x in sent]
+        assert "GET" not in methods and methods[-1] == "PUT"
+
+    def test_todo_occurrence(self, base) -> None:
+        series = SERIES.replace("VEVENT", "VTODO").replace("DTEND", "DUE")
+        client, sent = self._series_client(base, series=series)
+        cal = Calendar(client, url=self.URL)
+        occurrence = Todo(
+            client,
+            data=_occurrence(SERIES, "20260106T080000Z").replace("VEVENT", "VTODO"),
+            parent=cal,
+            url=self.URL + "daily.ics",
+        )
+        self._run(occurrence.delete())
+        _, put = self._put(sent)
+        assert [d.dt for d in put.walk("VTODO")[0]["EXDATE"].dts] == [
+            datetime(2026, 1, 6, 8, tzinfo=timezone.utc)
+        ]
+
+    def test_all_day_series_utc_recurrence_id(self, base) -> None:
+        """A server expanding an all-day series may give a date-time
+        RECURRENCE-ID; the EXDATE is a date, like DTSTART."""
+        series = SERIES.replace("DTSTART:20260105T080000Z", "DTSTART;VALUE=DATE:20260105").replace(
+            "DTEND:20260105T090000Z", "DTEND;VALUE=DATE:20260106"
+        )
+        client, sent = self._series_client(base, series=series)
+        self._run(self._instance(client, _occurrence(series, "20260106T000000Z")).delete())
+        _, put = self._put(sent)
+        assert b"EXDATE;VALUE=DATE:20260106" in put.walk("VEVENT")[0].to_ical()
+
+    def test_thisandfuture_override_moves_on(self, base) -> None:
+        """The override of this and later occurrences is kept for the
+        later ones: its RECURRENCE-ID moves to the next occurrence."""
+        series = SERIES.replace(
+            "RECURRENCE-ID:20260107T080000Z", "RECURRENCE-ID;RANGE=THISANDFUTURE:20260107T080000Z"
+        )
+        client, sent = self._series_client(base, series=series)
+        self._run(self._instance(client, _occurrence(SERIES, "20260107T080000Z")).delete())
+        _, put = self._put(sent)
+        master, override = put.walk("VEVENT")
+        assert [d.dt for d in master["EXDATE"].dts] == [
+            datetime(2026, 1, 7, 8, tzinfo=timezone.utc)
+        ]
+        assert override["RECURRENCE-ID"].dt == datetime(2026, 1, 8, 8, tzinfo=timezone.utc)
+        assert override["RECURRENCE-ID"].params["RANGE"] == "THISANDFUTURE"
+        ## moved two hours later, as on the 7th
+        assert override["DTSTART"].dt == datetime(2026, 1, 8, 10, tzinfo=timezone.utc)
+        assert override["DTEND"].dt == datetime(2026, 1, 8, 11, tzinfo=timezone.utc)
+
+    def test_orphan_override_among_others_is_removed(self, base) -> None:
+        vevent = "BEGIN:VEVENT" + ORPHANS.split("BEGIN:VEVENT")[1].split("END:VCALENDAR")[0]
+        two = ORPHANS.replace(
+            "END:VCALENDAR", vevent.replace("20260107T", "20260108T") + "END:VCALENDAR"
+        )
+        assert two.count("BEGIN:VEVENT") == 2
+        client, sent = self._series_client(base, series=two)
+        self._run(self._instance(client, ORPHANS).delete())
+        _, cal = self._put(sent)
+        [left] = cal.walk("VEVENT")
+        assert left["RECURRENCE-ID"].dt == datetime(2026, 1, 8, 8, tzinfo=timezone.utc)
+
+    def test_only_this_recurrence_false_deletes_series(self, base) -> None:
+        client, sent = self._series_client(base)
+        occurrence = self._instance(client, _occurrence(SERIES, "20260106T080000Z"))
+        self._run(occurrence.delete(only_this_recurrence=False))
+        assert [x[0] for x in sent] == ["DELETE"]
+
+    def test_series_delete_unchanged(self, base) -> None:
+        client, sent = self._series_client(base)
+        self._run(self._instance(client, SERIES).delete())
+        assert [x[0] for x in sent] == ["DELETE"]
+
+    def test_all_day_exdate_is_a_date(self, base) -> None:
+        series = SERIES.replace("DTSTART:20260105T080000Z", "DTSTART;VALUE=DATE:20260105").replace(
+            "DTEND:20260105T090000Z", "DTEND;VALUE=DATE:20260106"
+        )
+        client, sent = self._series_client(base, series=series)
+        occurrence = _occurrence(series, "20260106T080000Z").replace(
+            "RECURRENCE-ID:20260106T080000Z\nDTSTART:20260106T080000Z",
+            "RECURRENCE-ID;VALUE=DATE:20260106\nDTSTART;VALUE=DATE:20260106",
+        )
+        self._run(self._instance(client, occurrence).delete())
+        _, cal = self._put(sent)
+        master = cal.walk("VEVENT")[0]
+        assert [d.dt for d in master["EXDATE"].dts] == [date(2026, 1, 6)]
+        assert b"EXDATE;VALUE=DATE:20260106" in master.to_ical()
+
+    def test_exdate_in_the_series_timezone(self, base) -> None:
+        """A server expanding the series may give RECURRENCE-ID in UTC;
+        the EXDATE follows DTSTART's time zone."""
+        series = SERIES.replace(
+            "DTSTART:20260105T080000Z", "DTSTART;TZID=Europe/Oslo:20260105T090000"
+        ).replace("DTEND:20260105T090000Z", "DTEND;TZID=Europe/Oslo:20260105T100000")
+        client, sent = self._series_client(base, series=series)
+        self._run(self._instance(client, _occurrence(SERIES, "20260106T080000Z")).delete())
+        _, cal = self._put(sent)
+        master = cal.walk("VEVENT")[0]
+        assert b"EXDATE;TZID=Europe/Oslo:20260106T090000" in master.to_ical()
 
 
 class TestCancel(_SaveRequests):

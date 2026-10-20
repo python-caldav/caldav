@@ -1451,6 +1451,42 @@ class AsyncFunctionalTestsBaseClass:
         assert "RRULE" not in r2[1].data
 
     @pytest.mark.asyncio
+    async def test_delete_single_recurrence(self, async_calendar: Any) -> None:
+        """Async twin of testDeleteSingleRecurrence: delete() takes an
+        occurrence out of its series."""
+        self.skip_unless_support("search.recurrences.includes-implicit.event")
+        c = async_calendar
+        base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
+            hour=8, minute=7, second=6, microsecond=0
+        )
+        await c.add_event(
+            uid="test1",
+            summary="daily test",
+            dtstart=base,
+            dtend=base + timedelta(hours=1),
+            rrule={"FREQ": "DAILY"},
+        )
+
+        async def search(offset: int) -> list:
+            day = (base + timedelta(days=offset)).replace(hour=0, minute=0, second=0)
+            return await c.search(event=True, start=day, end=day + timedelta(days=1), expand=True)
+
+        [overridden] = await search(3)
+        overridden.icalendar_component["summary"] = "edited"
+        await overridden.save()
+        [overridden] = await search(3)
+        await overridden.delete()
+        [occurrence] = await search(4)
+        await occurrence.delete()
+        assert await search(3) == []
+        assert await search(4) == []
+        assert len(await search(5)) == 1
+        exdates = (await c.get_event_by_uid("test1")).icalendar_component["EXDATE"]
+        if not isinstance(exdates, list):
+            exdates = [exdates]
+        assert sum(len(x.dts) for x in exdates) == 2
+
+    @pytest.mark.asyncio
     async def test_cancel_single_recurrence(self, async_calendar: Any) -> None:
         """Async twin of testCancelSingleRecurrence: cancel() keeps an
         occurrence in its series, as cancelled."""

@@ -4729,6 +4729,46 @@ END:VCALENDAR"""
                 datetime(2024, 4, 25, 12, 30, 0),
             }
 
+    def testDeleteSingleRecurrence(self):
+        """
+        Deleting an occurrence from an expanded search takes it out of the
+        series (EXDATE) instead of deleting the series.  Issue
+        https://github.com/python-caldav/caldav/issues/598
+        """
+        self.skip_unless_support("search.recurrences.includes-implicit.event")
+        cal = self._fixCalendar()
+        ## future days, in UTC - see testEditSingleRecurrence
+        base = (datetime.now(timezone.utc) + timedelta(days=2)).replace(
+            hour=8, minute=7, second=6, microsecond=0
+        )
+        cal.add_event(
+            uid="test1",
+            summary="daily test",
+            dtstart=base,
+            dtend=base + timedelta(hours=1),
+            rrule={"FREQ": "DAILY"},
+        )
+
+        def search(offset):
+            day = (base + timedelta(days=offset)).replace(hour=0, minute=0, second=0)
+            return cal.search(event=True, start=day, end=day + timedelta(days=1), expand=True)
+
+        ## an occurrence, and one that was edited first (an override)
+        [overridden] = search(3)
+        overridden.icalendar_component["summary"] = "edited"
+        overridden.save()
+        [overridden] = search(3)
+        overridden.delete()
+        [occurrence] = search(4)
+        occurrence.delete()
+        assert search(3) == []
+        assert search(4) == []
+        assert len(search(5)) == 1
+        exdates = cal.get_event_by_uid("test1").icalendar_component["EXDATE"]
+        if not isinstance(exdates, list):
+            exdates = [exdates]
+        assert sum(len(x.dts) for x in exdates) == 2
+
     def testCancelSingleRecurrence(self):
         """
         cancel() on an occurrence from an expanded search keeps it in the

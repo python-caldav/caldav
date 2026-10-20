@@ -1301,9 +1301,33 @@ class CalendarObjectResource(DAVObject):
         return headers
 
     def delete(
-        self, if_match: bool | str | None = False, precondition: Precondition = "auto"
+        self,
+        if_match: bool | str | None = False,
+        precondition: Precondition = "auto",
+        only_this_recurrence: bool = True,
     ) -> "None | Coroutine[Any, Any, None]":
         """Delete the object from the server.
+
+        A single occurrence of a recurring event or task - an object
+        holding one component with a RECURRENCE-ID, as
+        ``search(..., expand=True)`` returns them - is taken out of its
+        series instead: the series is read from the server, the
+        occurrence is added to the master's ``EXDATE``
+        (:rfc:`5545#section-3.8.5.1`), any override of it is dropped,
+        and the series is saved again, with the master's SEQUENCE bumped
+        if it has one.  An override with ``RANGE=THISANDFUTURE`` still
+        holds the changes to the later occurrences, so it moves on to the
+        next occurrence instead.  When the resource holds no master,
+        only overrides, the override is dropped, and the resource
+        deleted when it was the last one; where the server keeps the
+        master in a resource of its own, the EXDATE goes there.  A
+        series already gone counts as success, unless ``if_match`` is
+        given.  Pass
+        ``only_this_recurrence=False`` to delete the whole resource
+        instead, as earlier versions did.  An occurrence that was
+        planned but will not take place should rather be cancelled,
+        see :meth:`cancel`.  See
+        https://github.com/python-caldav/caldav/issues/598
 
         By default the DELETE is unconditional, and a 404 counts as
         success.
@@ -1322,6 +1346,9 @@ class CalendarObjectResource(DAVObject):
 
         ``precondition`` works as in ``save()``: ``"etag"`` makes
         ``if_match=True`` prefer ``If-Match`` over a cached Schedule-Tag.
+        For a single occurrence the precondition guards the save of the
+        series; without one, that save is guarded by the ETag of the
+        series just read.
 
         See https://github.com/python-caldav/caldav/issues/740
 
@@ -1329,8 +1356,22 @@ class CalendarObjectResource(DAVObject):
         """
         ## Checked up front, so a typo is not ignored on a plain delete
         self._check_precondition(precondition)
-        if if_match is False or if_match is None:
+        headers = self._delete_headers(if_match, precondition)
+        if only_this_recurrence and self._is_single_occurrence():
+            if self.is_async_client:
+                return self._async_delete_occurrence(headers, precondition)
+            self._delete_occurrence(headers, precondition)
+            return None
+        if headers is None:
             return super().delete()
+        return self._delete(headers)
+
+    def _delete_headers(
+        self, if_match: bool | str | None, precondition: Precondition
+    ) -> dict[str, str] | None:
+        """The precondition headers ``delete(if_match=...)`` asks for, or None."""
+        if if_match is False or if_match is None:
+            return None
         if if_match == "":
             raise ValueError("delete(if_match=''): an empty ETag cannot be a precondition")
         if if_match is True:
@@ -1348,7 +1389,240 @@ class CalendarObjectResource(DAVObject):
                 )
         else:
             headers = {"if-match": if_match}
-        return self._delete(headers)
+        return headers
+
+    def _is_single_occurrence(self) -> bool:
+        """True if this object is one occurrence of a series, as from an
+        expanded search: a single component, with a RECURRENCE-ID."""
+        if not self.is_loaded():
+            return False
+        components = [
+            c
+            for c in self.icalendar_instance.subcomponents
+            if not isinstance(c, icalendar.Timezone)
+        ]
+        return len(components) == 1 and "RECURRENCE-ID" in components[0]
+
+    def _load_series(self) -> "Self | Coroutine[Any, Any, Self]":
+        """Read the whole resource this occurrence belongs to: from its URL,
+        or else by its UID."""
+        if self.url is None:
+            if self.parent is None or not self.id:
+                raise error.NotFoundError("Neither a URL nor a UID to find the series by")
+            return self.parent.get_object_by_uid(self.id)
+        return self.__class__(client=self.client, url=self.url, parent=self.parent).load()
+
+    @staticmethod
+    def _masters(series: "CalendarObjectResource") -> list:
+        """The components of ``series`` without a RECURRENCE-ID."""
+        return [
+            c
+            for c in series.icalendar_instance.subcomponents
+            if not isinstance(c, icalendar.Timezone) and "RECURRENCE-ID" not in c
+        ]
+
+    def _uid_search(self) -> "list | Coroutine[Any, Any, list]":
+        """Every resource in the parent holding this UID."""
+        return self.parent.search(
+            uid=self.id, post_filter=True, _hacks="insist", include_completed=True
+        )
+
+    def _master_elsewhere(self, found: list, url: URL | None) -> Optional["CalendarObjectResource"]:
+        """The resource among ``found`` holding the master of this series,
+        where the server keeps overrides apart from it."""
+        for obj in found:
+            if obj.id == self.id and obj.url != url and self._masters(obj):
+                return obj
+        return None
+
+    @staticmethod
+    def _same_instance(a: Any, b: Any) -> bool:
+        """Whether two RECURRENCE-ID values name the same occurrence; an
+        all-day one may come back from a server as a date-time."""
+        if isinstance(a, datetime) != isinstance(b, datetime):
+            return (a.date() if isinstance(a, datetime) else a) == (
+                b.date() if isinstance(b, datetime) else b
+            )
+        return a == b
+
+    @staticmethod
+    def _next_occurrence(master: Any, after: Any, taken: list) -> Any:
+        """The first occurrence of ``master`` after ``after`` that is not
+        excluded and has no override of its own (one of ``taken``), or None."""
+        from dateutil.rrule import rruleset
+
+        def values(name):
+            props = master.get(name, [])
+            return [d.dt for p in (props if isinstance(props, list) else [props]) for d in p.dts]
+
+        dtstart = master["DTSTART"].dt
+        all_day = not isinstance(dtstart, datetime)
+
+        def as_datetime(d):
+            return datetime(d.year, d.month, d.day) if not isinstance(d, datetime) else d
+
+        rules = master.get("RRULE", [])
+        recurrences = rruleset()
+        for rule in rules if isinstance(rules, list) else [rules]:
+            recurrences.rrule(
+                rrulestr(rule.to_ical().decode("utf-8"), dtstart=as_datetime(dtstart))
+            )
+        for d in values("RDATE"):
+            recurrences.rdate(as_datetime(d))
+        for d in values("EXDATE"):
+            recurrences.exdate(as_datetime(d))
+        try:
+            for nxt in recurrences.xafter(as_datetime(after)):
+                nxt = nxt.date() if all_day else nxt
+                if not any(CalendarObjectResource._same_instance(nxt, t) for t in taken):
+                    return nxt
+        except TypeError:
+            ## naive and aware times mixed; no telling which is next
+            return None
+        return None
+
+    def _exclude_occurrence(self, series: "CalendarObjectResource") -> bool:
+        """Take this occurrence out of ``series``, in memory.
+
+        An override of it is dropped - except one with
+        ``RANGE=THISANDFUTURE``, which still holds the changes to the
+        later occurrences: it moves on to the next one.
+
+        Returns True if nothing is left of the series, so the resource
+        should be deleted."""
+        rid = self.icalendar_component["RECURRENCE-ID"].dt
+        masters = self._masters(series)
+        master = masters[0] if masters else None
+        if master is not None:
+            exdate = rid
+            dtstart = master["DTSTART"].dt if "DTSTART" in master else None
+            if isinstance(exdate, datetime) and dtstart is not None:
+                if not isinstance(dtstart, datetime):
+                    exdate = exdate.date()
+                elif exdate.tzinfo and dtstart.tzinfo:
+                    exdate = exdate.astimezone(dtstart.tzinfo)
+            master.add("EXDATE", exdate)
+        components = series.icalendar_instance.subcomponents
+        kept = []
+        for c in components:
+            if "RECURRENCE-ID" in c and self._same_instance(c["RECURRENCE-ID"].dt, rid):
+                if master is not None and c["RECURRENCE-ID"].params.get("RANGE") == "THISANDFUTURE":
+                    taken = [
+                        x["RECURRENCE-ID"].dt
+                        for x in components
+                        if "RECURRENCE-ID" in x and x is not c
+                    ]
+                    nxt = self._next_occurrence(master, c["RECURRENCE-ID"].dt, taken)
+                    if nxt is not None:
+                        self._move_override(c, nxt)
+                        kept.append(c)
+                continue
+            kept.append(c)
+        components[:] = kept
+        if master is None:
+            return not any(not isinstance(c, icalendar.Timezone) for c in components)
+        return False
+
+    @staticmethod
+    def _move_override(override: Any, nxt: Any) -> None:
+        """Move a RANGE=THISANDFUTURE override to the occurrence ``nxt``,
+        keeping its times relative to the occurrence."""
+        delta = nxt - override["RECURRENCE-ID"].dt
+        override.pop("RECURRENCE-ID")
+        override.add("RECURRENCE-ID", nxt, parameters={"RANGE": "THISANDFUTURE"})
+        for name in ("DTSTART", "DTEND", "DUE"):
+            if name in override:
+                value = override.pop(name).dt
+                override.add(name, value + delta)
+
+    @staticmethod
+    def _take_precondition(series: "CalendarObjectResource", headers: dict[str, str]) -> None:
+        """Make the series' save or delete carry the caller's precondition
+        rather than the one of the version just read."""
+        series.props.pop(dav.GetEtag.tag, None)
+        series.props.pop(cdav.ScheduleTag.tag, None)
+        if "if-schedule-tag-match" in headers:
+            series.props[cdav.ScheduleTag.tag] = headers["if-schedule-tag-match"]
+        else:
+            series.props[dav.GetEtag.tag] = headers["if-match"]
+
+    def _store_occurrence_deletion(
+        self,
+        series: "CalendarObjectResource",
+        master: Optional["CalendarObjectResource"],
+        headers: dict[str, str] | None,
+        precondition: Precondition,
+    ) -> list:
+        """Exclude this occurrence from ``series`` (and from ``master``,
+        when the master is stored apart), in memory.  Returns the writes
+        to do, in order, as (method, object, kwargs)."""
+        writes = []
+        if master is not None:
+            self._exclude_occurrence(master)
+            writes.append(
+                ("save", master, {"only_this_recurrence": False, "precondition": precondition})
+            )
+        has_master = bool(self._masters(series))
+        empty = self._exclude_occurrence(series)
+        if headers:
+            self._take_precondition(series, headers)
+        if empty:
+            ## without if_match, a resource gone meanwhile is no error
+            writes.append(
+                (
+                    "_delete",
+                    series,
+                    {"headers": headers and series._precondition_headers(precondition) or None},
+                )
+            )
+        else:
+            ## Only a master's SEQUENCE is the series' own; an override's is not
+            writes.append(
+                (
+                    "save",
+                    series,
+                    {
+                        "increase_seqno": has_master,
+                        "only_this_recurrence": False,
+                        "precondition": precondition,
+                    },
+                )
+            )
+        return writes
+
+    def _delete_occurrence(
+        self, headers: dict[str, str] | None, precondition: Precondition
+    ) -> None:
+        try:
+            series = self._load_series()
+        except error.NotFoundError:
+            if headers:
+                raise
+            return
+        master = None
+        if not self._masters(series) and self.parent is not None and self.id:
+            master = self._master_elsewhere(self._uid_search(), series.url)
+        for method, obj, kwargs in self._store_occurrence_deletion(
+            series, master, headers, precondition
+        ):
+            getattr(obj, method)(**kwargs)
+
+    async def _async_delete_occurrence(
+        self, headers: dict[str, str] | None, precondition: Precondition
+    ) -> None:
+        try:
+            series = await self._load_series()
+        except error.NotFoundError:
+            if headers:
+                raise
+            return
+        master = None
+        if not self._masters(series) and self.parent is not None and self.id:
+            master = self._master_elsewhere(await self._uid_search(), series.url)
+        for method, obj, kwargs in self._store_occurrence_deletion(
+            series, master, headers, precondition
+        ):
+            await getattr(obj, method)(**kwargs)
 
     def cancel(self, **kwargs: Any) -> "Self | Coroutine[Any, Any, Self]":
         """Mark the object as cancelled (``STATUS:CANCELLED``) and save it.
@@ -1356,9 +1630,10 @@ class CalendarObjectResource(DAVObject):
         On a single occurrence, as from ``search(..., expand=True)``, it
         cancels that occurrence only: it becomes an override in its
         series, which stays in the calendar.  This is for an occurrence
-        that was planned but will not take place.  On a whole series,
-        the overrides of it are cancelled too.  ``kwargs`` are passed to
-        :meth:`save`, and its return value is returned - for an
+        that was planned but will not take place; use :meth:`delete` to
+        take an occurrence out of the series altogether.  On a whole
+        series, the overrides of it are cancelled too.  ``kwargs`` are
+        passed to :meth:`save`, and its return value is returned - for an
         occurrence, that is the series it was saved into.  See
         https://github.com/python-caldav/caldav/issues/598
         """
