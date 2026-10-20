@@ -5972,6 +5972,49 @@ class TestRecurringCompleteHelpers:
         )
         assert todo.icalendar_component["RRULE"]["COUNT"] == [1]
 
+    ## Issue https://github.com/python-caldav/caldav/issues/782: a
+    ## fixed-time task (BY* in the RRULE) done before its DTSTART
+    EARLY = todo6.replace("RRULE:FREQ=YEARLY", "RRULE:FREQ=YEARLY;BYMONTH=4,9")
+
+    def test_next_fixed_time_completed_early(self) -> None:
+        todo = self._make_todo(self.EARLY)
+        ## done two days before the 1992-04-15 13:30 occurrence
+        early = datetime(1992, 4, 13, 10, tzinfo=timezone.utc)
+        assert todo._next(early) == datetime(1992, 9, 15, 13, 30, tzinfo=timezone.utc)
+        ## done after DTSTART: unchanged
+        late = datetime(1992, 4, 16, 10, tzinfo=timezone.utc)
+        assert todo._next(late) == datetime(1992, 9, 15, 13, 30, tzinfo=timezone.utc)
+
+    def test_next_floating_fixed_time_completed_early(self) -> None:
+        """A floating DTSTART is taken as local time before the comparison."""
+        todo = self._make_todo(
+            self.EARLY.replace("DTSTART:19920415T133000Z", "DTSTART:19920415T133000").replace(
+                "DUE:19920516T045959Z", "DUE:19920516T045959"
+            )
+        )
+        dtstart = datetime(1992, 4, 15, 13, 30).astimezone(timezone.utc)
+        assert todo._next(dtstart - timedelta(days=2)) == datetime(1992, 9, 15, 13, 30).astimezone(
+            timezone.utc
+        )
+
+    def test_safe_completion_completed_early_advances(self) -> None:
+        todo = self._make_todo(self.EARLY)
+        completed = todo._build_recurring_safe_completed(
+            datetime(1992, 4, 13, 10, tzinfo=timezone.utc)
+        )
+        assert completed is not None
+        assert todo.icalendar_component["DTSTART"].dt == datetime(
+            1992, 9, 15, 13, 30, tzinfo=timezone.utc
+        )
+
+    def test_thisandfuture_completed_early_advances(self) -> None:
+        todo = self._make_todo(self.EARLY)
+        todo._prepare_recurring_thisandfuture(datetime(1992, 4, 13, 10, tzinfo=timezone.utc))
+        thisandfuture = todo.icalendar_instance.subcomponents[-1]
+        nxt = datetime(1992, 9, 15, 13, 30, tzinfo=timezone.utc)
+        assert thisandfuture["RECURRENCE-ID"].dt == nxt
+        assert thisandfuture["DTSTART"].dt == nxt
+
     def test_safe_completion_issues_two_puts(self, monkeypatch: Any) -> None:
         """The standalone completed copy must not be PUT twice.
 
