@@ -1557,7 +1557,9 @@ class Calendar(DAVObject):
             for url, data, tags in results
         ]
 
-    def multiget(self, event_urls: Iterable[URL], raise_notfound: bool = False) -> Iterable[_CC]:
+    def multiget(
+        self, event_urls: Iterable[URL], raise_notfound: bool = False
+    ) -> "list[_CC] | Coroutine[Any, Any, list[_CC]]":
         """
         get multiple events' data
         TODO: Does it overlap the _request_report_build_resultlist method?

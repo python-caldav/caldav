@@ -5592,7 +5592,7 @@ class TestDAVClientCredentialPrecedence:
         """DAVClient(url='https://user@host/', password='p') must not raise TypeError."""
         client = DAVClient(url="https://user@cal.example.com/dav/", password="secret")
         assert client.username == "user"
-        assert client.password == b"secret"
+        assert client.password == "secret"
 
     def test_explicit_kwargs_take_precedence_over_url_credentials(self):
         """Explicit username/password kwargs must override credentials embedded in the URL."""
@@ -5602,7 +5602,7 @@ class TestDAVClientCredentialPrecedence:
             password="kwargpass",
         )
         assert client.username == "kwarguser"
-        assert client.password == b"kwargpass"
+        assert client.password == "kwargpass"
 
     def test_explicit_username_does_not_borrow_url_password(self):
         """Gate finding F6: credentials are a pair, not two independent fields.
@@ -5624,7 +5624,7 @@ class TestDAVClientCredentialPrecedence:
             password="s3cret",
         )
         assert client.username == "bob"
-        assert client.password == b"s3cret"
+        assert client.password == "s3cret"
 
 
 class TestRepeatedHrefCalendarData:
