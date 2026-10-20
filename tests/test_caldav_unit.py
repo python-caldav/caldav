@@ -3616,6 +3616,7 @@ class TestRateLimitHelpers:
             error.raise_if_rate_limited(429, "http://x/", "30")
         assert exc_info.value.retry_after == "30"
         assert exc_info.value.retry_after_seconds == 30.0
+        assert exc_info.value.status == 429
 
     def test_raise_if_rate_limited_503_with_header(self):
         with pytest.raises(error.RateLimitError):
@@ -3996,6 +3997,34 @@ class TestAuthorizationErrorPreconditions:
         e = error.AuthorizationError(url="/", reason="Forbidden")
         assert e.preconditions == []
         assert e.body is None
+        assert e.status is None
+
+    @pytest.mark.parametrize("status", [401, 403])
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_status_is_kept(self, mocked, status):
+        """Issue https://github.com/python-caldav/caldav/issues/805: 401 (bad
+        or missing credentials) and 403 (not allowed) are both an
+        AuthorizationError, told apart by ``status``."""
+        mocked.return_value = self._make_response(status)
+        client = DAVClient(url="https://cal.example.com/", auth=mock.MagicMock())
+        with pytest.raises(error.AuthorizationError) as exc_info:
+            client.request("/")
+        assert exc_info.value.status == status
+
+    def test_status_from_httpx_response(self):
+        """An httpx response names the reason ``reason_phrase``; the status
+        is ``status_code`` in all the HTTP libraries."""
+        client = DAVClient(url="https://cal.example.com/")
+        r = mock.Mock(spec=["status_code", "reason_phrase", "content"])
+        r.status_code, r.reason_phrase, r.content = 401, "Unauthorized", b""
+        with pytest.raises(error.AuthorizationError) as exc_info:
+            client._raise_authorization_error("https://cal.example.com/", r)
+        assert exc_info.value.status == 401
+        assert exc_info.value.reason == "Unauthorized"
+
+    def test_error_from_response_keeps_status(self):
+        r = mock.Mock(status=404, reason="Not Found", raw="", _raw=b"")
+        assert error.error_from_response(error.NotFoundError, r).status == 404
 
     def _calendar(self, report_error, sync_token_support=None):
         client = DAVClient(url="https://cal.example.com/")
@@ -7898,6 +7927,7 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
             self._run(self._event(client).save(no_overwrite=True))
         assert isinstance(exc_info.value, error.ConsistencyError)
         assert exc_info.value.preconditions == ["{urn:ietf:params:xml:ns:caldav}no-uid-conflict"]
+        assert exc_info.value.status == status
         assert [m for m, _ in sent] == ["PUT"]
 
     def test_403_uid_conflict_is_also_consistency_error(self, base) -> None:
@@ -7907,6 +7937,7 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
             reason="Forbidden",
             preconditions=[tag],
             body=UNIQUE_SCHEDULING_BODY,
+            status=403,
         )
         client, _ = self._client(base, features=self.NO_UID_CONFLICT, exc=exc)
         with pytest.raises(error.UidConflictError) as exc_info:
@@ -7914,6 +7945,7 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
         assert isinstance(exc_info.value, error.ConsistencyError)
         ## ... and still what earlier versions raised (issue #756)
         assert isinstance(exc_info.value, error.AuthorizationError)
+        assert exc_info.value.status == 403
 
     def test_server_ignoring_if_none_match_keeps_search(self, base) -> None:
         """Where If-None-Match: * is known to overwrite (Zimbra, SOGo) the

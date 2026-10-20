@@ -1369,7 +1369,9 @@ class CalendarObjectResource(DAVObject):
                 )
             else:
                 cls = error.UID_CONFLICT_ERRORS.get(type(e), error.UidConflictError)
-            raise cls(e.url, e.reason, preconditions=e.preconditions, body=e.body) from e
+            raise cls(
+                e.url, e.reason, preconditions=e.preconditions, body=e.body, status=e.status
+            ) from e
 
     def _post_put(
         self,

@@ -108,7 +108,8 @@ class DAVError(Exception):
 
     ``preconditions`` holds the Clark-notation tags of any precondition
     elements in a ``DAV:error`` response body (RFC 4918 section 16), and
-    ``body`` the raw response body (or None).  A server may explain any
+    ``body`` the raw response body (or None), and ``status`` the HTTP
+    status code (or None) - e.g. 401 or 403 for an AuthorizationError.  A server may explain any
     failure that way, whatever the status: e.g. ``["{DAV:}valid-sync-token"]``
     for an expired sync token (RFC 6578 section 3.2), or
     ``["{urn:ietf:params:xml:ns:caldav}no-uid-conflict"]`` for a create whose
@@ -124,6 +125,7 @@ class DAVError(Exception):
         reason: str | None = None,
         preconditions: list[str] | None = None,
         body: bytes | str | None = None,
+        status: int | None = None,
     ) -> None:
         if url:
             self.url = url
@@ -131,6 +133,7 @@ class DAVError(Exception):
             self.reason = reason
         self.preconditions = list(preconditions) if preconditions else []
         self.body = body
+        self.status = status
 
     def __str__(self) -> str:
         return "%s at '%s', reason %s" % (
@@ -191,7 +194,18 @@ def error_from_response(
         errmsg(response) if message is None else message,
         preconditions=parse_preconditions(body),
         body=body,
+        status=_status_of(response),
     )
+
+
+def _status_of(response: object) -> int | None:
+    """The HTTP status code of ``response``, which may be a ``DAVResponse``
+    (``status``) or a raw requests/niquests/httpx response (``status_code``)."""
+    for attr in ("status", "status_code"):
+        status = getattr(response, attr, None)
+        if isinstance(status, int):
+            return status
+    return None
 
 
 class PropsetError(DAVError):
@@ -312,8 +326,9 @@ class RateLimitError(DAVError):
         reason: str | None = None,
         retry_after: str | None = None,
         retry_after_seconds: float | None = None,
+        status: int | None = None,
     ) -> None:
-        super().__init__(url=url, reason=reason)
+        super().__init__(url=url, reason=reason, status=status)
         self.retry_after = retry_after
         self.retry_after_seconds = retry_after_seconds
 
@@ -394,6 +409,7 @@ def raise_if_rate_limited(
         reason=f"Rate limited or service unavailable. Retry after: {retry_after_header}",
         retry_after=retry_after_header,
         retry_after_seconds=retry_seconds,
+        status=status_code,
     )
 
 
