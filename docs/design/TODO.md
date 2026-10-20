@@ -47,3 +47,7 @@ A response whose `Content-Type` says XML but whose body is not XML (an HTML erro
 ## calendar_multiget() fails on an async client
 
 `Calendar.calendar_multiget()` in `caldav/collection.py` does `list(self.multiget(...))`, but `multiget()` returns a coroutine for an async client, so the call raises `TypeError`.  `calendar_multiget()` has no return annotation, so a type checker does not catch it.  Fix: return `self.multiget(...)` for an async client (or annotate it like `multiget()`), with an async unit test.  Found in the review of the fix for https://github.com/python-caldav/caldav/issues/799.
+
+## The UID-conflict check compares URLs as strings
+
+`save(no_overwrite=True)` in `caldav/calendarobjectresource.py`, when caldav searches for the UID itself, compares the found object's URL with the target URL as plain strings (`existing.url != target`).  A server that returns the object's own URL spelled differently (`%40` against `@`, or a canonicalised URL, as OX does) gets it reported as `UidConflictConsistencyError` instead of a plain `ConsistencyError`.  Harmless for `except ConsistencyError`, as it is a subclass.  Fix: compare normalised URLs.  Found in the review of https://github.com/python-caldav/caldav/pull/807.
