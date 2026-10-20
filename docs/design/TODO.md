@@ -4,6 +4,10 @@
 
 `search()` decides the `!=` / `<>`, `!contains` and `def` operators client-side and leaves them out of the server query (https://github.com/python-caldav/caldav/issues/568).  A caldav-server-tester probe for `negate-condition` support, and the compatibility_hints flag it would feed, would let `search()` send `!contains` as a negated `text-match` to the servers that honour it.
 
+## Completing an all-day fixed-time recurring task
+
+`Todo._next()` in `caldav/calendarobjectresource.py` raises `TypeError` (naive vs aware) for a task with `DTSTART;VALUE=DATE` and `BY*` parts in its `RRULE`: dateutil turns the date into a naive datetime and compares it with the UTC completion timestamp, so `complete(handle_rrule=True)` fails for such tasks.  Fix: convert a date DTSTART to an aware datetime (or the timestamp to a date) before both the comparison and `rrulestr()`, with a unit test.  Found in the review of the fix for https://github.com/python-caldav/caldav/issues/782.
+
 ## Calendar cleanup in integration tests
 
 For servers where calendars cannot be created, the test will take the first available calendar it finds and wipe it.  That is not acceptable without the user explicitly configuring that this is OK.

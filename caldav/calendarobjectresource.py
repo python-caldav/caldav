@@ -2652,6 +2652,10 @@ class Todo(CalendarObjectResource):
             dtstart = dtstart.astimezone(timezone.utc)
         if not ts:
             ts = dtstart
+        elif isinstance(ts, datetime) and isinstance(dtstart, datetime) and ts < dtstart:
+            ## Completed before DTSTART (case 1A): the occurrence at
+            ## DTSTART is the one done, so look past it (issue #782)
+            ts = dtstart
         ## Counting is taken care of other places
         if no_count and "COUNT" in rrule:
             rrule = rrule.copy()
