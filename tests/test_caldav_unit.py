@@ -7947,6 +7947,25 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
         assert isinstance(exc_info.value, error.AuthorizationError)
         assert exc_info.value.status == 403
 
+    def test_uid_found_elsewhere_by_search_is_uid_conflict(self, base) -> None:
+        """Issue https://github.com/python-caldav/caldav/issues/806: where
+        caldav searches for the UID itself, a hit under another URL is the
+        same UidConflictConsistencyError the server's precondition gives."""
+        client, sent = self._client(base, report=EV1_MULTISTATUS)
+        with pytest.raises(error.UidConflictConsistencyError):
+            self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["REPORT"]
+
+    def test_uid_found_at_own_url_by_search_is_plain_consistency_error(self, base) -> None:
+        """The object found is the one at the URL to save to: the name is
+        taken, as with a 412 to If-None-Match: *, not a UID conflict."""
+        client, sent = self._client(base, report=EV1_MULTISTATUS)
+        event = self._event(client)
+        event.url = URL(self.URL + "ev1.ics")
+        with pytest.raises(error.ConsistencyError) as exc_info:
+            self._run(event.save(no_overwrite=True))
+        assert not isinstance(exc_info.value, error.UidConflictError)
+
     def test_server_ignoring_if_none_match_keeps_search(self, base) -> None:
         """Where If-None-Match: * is known to overwrite (Zimbra, SOGo) the
         old search-then-PUT is kept, and the header is not sent."""

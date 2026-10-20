@@ -1898,6 +1898,13 @@ class CalendarObjectResource(DAVObject):
         if not uid and no_create:
             raise error.ConsistencyError("no_create flag was set, but no ID given")
         if no_overwrite and existing:
+            ## The same UID under another URL is what the server's
+            ## CALDAV:no-uid-conflict precondition would refuse (issue #806)
+            target = self.url or (self._generate_url() if uid else None)
+            if existing.url and target and existing.url != target:
+                raise error.UidConflictConsistencyError(
+                    "no_overwrite flag was set, but another object holds the UID"
+                )
             raise error.ConsistencyError("no_overwrite flag was set, but object already exists")
         if no_create and not existing:
             raise error.ConsistencyError("no_create flag was set, but object does not exist")
