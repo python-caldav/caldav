@@ -329,6 +329,61 @@ END:VCALENDAR</C:calendar-data>
         assert result.deleted == ["/cal/gone.ics"]
         assert result.changed == []
 
+    def test_parse_nested_properties(self):
+        """Issue https://github.com/python-caldav/caldav/issues/795: properties
+        nested deeper than one level gave the raw lxml element."""
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+            <D:response>
+                <D:href>/calendars/user/calendar/</D:href>
+                <D:propstat>
+                    <D:prop>
+                        <D:supported-report-set>
+                            <D:supported-report><D:report><C:calendar-query/></D:report></D:supported-report>
+                            <D:supported-report><D:report><D:sync-collection/></D:report></D:supported-report>
+                        </D:supported-report-set>
+                        <D:current-user-privilege-set>
+                            <D:privilege><D:read/></D:privilege>
+                            <D:privilege><D:write-content/></D:privilege>
+                        </D:current-user-privilege-set>
+                    </D:prop>
+                    <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+            </D:response>
+        </D:multistatus>"""
+
+        props = DAVResponse.from_bytes(xml).parse_propfind()[0].properties
+
+        assert props["{DAV:}supported-report-set"] == [
+            "{urn:ietf:params:xml:ns:caldav}calendar-query",
+            "{DAV:}sync-collection",
+        ]
+        assert props["{DAV:}current-user-privilege-set"] == [
+            "{DAV:}read",
+            "{DAV:}write-content",
+        ]
+
+    def test_parse_empty_nested_properties(self):
+        """No reports, no privileges: an empty list, not None."""
+        xml = b"""<?xml version="1.0"?>
+        <D:multistatus xmlns:D="DAV:">
+            <D:response>
+                <D:href>/calendars/user/calendar/</D:href>
+                <D:propstat>
+                    <D:prop>
+                        <D:supported-report-set/>
+                        <D:current-user-privilege-set/>
+                    </D:prop>
+                    <D:status>HTTP/1.1 200 OK</D:status>
+                </D:propstat>
+            </D:response>
+        </D:multistatus>"""
+
+        props = DAVResponse.from_bytes(xml).parse_propfind()[0].properties
+
+        assert props["{DAV:}supported-report-set"] == []
+        assert props["{DAV:}current-user-privilege-set"] == []
+
     def test_parse_complex_properties(self):
         """Parse complex properties like supported-calendar-component-set."""
         xml = b"""<?xml version="1.0"?>

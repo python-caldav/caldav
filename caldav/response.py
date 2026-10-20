@@ -182,11 +182,23 @@ def _extract_properties(propstats: "list[_Element]") -> "dict[str, Any]":
 
 
 def _element_to_value(elem: _Element) -> Any:
-    """Convert a complex XML element to a Python value."""
+    """Convert a complex XML element to a Python value.
+
+    A property this does not know, with structure it cannot flatten into
+    a string or a list of strings (e.g. DAV:acl), is returned as the lxml
+    element itself.
+    """
+    tag = elem.tag
+
+    if tag in (dav.SupportedReportSet.tag, dav.CurrentUserPrivilegeSet.tag):
+        ## RFC 3253 section 3.1.5: supported-report/report/<name>, and
+        ## RFC 3744 section 5.4: privilege/<name> - the names are wanted
+        return [
+            leaf.tag for leaf in elem.iter(etree.Element) if len(leaf) == 0 and leaf is not elem
+        ]
+
     if len(elem) == 0:
         return elem.text
-
-    tag = elem.tag
 
     if tag == cdav.SupportedCalendarComponentSet.tag:
         return [child.get("name") for child in elem if child.get("name")]
