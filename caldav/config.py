@@ -530,7 +530,9 @@ def _test_server_to_params(server: Any, was_already_started: bool) -> dict[str, 
 
 
 def extract_conn_params_from_section(
-    section_data: dict[str, Any], config_file: str | None = None
+    section_data: dict[str, Any],
+    config_file: str | None = None,
+    section_name: str = "section",
 ) -> dict[str, Any] | None:
     """Extract connection parameters from a config section dict.
 
@@ -541,7 +543,8 @@ def extract_conn_params_from_section(
     ``password_command`` / ``password_keyring`` are resolved, and a
     ``features`` key is resolved through :func:`resolve_features`.  A
     ``password_command`` is only run when ``config_file`` names the file the
-    section came from.  Public so that downstream tools (e.g. plann) can
+    section came from.  ``section_name`` is the name error messages use.
+    Public so that downstream tools (e.g. plann) can
     reuse it on plann-style config sections, or on command line arguments:
     keys it does not know are ignored without a warning.
 
@@ -552,7 +555,7 @@ def extract_conn_params_from_section(
     ``calendar_url``) are intentionally excluded — callers that need them
     read ``section_data`` directly.
     """
-    conn = calendaring_config.section_connection("section", section_data, config_file)
+    conn = calendaring_config.section_connection(section_name, section_data, config_file)
     if conn.kind not in (None, *KINDS):
         return None
     params = _caldav_params(conn, warn=False)
@@ -615,7 +618,7 @@ def get_all_test_servers(
     for section_name in cfg:
         section_data = config_section(cfg, section_name)
         if get_test_setting(section_data, "test_allowed"):
-            conn_params = extract_conn_params_from_section(section_data, str(path))
+            conn_params = extract_conn_params_from_section(section_data, str(path), section_name)
             if conn_params:
                 priority = get_test_setting(section_data, "test_priority")
                 if priority is not None:

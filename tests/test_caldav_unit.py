@@ -5074,6 +5074,36 @@ class TestSharedConfigFormat:
         assert not caplog.records
         assert "features" in extract_conn_params_from_section({"features": "radicale"})
 
+    def test_extract_names_the_section_in_errors(self, tmp_path):
+        import sys
+
+        from caldav.config import extract_conn_params_from_section
+
+        config_file = self._write(tmp_path, {})
+        failing = {"caldav_url": "u", "caldav_password_command": [sys.executable, "-c", "exit(3)"]}
+        with pytest.raises(ValueError, match="section work "):
+            extract_conn_params_from_section(failing, config_file, section_name="work")
+        with pytest.raises(ValueError):
+            extract_conn_params_from_section(failing, config_file)
+
+    def test_test_servers_name_the_section_in_errors(self, tmp_path):
+        import sys
+
+        from caldav.config import get_all_test_servers
+
+        config_file = self._write(
+            tmp_path,
+            {
+                "scratch": {
+                    "caldav_url": "https://test.example.com/",
+                    "caldav_password_command": [sys.executable, "-c", "exit(3)"],
+                    "test_allowed": True,
+                }
+            },
+        )
+        with pytest.raises(ValueError, match="section scratch "):
+            get_all_test_servers(config_file)
+
     def test_test_servers_in_the_new_format(self, tmp_path):
         import sys
 
