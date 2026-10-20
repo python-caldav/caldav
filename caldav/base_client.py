@@ -446,7 +446,8 @@ class BaseDAVClient(ABC):
         precondition elements parsed out (issue #738) - a 403 with
         ``DAV:valid-sync-token`` means "resync", not "forbidden".
         ``reason_source`` is the raw HTTP response on both clients; httpx
-        names the reason ``reason_phrase``.
+        names the reason ``reason_phrase``.  Its status is kept too, so a
+        caller can tell 401 (credentials) from 403 (permission).
         """
         self._unwind_unprompted_basic()
         reason = getattr(reason_source, "reason", None) or getattr(
@@ -462,6 +463,7 @@ class BaseDAVClient(ABC):
             reason=reason,
             preconditions=error.parse_preconditions(body),
             body=body,
+            status=error._status_of(reason_source),
         )
 
     # ── Rate-limit handling ─────────────────────────────────────────────────

@@ -256,9 +256,6 @@ class DAVClient(BaseDAVClient):
         self.auth = auth
         self.auth_type = auth_type
 
-        ## I had problems with passwords with non-ascii letters in it ...
-        if isinstance(self.password, str):
-            self.password = self.password.encode("utf-8")
         if auth and self.auth_type:
             logging.error(
                 "both auth object and auth_type sent to DAVClient.  The latter will be ignored."
@@ -716,7 +713,7 @@ class DAVClient(BaseDAVClient):
         # Use shared selection logic
         auth_type = self._select_auth_type(auth_types)
 
-        # Decode password if it's bytes (HTTPDigestAuth needs string)
+        # A caller may still pass the password as bytes (HTTPDigestAuth needs a string)
         password = self.password
         if isinstance(password, bytes):
             password = password.decode("utf-8")

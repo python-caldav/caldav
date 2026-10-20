@@ -97,6 +97,10 @@ class SupportedReportSet(BaseElement):
     tag = ns("D", "supported-report-set")
 
 
+class CurrentUserPrivilegeSet(BaseElement):
+    tag: ClassVar[str] = ns("D", "current-user-privilege-set")
+
+
 class Response(BaseElement):
     tag: ClassVar[str] = ns("D", "response")
 
