@@ -1271,20 +1271,16 @@ async def get_calendars(
     ## Reading the config file and RFC 6764 discovery are blocking, so the
     ## clients are resolved in a thread, ref
     ## https://github.com/python-caldav/caldav/issues/794
-    try:
-        targets = await asyncio.to_thread(
-            _get_calendars_targets,
-            AsyncDAVClient,
-            calendar_url=calendar_url,
-            calendar_name=calendar_name,
-            raise_errors=raise_errors,
-            **kwargs,
-        )
-    except Exception as e:
-        if raise_errors:
-            raise
-        log.error(f"Failed to create async client: {e}")
-        return CalendarCollection()
+    ## Errors here are mistakes in the configuration, raised as in sync mode:
+    ## raise_errors=False only skips servers that fail below
+    targets = await asyncio.to_thread(
+        _get_calendars_targets,
+        AsyncDAVClient,
+        calendar_url=calendar_url,
+        calendar_name=calendar_name,
+        raise_errors=raise_errors,
+        **kwargs,
+    )
 
     clients = [t[0] for t in targets]
     calendars: list = []

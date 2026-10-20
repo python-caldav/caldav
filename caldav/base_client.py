@@ -1213,20 +1213,11 @@ def _get_calendars_targets(
             raise ValueError("Could not create DAV client - no configuration found")
         return []
 
-    # Resolve config_file path from env if not given (mirrors get_connection_params)
-    resolved_config_file = config_file
-    if environment and not resolved_config_file:
-        import os
-
-        resolved_config_file = os.environ.get("CALDAV_CONFIG_FILE")
-
-    resolved_section = config_section
-    if environment and not resolved_section:
-        import os
-
-        resolved_section = os.environ.get("CALDAV_CONFIG_SECTION")
-
-    all_params = _config.get_all_file_connection_params(resolved_config_file, resolved_section)
+    # The file and section variables (CALENDARING_CONFIG_*, CALDAV_CONFIG_*)
+    # are read by calendaring-config when environment is set
+    all_params = _config.get_all_file_connection_params(
+        config_file, config_section, environment=environment
+    )
 
     if not all_params:
         if raise_errors:

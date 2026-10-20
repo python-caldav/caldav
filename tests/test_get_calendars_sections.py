@@ -34,6 +34,7 @@ def config_file(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
             f"work:\n{section}  calendar_name: Work\n"
             f"home:\n{section}  calendar_name: Home\n"
             "both:\n  contains: [work, home]\n"
+            f"badheaders:\n{section}  caldav_headers: notjson\n"
         )
         yield path
     finally:
@@ -70,3 +71,11 @@ class TestConfigSections:
             mode, config_file=str(config_file), config_section="work", calendar_name="Home"
         )
         assert names == ["Home"]
+
+    @pytest.mark.parametrize("section", ["typo", "x*", "badheaders"])
+    def test_config_error_raises_whatever_raise_errors(
+        self, mode: str, config_file: Path, section: str
+    ) -> None:
+        """A mistake in the configuration is not a server failure to skip."""
+        with pytest.raises(ValueError, match="section|glob|match|headers"):
+            _names(mode, config_file=str(config_file), config_section=section, raise_errors=False)

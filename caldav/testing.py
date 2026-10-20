@@ -16,6 +16,7 @@ import threading
 import time
 from typing import Any
 
+from caldav.config import get_test_setting
 from caldav.lib.http_sync import requests
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ class EmbeddedServer:
     Priority
     --------
     Both embedded servers default to priority **10**, which beats docker (20)
-    and external / configured servers (30).  Override via ``priority: <int>``
+    and external / configured servers (30).  Override via ``test_priority: <int>``
     in the config dict or by setting ``_default_priority`` on the subclass.
     """
 
@@ -58,7 +59,7 @@ class EmbeddedServer:
 
     @property
     def priority(self) -> int:
-        return int(self.config.get("priority", self._default_priority))
+        return int(get_test_setting(self.config, "test_priority", self._default_priority))
 
     @property
     def username(self) -> str | None:

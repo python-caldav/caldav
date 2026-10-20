@@ -3,15 +3,18 @@ Configuration loader for test servers.
 
 This module loads test server configuration from:
 1. Test-specific config files (tests/caldav_test_servers.yaml)
-2. Main caldav config files with 'testing_allowed: true' sections
+2. Main caldav config files with 'test_allowed: true' sections
 """
 
+import json
 from pathlib import Path
 from typing import Any
 
-from caldav.config import expand_env_vars, get_all_test_servers, read_config
+import yaml
 
-# Test-specific config file locations (don't need testing_allowed)
+from caldav.config import expand_env_vars, get_all_test_servers
+
+# Test-specific config file locations (don't need test_allowed)
 TEST_CONFIG_LOCATIONS = [
     "tests/caldav_test_servers.yaml",
     "tests/caldav_test_servers.json",
@@ -35,7 +38,7 @@ def load_test_server_config(
     Priority:
     1. Explicit config_file argument
     2. Test-specific config files (tests/caldav_test_servers.yaml, etc.)
-    3. Main caldav config sections with 'testing_allowed: true'
+    3. Main caldav config sections with 'test_allowed: true'
 
     Args:
         config_file: Optional explicit path to config file
@@ -62,7 +65,7 @@ def load_test_server_config(
         if path.exists():
             return _load_config_file(str(path))
 
-    # Try main caldav config (sections with testing_allowed)
+    # Try main caldav config (sections with test_allowed)
     servers = get_all_test_servers()
     if servers:
         # Add type: external for registry to use ExternalTestServer
@@ -75,9 +78,18 @@ def load_test_server_config(
 
 
 def _load_config_file(path: str) -> dict[str, dict[str, Any]]:
-    """Load and parse a config file."""
+    """Load and parse a config file.
+
+    Not the shared config format (it may hold top-level lists such as
+    rfc6638_users), so it is parsed here: as JSON, else as YAML.
+    """
     try:
-        cfg = read_config(path)
+        with open(path, "rb") as f:
+            raw = f.read()
+        try:
+            cfg = json.loads(raw)
+        except json.JSONDecodeError:
+            cfg = yaml.safe_load(raw)
     except Exception as e:
         raise ConfigParseError(f"Config file '{path}' exists but could not be parsed: {e}") from e
 
