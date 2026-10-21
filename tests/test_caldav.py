@@ -4231,7 +4231,7 @@ END:VCALENDAR"""
         ## calendar color and calendar order are extra properties not
         ## described by RFC5545, but anyway supported by quite some server
         ## implementations.  How they behave is probed in detail by the
-        ## server-tester (calendar-color / calendar-color.hex /
+        ## server-tester (calendar-color / calendar-color.name /
         ## calendar-order); here we mirror the core of what it asserts.
         ##
         ## The colour cannot be compared against the value that was set: a
@@ -4240,9 +4240,9 @@ END:VCALENDAR"""
         ## pass even if set_properties() were a complete no-op, so instead we
         ## set two different values and require two different values back.
         if self.is_supported("calendar-color"):
-            self._assert_property_tracks_input(c, ical.CalendarColor, "blue", "green")
-        if self.is_supported("calendar-color.hex"):
             self._assert_property_tracks_input(c, ical.CalendarColor, "#FF0000FF", "#00FF00FF")
+        if self.is_supported("calendar-color.name"):
+            self._assert_property_tracks_input(c, ical.CalendarColor, "blue", "green")
         if self.is_supported("calendar-order"):
             c.set_properties([ical.CalendarOrder("12")])
             props = c.get_properties([ical.CalendarOrder()])

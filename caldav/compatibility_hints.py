@@ -272,7 +272,7 @@ class FeatureSet:
             "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
         },
         "calendar-color": {
-            "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property (set with a colour name like 'blue') on a calendar collection.  'full' covers servers that normalise the name to a hex value (the set value still tracks the input); 'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on (TODO: wouldn't unknown be better?).",
+            "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property on a calendar collection, set with a hex value (e.g. '#FF0000FF') - the de facto format.  'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on (TODO: wouldn't unknown be better?).",
             "default": {"support": "fragile"},
             "note":
 """The real default ought to be False because this is not a part
@@ -284,8 +284,8 @@ one should assume the support to maybe exist and maybe not -
 hence, "fragile".
 """
         },
-        "calendar-color.hex": {
-            "description": "Like calendar-color, but the property is set with a hex value (e.g. '#FF0000FF') rather than a colour name.  Some servers accept one form but not the other.",
+        "calendar-color.name": {
+            "description": "Like calendar-color, but the property is set with a colour name (e.g. 'blue') rather than a hex value.  'full' covers servers that store the name verbatim as well as those that normalise it to a hex value (the stored value still tracks the input).  A server that rejects or ignores colour names is 'unsupported' - the de facto value format is hex, so this is not wrong of it.  Ignoring includes accepting the name while the same, unchanged value keeps coming back: here that is 'unsupported', not 'broken'.",
             "default": {"support": "fragile"},
         },
         "calendar-order": {
@@ -905,6 +905,17 @@ hence, "fragile".
     ## Every public entry point calls this directly, so a deprecation
     ## warning with stacklevel=3 points at the user's code
     def _copy_feature_set(self, feature_set, collapse=True):
+        if 'calendar-color.hex' in feature_set:
+            warnings.warn(
+                "The 'calendar-color.hex' feature is deprecated - 'calendar-color' now means a hex "
+                "value, and a colour name is 'calendar-color.name'",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            feature_set = dict(feature_set)
+            if 'calendar-color' in feature_set:
+                feature_set['calendar-color.name'] = feature_set.pop('calendar-color')
+            feature_set['calendar-color'] = feature_set.pop('calendar-color.hex')
         for feature in feature_set:
             if feature == 'write-delay':
                 warnings.warn(
@@ -1395,7 +1406,6 @@ xandikos = {
     "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-21 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
 }
 
@@ -1509,7 +1519,6 @@ nextcloud = {
     'sync-token.limit.initial-sync': {'support': 'unsupported', 'behaviour': 'refused with 507 number-of-matches-within-limits'},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
 }
 
@@ -1642,8 +1651,8 @@ zimbra = {
     ## it rejects/ignores a colour name like "blue".  (The old 'calendar_color'
     ## flag was never actually exercised, because testSetCalendarProperties skips
     ## on Zimbra: setting a display name relocates the calendar.)
-    "calendar-color": {"support": "unsupported"},
-    "calendar-color.hex": {"support": "full"},
+    "calendar-color": {"support": "full"},
+    "calendar-color.name": {"support": "unsupported"},
     "calendar-order": {"support": "full"},
 }
 
@@ -1713,7 +1722,6 @@ bedework_3_10_3 = {
     ## save.duplicate-event is left at the default "full".)
     ## Probed 2026-10-21 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "unsupported"},
 }
 
@@ -1935,7 +1943,6 @@ cyrus = {
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
     # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
@@ -1968,8 +1975,8 @@ icloud = {
         'basepath': '/',
     },
     'get-current-user-principal.has-calendar': {'value': True},
-    'calendar-color': {'support': 'broken', 'behaviour': "read-only (set 'blue'/'green', both return '#CB30E0FF')"},
-    'calendar-color.hex': {'support': 'full'},
+    'calendar-color': {'support': 'full'},
+    'calendar-color.name': {'support': 'unsupported', 'behaviour': "colour names are accepted but ignored: set 'blue' or 'green', '#CB30E0FF' comes back"},
     'calendar-order': {'support': 'full'},
     'freebusy-query': {'support': 'ungraceful', 'behaviour': '400 Bad Request'},
     'principal-search': {'support': 'ungraceful'},
@@ -2071,8 +2078,8 @@ sogo = {
     ## SOGo rejects calendar-color set as a colour name, but takes a hex
     ## value (probed 2026-10-20).  It accepts calendar-order but echoes back a server-computed position rather
     ## than the value that was set, so that property is effectively read-only.
-    "calendar-color": {"support": "unsupported"},
-    "calendar-color.hex": {"support": "full"},
+    "calendar-color": {"support": "full"},
+    "calendar-color.name": {"support": "unsupported"},
     "calendar-order": {"support": "broken", "behaviour": "read-only; server returns its own calendar position rather than the value set"},
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
@@ -2211,7 +2218,6 @@ robur = {
     "save.etag": {'support': 'broken', 'behaviour': "malformed etag 'a22ccfb2985aed13f50b4991a110d32253fd99aa'"},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
     'well-known': {'support': 'full'},
 }
@@ -2252,7 +2258,6 @@ posteo = {
     'save-load.mutable.if-match-wildcard': {'support': 'broken', 'behaviour': 'If-Match: * is ignored: it created a missing object (201)'},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
     'well-known': {'support': 'unsupported'},
 }
@@ -2358,7 +2363,6 @@ ccs = {
     ## is left at the default "full".)
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
 }
 
@@ -2464,7 +2468,6 @@ stalwart = {
     },
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "full"},
 }
 
@@ -2725,8 +2728,8 @@ ox = {
         'default_sleep': 20
     },
     ## Probed 2026-10-20 by caldav-server-tester
-    "calendar-color": {"support": "unsupported", "behaviour": "colour names are accepted but ignored: set 'blue' or 'green', '#CEE7FFFF' comes back"},
-    "calendar-color.hex": {"support": "full"},
+    "calendar-color": {"support": "full"},
+    "calendar-color.name": {"support": "unsupported", "behaviour": "colour names are accepted but ignored: set 'blue' or 'green', '#CEE7FFFF' comes back"},
     "calendar-order": {"support": "unsupported"},
 }
 
@@ -2832,7 +2835,6 @@ yahoo = {
     ## normalised: 'blue' comes back as '#0252D4').  Stated explicitly since
     ## the feature default is the weaker 'fragile'.
     'calendar-color': {'support': 'full'},
-    'calendar-color.hex': {'support': 'full'},
     'calendar-order': {'support': 'full'},
 
     ## MKCALENDAR works and the display name given at creation time sticks,

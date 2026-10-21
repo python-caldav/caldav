@@ -795,6 +795,46 @@ class TestNonExistingRaisesNotFound:
         assert "non-existing-raises-not-found.object" in mismatches
 
 
+class TestCalendarColor:
+    """``calendar-color`` is set with a hex value; ``calendar-color.name`` with a colour name.
+
+    Up to 3.5.0, ``calendar-color`` meant a colour name and
+    ``calendar-color.hex`` a hex value.
+    """
+
+    def test_name_is_fragile_by_default(self) -> None:
+        assert FeatureSet({}).is_supported("calendar-color.name", str) == "fragile"
+
+    def test_name_follows_an_explicit_parent(self) -> None:
+        features = FeatureSet({"calendar-color": {"support": "unsupported"}})
+        assert features.is_supported("calendar-color.name", str) == "unsupported"
+
+    def test_hex_is_a_deprecated_alias(self) -> None:
+        """A 3.5.0 configuration keeps its meaning: hex to the parent, names to the child."""
+        with pytest.warns(DeprecationWarning, match="calendar-color.name"):
+            features = FeatureSet(
+                {
+                    "calendar-color": {"support": "unsupported"},
+                    "calendar-color.hex": {"support": "full"},
+                }
+            )
+        assert features.is_supported("calendar-color", str) == "full"
+        assert features.is_supported("calendar-color.name", str) == "unsupported"
+        assert "calendar-color.hex" not in features.dotted_feature_set_list()
+
+    def test_hex_alone(self) -> None:
+        with pytest.warns(DeprecationWarning):
+            features = FeatureSet({"calendar-color.hex": {"support": "unsupported"}})
+        assert features.is_supported("calendar-color", str) == "unsupported"
+
+    def test_hex_warning_points_at_the_caller(self) -> None:
+        with warnings.catch_warnings(record=True) as rec:
+            warnings.simplefilter("always")
+            FeatureSet({}).copy_feature_set({"calendar-color.hex": {"support": "full"}})
+        [warning] = [w for w in rec if "calendar-color.name" in str(w.message)]
+        assert warning.filename == __file__
+
+
 class TestSynchronousWrite:
     """``synchronous-write``: is a change observable once the server said 200?
 
