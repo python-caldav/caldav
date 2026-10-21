@@ -1393,6 +1393,10 @@ xandikos = {
     ## A second object with a UID already in the calendar is refused with 412
     ## CALDAV:no-uid-conflict (testNoOverwriteSameUidOtherUrl, 2026-10-19).
     "save.no-uid-conflict": {"support": "full"},
+    ## Probed 2026-10-21 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -1503,6 +1507,10 @@ nextcloud = {
         'behaviour': 'the reply is cut at DAV:limit without a 507, and the token skips the rest',
     },
     'sync-token.limit.initial-sync': {'support': 'unsupported', 'behaviour': 'refused with 507 number-of-matches-within-limits'},
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 ecloud = nextcloud | {
@@ -1703,6 +1711,10 @@ bedework_3_10_3 = {
     ## (The old 'duplicates_not_allowed' flag was stale: Bedework does store a
     ## second event with the same content under a different UID, so
     ## save.duplicate-event is left at the default "full".)
+    ## Probed 2026-10-21 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "unsupported"},
 }
 
 ## Bedework 5.0.0, measured 2026-09-12 with caldav-server-tester against the
@@ -1723,7 +1735,9 @@ bedework_5_0_0 = {
     ## The delay is what makes the rest of this profile reproducible.  Yet the
     ## synchronous-write probe itself - one PUT, one direct GET - reads the
     ## object back at once (save-load-delay 0, 2026-09-13), so it is too fast
-    ## to catch reliably: fragile, not unsupported.
+    ## to catch reliably: fragile, not unsupported.  Four runs on 2026-10-20/21
+    ## all measured ~1s; it stays fragile until more rounds show that the 0
+    ## does not come back.
     "synchronous-write": {"support": "fragile", "delay": 3},
 
     ## MKCALENDAR works, but a successful one that sets no properties is
@@ -1919,6 +1933,10 @@ cyrus = {
     # Cyrus changes the Schedule-Tag even on attendee PARTSTAT-only updates,
     # violating RFC6638 section 3.2 which requires the tag to remain stable.
     "scheduling.schedule-tag.stable-partstat": {"support": "unsupported"},
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
     # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
@@ -2050,10 +2068,11 @@ sogo = {
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with 409, without the CALDAV:no-uid-conflict precondition"},
     "scheduling.schedule-tag": False,
     "scheduling.mailbox.inbox-delivery": False,
-    ## SOGo rejects the calendar-color property with an error (left at the
-    ## default "fragile" - rejecting a nonstandard extension is fine).  It
-    ## accepts calendar-order but echoes back a server-computed position rather
+    ## SOGo rejects calendar-color set as a colour name, but takes a hex
+    ## value (probed 2026-10-20).  It accepts calendar-order but echoes back a server-computed position rather
     ## than the value that was set, so that property is effectively read-only.
+    "calendar-color": {"support": "unsupported"},
+    "calendar-color.hex": {"support": "full"},
     "calendar-order": {"support": "broken", "behaviour": "read-only; server returns its own calendar position rather than the value set"},
     ## I'm surprised, I'm quite sure this was passing earlier.  reported unsupported with caldav commit a98d50490b872e9b9d8e93e2e401c936ad193003, caldav server checker commit 3cae24cf99da1702b851b5a74a9b88c8e5317dad 2026-02-15
     "search.text.category": False,
@@ -2190,6 +2209,11 @@ robur = {
     "sync-token": {"support": "ungraceful"},
     "get-supported-components": {"support": "unsupported"},
     "save.etag": {'support': 'broken', 'behaviour': "malformed etag 'a22ccfb2985aed13f50b4991a110d32253fd99aa'"},
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
+    'well-known': {'support': 'full'},
 }
 
 posteo = {
@@ -2226,6 +2250,11 @@ posteo = {
     "scheduling": {"support": "unsupported"},
     ## Probed 2026-10-13.  The profile predates the If-Match: * probe, added 2026-09-15.
     'save-load.mutable.if-match-wildcard': {'support': 'broken', 'behaviour': 'If-Match: * is ignored: it created a missing object (201)'},
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
+    'well-known': {'support': 'unsupported'},
 }
 
 #calendar_mail_ru = [
@@ -2327,6 +2356,10 @@ ccs = {
     ## (The old 'propfind_allprop_failure' flag was stale: CCS does return
     ## DAV:resourcetype in an allprop PROPFIND, so propfind.allprop.resourcetype
     ## is left at the default "full".)
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 ## Stalwart - all-in-one mail & collaboration server (CalDAV added 2024/2025)
@@ -2415,6 +2448,9 @@ stalwart = {
     ## are skipped.  Marked 'fragile' so the checker skips it and the integration
     ## test (is_supported -> False) still treats the old-date task as skipped.
     'search.time-range.todo.no-dtstart': {'support': 'fragile'},
+    ## Probed 2026-10-20: a task with neither DTSTART nor DUE is never found,
+    ## while one with DUE only comes and goes (above)
+    'search.time-range.todo.no-dtstart.no-due': {'support': 'unsupported'},
     ## Probed 2026-10-11 on 0.16.11 (and on 0.16.21 in
     ## https://github.com/pycalendar/calendaring-sync/pull/19): an initial
     ## sync truncated at nresults=2 lists one member plus the collection
@@ -2426,6 +2462,10 @@ stalwart = {
         'support': 'broken',
         'behaviour': 'the checkpoint of a truncated initial sync skips the remaining members',
     },
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "full"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "full"},
 }
 
 ## Lots of transient problems with purelymail
@@ -2546,6 +2586,8 @@ gmx = {
         "support": "unsupported",
         "behaviour": "the task is saved as pending, but loads back with STATUS:COMPLETED",
     },
+    ## Probed 2026-10-20 by caldav-server-tester
+    'search.recurrences.includes-implicit.infinite-scope': {'support': 'fragile', 'behaviour': 'unsupported in one run, full in the next (2026-10-20/21)'},
 }
 
 ## https://ox.io/
@@ -2654,8 +2696,14 @@ ox = {
     ## Cross-calendar duplicate UID test fails (AuthorizationError creating second calendar)
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful'},
     'save-load.icalendar.related-to': {'support': 'broken'},
-    ## OX App Suite has complex user provisioning; cross-user scheduling tests not yet set up.
-    "scheduling": {"support": "unknown"},
+    ## Probed 2026-10-20: the scheduling mailboxes and a populated
+    ## calendar-user-address-set are there, but no Schedule-Tag.  OX App Suite
+    ## has complex user provisioning, and cross-user scheduling tests are not
+    ## set up yet, so delivery stays unknown rather than inheriting "full".
+    "scheduling": {"support": "full"},
+    "scheduling.mailbox.inbox-delivery": {"support": "unknown"},
+    "scheduling.auto-schedule": {"support": "unknown"},
+    "scheduling.schedule-tag": {"support": "unsupported", "behaviour": "no Schedule-Tag header on GET, nor via PROPFIND"},
     "scheduling.freebusy-query": "ungraceful",
     'search.time-range.open.start': "broken",
     'search.time-range.open.end': True,
@@ -2675,7 +2723,11 @@ ox = {
         'count': 1500,
         'max_sleep': 350,
         'default_sleep': 20
-    }
+    },
+    ## Probed 2026-10-20 by caldav-server-tester
+    "calendar-color": {"support": "unsupported", "behaviour": "colour names are accepted but ignored: set 'blue' or 'green', '#CEE7FFFF' comes back"},
+    "calendar-color.hex": {"support": "full"},
+    "calendar-order": {"support": "unsupported"},
 }
 
 ## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served

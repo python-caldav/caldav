@@ -47,11 +47,18 @@ echo "Granting scheduling ACL rights to pre-provisioned users..."
 # the extended scheduling rights (7=schedule-send-invite, 8=schedule-send-reply,
 # 9=schedule-send-freebusy).  Dynamically-created calendar homes (user2+) get
 # these rights automatically, so we only need to patch user1 here, but grant
-# to all known pre-created users for safety.
+# to all known pre-created users for safety.  cyradm exists only inside the
+# container; run on the host, the grant silently did nothing, and every
+# invite from user1 came back SCHEDULE-STATUS=3.8 (no authority).
 for user in user1 user2 user3 user4 user5; do
     printf 'sam user.%s.#calendars.Outbox %s lrswipkxtecdan789\r\n' "$user" "$user"
-done | /usr/cyrus/bin/cyradm --auth PLAIN -u admin -w admin --notls --port 8143 localhost 2>/dev/null || \
+done | docker exec -i "$CONTAINER_NAME" /usr/cyrus/bin/cyradm --auth PLAIN -u admin -w admin --notls --port 8143 localhost >/dev/null 2>&1 || \
     echo "Warning: could not set scheduling ACL rights (cyradm failed)"
+if ! printf 'lam user.user1.#calendars.Outbox\r\n' | \
+        docker exec -i "$CONTAINER_NAME" /usr/cyrus/bin/cyradm --auth PLAIN -u admin -w admin --notls --port 8143 localhost 2>/dev/null | \
+        grep -Eq '(^|> )user1 [a-z0-9]*789'; then
+    echo "Warning: user1 lacks the scheduling rights - invites will fail with SCHEDULE-STATUS 3.8"
+fi
 
 echo ""
 echo "✓ Cyrus setup complete!"
