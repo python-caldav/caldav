@@ -26,6 +26,68 @@ After 3.5.0, changes since the last release are kept as fragments in [changes/](
 
 <!-- towncrier release notes start -->
 
+## [3.6.0] - 2026-10-22
+
+### Breaking changes
+
+* Since the config file is now read through calendaring-config (see Changed), some files are read differently: an empty file found first is used, rather than skipped for the next one; a section named directly that is missing or disabled, or a glob that matches nothing, is an error; a name in `contains` that matches nothing gives a warning; a disabled meta-section leaves out its members too; `*` is only the sections that are not meta-sections; and a config file named explicitly must exist.
+* `save(no_overwrite=True)` and `save(no_create=True)` (and `add_event(..., no_overwrite=True)` and friends) now send `If-None-Match: *` and `If-Match: *`, so on an RFC-compliant server the flag is enforced at the same URL in the same request as the write, and another client can no longer slip in between the check and the PUT there.  Potentially breaking, on servers that are themselves broken: this relies on the server honouring the wildcard preconditions, which every CalDAV server is required to do.  Against a server that does not, an existing object may be overwritten, a missing one created, or a legitimate update refused.  The fix is to tell the client that the server is broken: configure it with the server's `features` (e.g. `features: sogo`), or mark `save.if-none-match` and `save-load.mutable.if-match-wildcard` correctly in a hand-written feature list.  Servers known not to honour them, as of this release:
+
+  - `If-None-Match: *`: SOGo, Zimbra
+  - `If-Match: *`: Bedework, GMX, iCloud, Posteo, Radicale, SOGo, Yahoo, Zimbra
+
+  A refusal still raises `ConsistencyError`.  When the refusal is because another object (at another URL) holds the UID, it is the new `UidConflictConsistencyError`, which is both a `UidConflictError` and a `ConsistencyError`, whether the server refused the UID or caldav's own UID search found it (https://github.com/python-caldav/caldav/issues/806).  A subclass overriding `_create()` or `_put()` must accept their new `wildcard=` keyword.
+
+### Added
+
+* Compatibility features `save-load.todo.uncomplete` (a completed task can be made pending again with `Todo.uncomplete()`; GMX keeps it completed) and `search.time-range.todo.no-dtstart.no-due` (a date search finds a task with neither DTSTART nor DUE, as RFC 4791 section 9.9 says it should; Zimbra does not).  They replace the last two old-style flags in the Zimbra and GMX profiles.  https://github.com/python-caldav/caldav/issues/585
+* `cancel()` marks an object, or a single occurrence from `search(..., expand=True)`, as `STATUS:CANCELLED` and saves it - for an occurrence that was planned but will not take place.  A new compatibility feature, `save-load.event.recurrences.exception.cancelled`, records that Zimbra turns a cancelled occurrence into an `EXDATE`.  https://github.com/python-caldav/caldav/issues/598
+* Calendar objects keep the calendar data exactly as the server sent it, before `vcal.fix()` or any other normalisation, in the new read-only `raw_data` attribute (`bytes`; `None` for objects not read from a server, copies, and after `save()`).  After `load()` it is the GET response body byte for byte; from a REPORT (`search()`, `multiget()`) it is the text of the `calendar-data` element, with XML entities decoded and line breaks turned into LF.  `save(raw_data=...)` sends the given (UTF-8) bytes as the PUT body unchanged - no `vcal.fix()`, no re-serialisation, no `SEQUENCE` bump - still with `If-Match` / `If-Schedule-Tag-Match`.  This lets sync tools compare and copy what servers store.  https://github.com/python-caldav/caldav/issues/763
+* `DAVError` and its subclasses have a new `status` attribute with the HTTP status code of the failed response (or `None`), so an `AuthorizationError` tells a 401 (bad or missing credentials) from a 403 (authenticated, but not allowed).  https://github.com/python-caldav/caldav/issues/805
+
+### Changed
+
+* `DAVClient.password` is now the `str` that was passed in, as on `AsyncDAVClient`; it used to be encoded to UTF-8 `bytes`.  The return type of `Calendar.multiget()` is annotated as a list, or a coroutine of one for an async client, like `search()`.  https://github.com/python-caldav/caldav/issues/799
+* Server compatibility: several server profiles in `compatibility_hints` are updated from caldav-server-tester runs, so with `features: <server>` configured, `is_supported()` may give a different answer for the features named here.
+
+  - `calendar-color` (a hex value) and `calendar-order` are measured instead of left at the default `fragile`: both are `full`, and colour names work too, for Xandikos, Nextcloud (and so ecloud, which inherits its profile), CCS, Stalwart, Cyrus, Posteo, Purelymail and Robur; Bedework 3 stores both colour forms but not `calendar-order`; SOGo takes a hex colour but not a colour name; OX App Suite takes a hex colour, ignores colour names, and does not store `calendar-order`.
+  - Sync tokens: DAViCal, SOGo and Bedework 3 now state `sync-token.invalid-token`, `sync-token.limit` and `sync-token.limit.initial-sync`, and Bedework 5 the two `limit` features, where they used to inherit `fragile` from `sync-token` or default to `full`.  DAViCal and SOGo ignore `DAV:limit` and answer a never-issued sync token with a 207 and no error.  Bedework 3 refuses a token it never issued, as it should, and answers a `DAV:limit` with a 500.  Bedework 5 cuts the reply at `DAV:limit` without the 507 the RFC asks for: following the tokens loses nothing, but a client takes the cut reply as complete and gets the rest only on its next sync.
+  - OX App Suite: `scheduling` is `full` (it was `unknown`), with `scheduling.schedule-tag` unsupported; inbox delivery and auto-scheduling stay `unknown`.
+  - Purelymail: `search.is-not-defined`, `search.time-range.event` and `search.time-range.todo` are `full` again (they were `fragile`).
+  - Stalwart: `search.time-range.todo.no-dtstart.no-due` is `unsupported`.
+  - GMX: `search.recurrences.includes-implicit.infinite-scope` is `fragile` (it was `full`): it failed in one run and passed in the next.
+  - Infomaniak: the wait after deleting a calendar (`synchronous-write.delete-calendar`) is raised from 12 to 20 seconds; a deleted calendar could still be there after 12.
+  - `well-known`: `unsupported` for Posteo, `full` for Robur.
+* The config file is now read through the [calendaring-config](https://github.com/pycalendar/calendaring-config) package, which the file's other users (plann, calendaring) share; see https://github.com/python-caldav/caldav/issues/786.  This is a new dependency, `calendaring-config>=0.3` (it depends only on PyYAML), which matters to packagers.  New in the format:
+
+  - `~/.config/pycal/calendar.yaml` is searched first, before the old paths.
+  - A section may say `kind: caldav` and drop the `caldav_` prefix.  Sections of other kinds (`kind: jmap`, a directory of `.ics` files) are skipped.
+  - `password_command` runs a program for the password, and `password_keyring` looks it up in the system keyring.
+  - `CALDAV_*` environment variables override the section's keys one by one: a `CALDAV_PASSWORD` alone no longer makes caldav ignore the config file (https://github.com/python-caldav/caldav/issues/780).  `true`/`false` in a variable is a boolean now, and `CALDAV_HEADERS` is read as JSON.
+  - `extract_conn_params_from_section()`, which plann uses, reads the new format too; pass it the config file's path as `config_file` to let a `password_command` run, and the section's name as `section_name` for error messages.
+  - An unknown key in a section is logged as a warning.  `x_*` and `extra_config` are reserved for applications.
+* `compatibility_hints`: `calendar-color` is now about a hex value such as `#FF0000FF`, the format clients use in practice.  Setting the colour by name (`blue`) is the new `calendar-color.name`; a server that rejects or ignores colour names is `unsupported` there, not `broken`.  Zimbra, SOGo, iCloud and OX App Suite are therefore `full` for `calendar-color` and `unsupported` for `calendar-color.name`.  For Synology, Purelymail, GMX and Infomaniak only colour names were measured, so their hex support is assumed.  `calendar-color.hex` is deprecated: a configuration setting it still works and gives a DeprecationWarning, and its `calendar-color` is then read as `calendar-color.name`.
+
+### Deprecated
+
+* Config file keys starting with `test_` are now reserved for test tooling, so other programs sharing the config file can drop them.  A section is marked for testing with `test_allowed: true` rather than `testing_allowed: true`, and the order test servers are tried in is set with `test_priority` rather than `priority`.  The old names still work, but emit a `DeprecationWarning`.  `test_priority` (or `priority`) in a section of the main config file was ignored before; it is now honoured.  https://github.com/python-caldav/caldav/issues/786
+* `FeatureSet.copyFeatureSet()` in `caldav.compatibility_hints` has been renamed to `copy_feature_set()`, in line with the naming of the other methods.  The old name still works but emits a `DeprecationWarning`.
+
+### Removed
+
+* The old-style compatibility flags are gone: `caldav.compatibility_hints.incompatibility_description`, and the `old_flags` key in a feature set.  They were only ever used by the test suite to skip or adjust tests, and every flag still in use is now a compatibility feature.  https://github.com/python-caldav/caldav/issues/585
+
+### Fixed
+
+* `complete(handle_rrule=True)` on a recurring task with fixed times (`BY*` parts in the `RRULE`, e.g. `FREQ=YEARLY;BYMONTH=4,9`) did not advance the task when it was completed before its `DTSTART`: the next occurrence was looked for after the completion time, which found the occurrence just completed.  It is now looked for after `DTSTART`.  https://github.com/python-caldav/caldav/issues/782
+* `aio.get_calendars()` ignored meta-sections, `*` and glob patterns in `config_section`, as well as the `calendar_name` and `calendar_url` filters of a config section.  It now finds the same calendars as the sync `get_calendars()`, and behaves like it on errors too: it no longer sends an OPTIONS probe first, so an unreachable server raises the error from the principal lookup rather than a `DAVError` saying "Failed to connect", and with `raise_errors=False` such an error is logged and the server skipped rather than raised.  https://github.com/python-caldav/caldav/issues/793
+* Creating an `AsyncDAVClient` failed with an `ImportError` when only an httpx-family library was installed.  It works now; RFC 6764 discovery still needs niquests or requests, and is skipped with a warning without them.  `aio.get_davclient()` and `aio.get_calendars()` blocked the event loop while reading the config file and doing RFC 6764 discovery; they now do both in a worker thread.  https://github.com/python-caldav/caldav/issues/794
+* The `supported-report-set` and `current-user-privilege-set` properties from `propfind()` were the raw lxml element.  They are now lists of the report and privilege names in Clark notation, e.g. `["{urn:ietf:params:xml:ns:caldav}calendar-query", "{DAV:}sync-collection"]`.  Code that walked the returned element has to read the list instead.  https://github.com/python-caldav/caldav/issues/795
+* `caldav.testing`: `RadicaleServer` ignored its configured port, so Radicale always listened on 5232 and any other port timed out at startup.  `RadicaleServer.stop()` now closes both ends of its shutdown socketpair, and `XandikosServer.stop()` closes its event loop, so neither leaves a `ResourceWarning` behind.  https://github.com/python-caldav/caldav/issues/797
+* A `200 OK` reply to the PUT of `save()` is now taken as success (RFC 9110 section 9.3.4 allows it for an overwrite).  Before, it was retried, and the retry raised `PutError` when the server answered `200` again.
+* A long UID may be folded over several lines, and for an object that was not parsed yet `.id` returned only the first line.  As a result `save(no_create=True)` of such an existing object raised `ConsistencyError`, `save(no_overwrite=True)` overwrote it instead of raising, and `save(increase_seqno=False, only_this_recurrence=False)` wrote the cut UID back to the server.  `.id` now returns the whole UID, and a UID with a backslash escape such as `\,` is unescaped there too.
+* Configuration files are now read with PyYAML's safe loader.  The full loader was used before, so a YAML tag such as `!!python/object/apply:` in a config file could run arbitrary Python code when `get_davclient()` or `get_calendars()` read it - also from the system-wide `/etc/calendar.conf`.  A config file using such tags is now refused with a `ValueError`; plain YAML and JSON files are unaffected.
+
 ## [3.5.0] - 2026-10-15
 
 Yet another release primarily focusing on bugfixes and compatibility.  iCloud has now been tested and got its compatibility profile in `compatibility_hints.py`.  Test runs towards GMX, Posteo and Purelymail have been skipped for the last few releases; with 3.5.0 the tests pass towards those.  More work on getting synchronization right, and on avoiding overwriting changes when multiple clients update the same object.

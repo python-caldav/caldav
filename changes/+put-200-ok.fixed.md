@@ -1,1 +1,0 @@
-A `200 OK` reply to the PUT of `save()` is now taken as success (RFC 9110 section 9.3.4 allows it for an overwrite).  Before, it was retried, and the retry raised `PutError` when the server answered `200` again.
