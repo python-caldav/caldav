@@ -890,6 +890,7 @@ In addition, lots of time spent on things that aren't covered by the roadmap:
 * Communication and collaboration
 * The release itself (running tests towards lots of servers with quirks - like having to wait for several minutes from when an event is edited until it can be found through a search operation - looking through and making sure the CHANGELOG is complete, etc) is quite tedious and easily takes several days - weeks if it's needed to tweak on workarounds and compatibility hints to get the tests passing.
 
+[3.6.0]: https://github.com/python-caldav/caldav/compare/v3.5.0...v3.6.0
 [3.5.0]: https://github.com/python-caldav/caldav/compare/v3.4.0...v3.5.0
 [3.4.1]: https://github.com/python-caldav/caldav/compare/v3.4.0...v3.4.1
 [3.4.0]: https://github.com/python-caldav/caldav/compare/v3.3.1...v3.4.0
