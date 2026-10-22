@@ -26,6 +26,10 @@ After 3.5.0, changes since the last release are kept as fragments in [changes/](
 
 ## [3.6.0] - 2026-10-22
 
+I apologize for the 3.6.0 release coming so shortly after the 3.5.0 release; it is fuelled by demands from the [calendaring-sync](https://github.com/pycalendar/calendaring-sync) and [calendaring](https://github.com/pycalendar/calendaring) projects.  If you're doing packaging or maintaining dependencies and find bumping the version costly, then wait two weeks - maybe there will be a 3.7.0 release.
+
+### Overview
+
 The configuration file is now read through the new [calendaring-config](https://github.com/pycalendar/calendaring-config) package, shared with plann, so the two read the same file the same way - with new features like `password_command`, keyring lookups and per-key environment overrides.  `save(no_overwrite=True)` and `save(no_create=True)` now leave the check to the server through wildcard preconditions (`If-None-Match: *`, `If-Match: *`), closing a race with other clients.  Calendar objects keep the raw data as the server sent it (`raw_data`), and a single occurrence can be cancelled with `cancel()`.  More server profiles have been checked and updated.
 
 Also released without the niquests dependency as 3.6.0a0 - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
@@ -49,7 +53,7 @@ These are bug fixes or improvements, but code or configuration relying on the ol
   * `inherits` naming a missing section or a parent of another kind (a `caldav_*` section inheriting from a `kind: jmap` one), or a cycle of `inherits`, raises an error (they used to be ignored, merged in, or recurse forever).
   * A section no longer inherits its parent's `contains` and `disable`, and `config_section()` leaves `inherits` out of the section it returns.
   * A config file named explicitly must exist.
-* With a server that does not honour the wildcard preconditions (SOGo, Zimbra, Bedework, GMX, iCloud, Posteo, Radicale, Yahoo), `save(no_overwrite=True)` and `save(no_create=True)` (and `add_event(..., no_overwrite=True)` and friends) may now overwrite an existing object, create a missing one or refuse a legitimate update, unless the server is configured with its `features` (e.g. `features: sogo`).  See "Changed" below, https://github.com/python-caldav/caldav/pull/802
+* With a server that does not honour the wildcard preconditions (SOGo, Zimbra, Bedework, GMX, iCloud, Posteo, Radicale, Yahoo), `save(no_overwrite=True)` and `save(no_create=True)` (and `add_event(..., no_overwrite=True)` and friends) may now overwrite an existing object, create a missing one or refuse a legitimate update, unless the server is configured with its `features` (e.g. `features: sogo`), or `save.if-none-match` and `save-load.mutable.if-match-wildcard` are marked correctly in a hand-written feature list.  See "Changed" below, https://github.com/python-caldav/caldav/pull/802
 * `DAVClient.password` is now the `str` that was passed in, as on `AsyncDAVClient`; it used to be encoded to UTF-8 `bytes`.  The return type of `Calendar.multiget()` is annotated as a list, or a coroutine of one for an async client, like `search()`.  https://github.com/python-caldav/caldav/issues/799, https://github.com/python-caldav/caldav/pull/807
 
 ### Added
