@@ -32,7 +32,7 @@ I apologize for the 3.6.0 release coming so shortly after the 3.5.0 release; it 
 
 The configuration file is now read through the new [calendaring-config](https://github.com/pycalendar/calendaring-config) package, shared with plann, so the two read the same file the same way - with new features like `password_command`, keyring lookups and per-key environment overrides.  `save(no_overwrite=True)` and `save(no_create=True)` now leave the check to the server through wildcard preconditions (`If-None-Match: *`, `If-Match: *`), closing a race with other clients.  Calendar objects keep the raw data as the server sent it (`raw_data`), and a single occurrence can be cancelled with `cancel()`.  More server profiles have been checked and updated.
 
-Also released without the niquests dependency as 3.6.0a0 - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
+Also released without the niquests dependency as 3.6.0a1 (a0 got messed up - sorry!) - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
 
 ### Security
 
