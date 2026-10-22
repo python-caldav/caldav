@@ -8,11 +8,9 @@ As of v3.x, **niquests** is the supported and recommended package for HTTP commu
 
 ### Configuration and "features"
 
-This is "old news", but the 3.4-release may hold a regression making this more relevant (see "Breaking changes" for the 3.4-release below).
-
 When configuring the server it's now possible to pass a `features`-parameter.  This may contain a dict describing the server capabilities, but for end-users the intended usage pattern is to pass a server name, e.g. `features: cyrus`.
 
-Support for configuring things like server credentials through a **configuration file** or through **environment** was added a while ago - the idea being that independent applications built using the caldav library can share the same configuration file / environment settings.  Use `get_davclient()` rather than `DAVClient()` to support fetching server configuration through a config file or environment.
+Support for configuring things like server credentials through a **configuration file** or through **environment** was added a while ago - the idea being that independent applications built using the caldav library can share the same configuration file / environment settings.  Use `get_davclient()` rather than `DAVClient()` to support fetching server configuration through a config file or environment.  As of 3.6, the config file is read through the [calendaring-config](https://github.com/pycalendar/calendaring-config) package, shared with plann and other tools.
 
 ## Meta
 
@@ -25,6 +23,101 @@ This project should adhere to [Semantic Versioning](https://semver.org/spec/v2.0
 After 3.5.0, changes since the last release are kept as fragments in [changes/](changes/), and merged in here at release time.
 
 <!-- towncrier release notes start -->
+
+## [3.6.0] - 2026-10-22
+
+I apologize for the 3.6.0 release coming so shortly after the 3.5.0 release; it is fuelled by demands from the [calendaring-sync](https://github.com/pycalendar/calendaring-sync) and [calendaring](https://github.com/pycalendar/calendaring) projects.  If you're doing packaging or maintaining dependencies and find bumping the version costly, then wait two weeks - maybe there will be a 3.7.0 release.
+
+### Overview
+
+The configuration file is now read through the new [calendaring-config](https://github.com/pycalendar/calendaring-config) package, shared with plann, so the two read the same file the same way - with new features like `password_command`, keyring lookups and per-key environment overrides.  `save(no_overwrite=True)` and `save(no_create=True)` now leave the check to the server through wildcard preconditions (`If-None-Match: *`, `If-Match: *`), closing a race with other clients.  Calendar objects keep the raw data as the server sent it (`raw_data`), and a single occurrence can be cancelled with `cancel()`.  More server profiles have been checked and updated.
+
+Also released without the niquests dependency as 3.6.0a0 - install requests (for the sync client) and/or httpx2 (for the async client) alongside it.
+
+### Security
+
+* Configuration files are now read with PyYAML's safe loader (by calendaring-config).  The full loader was used before, so a YAML tag such as `!!python/object/apply:` in a config file could run arbitrary Python code when `get_davclient()` or `get_calendars()` read it - also from the system-wide `/etc/calendar.conf`.  A config file using such tags is now refused with a `ValueError`; plain YAML and JSON files are unaffected.  https://github.com/python-caldav/caldav/pull/785
+* The new `password_command` key runs a program named in the config file, so a config file is, by design, able to run code.  It is guarded where the YAML tags were not: the command is only run if the file it comes from is owned by the user or by root and is not writable by group or others, and it must be given as a list of the program and its arguments, never through a shell.  A config file written by someone else, or one others can write to, should not be trusted for the same reason as before.  https://github.com/python-caldav/caldav/pull/804
+
+### Potentially breaking changes
+
+These are bug fixes or improvements, but code or configuration relying on the old behaviour may notice them.
+
+* Most of the config file handling logic was separated out in a new package calendaring-config (see Added).  The changes introduced are unlikely to break anything for anyone, and hence considered allowable for the minor release (https://github.com/python-caldav/caldav/issues/786, https://github.com/python-caldav/caldav/pull/804):
+  * **This introduces a new dependency**.  The package has the same maintainer as the caldav library, and the same co-maintainers as the icalendar-searcher library.
+  * An empty config file found first in the search path is used, rather than skipped for the next one.
+  * If a disabled or missing section is named, or a glob matches nothing, an error is now raised.
+  * A name in `contains` that matches nothing gives a warning.
+  * A disabled meta-section leaves out its members too.
+  * `*` now excludes meta-sections.
+  * `inherits` naming a missing section or a parent of another kind (a `caldav_*` section inheriting from a `kind: jmap` one), or a cycle of `inherits`, raises an error (they used to be ignored, merged in, or recurse forever).
+  * A section no longer inherits its parent's `contains` and `disable`, and `config_section()` leaves `inherits` out of the section it returns.
+  * A config file named explicitly must exist.
+* With a server that does not honour the wildcard preconditions (SOGo, Zimbra, Bedework, GMX, iCloud, Posteo, Radicale, Yahoo), `save(no_overwrite=True)` and `save(no_create=True)` (and `add_event(..., no_overwrite=True)` and friends) may now overwrite an existing object, create a missing one or refuse a legitimate update, unless the server is configured with its `features` (e.g. `features: sogo`), or `save.if-none-match` and `save-load.mutable.if-match-wildcard` are marked correctly in a hand-written feature list.  See "Changed" below, https://github.com/python-caldav/caldav/pull/802
+* `DAVClient.password` is now the `str` that was passed in, as on `AsyncDAVClient`; it used to be encoded to UTF-8 `bytes`.  The return type of `Calendar.multiget()` is annotated as a list, or a coroutine of one for an async client, like `search()`.  https://github.com/python-caldav/caldav/issues/799, https://github.com/python-caldav/caldav/pull/807
+
+### Added
+
+#### Library API
+
+* `cancel()` marks an object, or a single occurrence from `search(..., expand=True)`, as `STATUS:CANCELLED` and saves it - for an occurrence that was planned but will not take place.  A new compatibility feature, `save-load.event.recurrences.exception.cancelled`, records that Zimbra turns a cancelled occurrence into an `EXDATE`.  https://github.com/python-caldav/caldav/issues/598, https://github.com/python-caldav/caldav/pull/810
+* Calendar objects keep the calendar data exactly as the server sent it, before `vcal.fix()` or any other normalisation, in the new read-only `raw_data` attribute (`bytes`; `None` for objects not read from a server, copies, and after `save()`).  After `load()` it is the GET response body byte for byte; from a REPORT (`search()`, `multiget()`) it is the text of the `calendar-data` element, with XML entities decoded and line breaks turned into LF.  `save(raw_data=...)` sends the given (UTF-8) bytes as the PUT body unchanged - no `vcal.fix()`, no re-serialisation, no `SEQUENCE` bump - still with `If-Match` / `If-Schedule-Tag-Match`.  This lets sync tools compare and copy what servers store.  https://github.com/python-caldav/caldav/issues/763, https://github.com/python-caldav/caldav/pull/803
+* `DAVError` and its subclasses have a new `status` attribute with the HTTP status code of the failed response (or `None`), so an `AuthorizationError` tells a 401 (bad or missing credentials) from a 403 (authenticated, but not allowed).  https://github.com/python-caldav/caldav/issues/805, https://github.com/python-caldav/caldav/pull/807
+
+#### Configuration
+
+* The config file is now read through the [calendaring-config](https://github.com/pycalendar/calendaring-config) package, which the file's other users (plann, calendaring) share; see https://github.com/python-caldav/caldav/issues/786 and https://github.com/python-caldav/caldav/pull/804.  This is a new dependency, `calendaring-config>=0.5` (it depends only on PyYAML), which matters to packagers.  New in the format:
+
+  - `~/.config/pycal/calendar.yaml` is searched first, before the old paths.
+  - A section may say `kind: caldav` and drop the `caldav_` prefix.  Sections of other kinds (`kind: jmap`, a directory of `.ics` files) are skipped.
+  - `password_command` runs a program for the password, and `password_keyring` looks it up in the system keyring (this needs the `keyring` package, e.g. `pip install calendaring-config[keyring]`).
+  - `CALDAV_*` environment variables override the section's keys one by one: a `CALDAV_PASSWORD` alone no longer makes caldav ignore the config file (https://github.com/python-caldav/caldav/issues/780).  `true`/`false` in a variable is a boolean now, and `CALDAV_HEADERS` is read as JSON.
+  - `extract_conn_params_from_section()`, which plann uses, reads the new format too; pass it the config file's path as `config_file` to let a `password_command` run, and the section's name as `section_name` for error messages.
+  - An unknown key in a section is logged as a warning.  `x_*` and `extra_config` are reserved for applications.
+
+#### Server compatibility
+
+* Compatibility features `save-load.todo.uncomplete` (a completed task can be made pending again with `Todo.uncomplete()`; GMX keeps it completed) and `search.time-range.todo.no-dtstart.no-due` (a date search finds a task with neither DTSTART nor DUE, as RFC 4791 section 9.9 says it should; Zimbra does not).  They replace the last two old-style flags in the Zimbra and GMX profiles.  https://github.com/python-caldav/caldav/issues/585, https://github.com/python-caldav/caldav/pull/811
+* Several server profiles in `compatibility_hints` are updated from caldav-server-tester runs, so with `features: <server>` configured, `is_supported()` may give a different answer for the features named here.  https://github.com/python-caldav/caldav/pull/781, https://github.com/python-caldav/caldav/pull/812
+
+  - `calendar-color` (a hex value) and `calendar-order` are measured instead of left at the default `fragile`: both are `full`, and colour names work too, for Xandikos, Nextcloud (and so ecloud, which inherits its profile), CCS, Stalwart, Cyrus, Posteo, Purelymail and Robur; Bedework 3 stores both colour forms but not `calendar-order`; SOGo takes a hex colour but not a colour name; OX App Suite takes a hex colour, ignores colour names, and does not store `calendar-order`.
+  - Sync tokens: DAViCal, SOGo and Bedework 3 now state `sync-token.invalid-token`, `sync-token.limit` and `sync-token.limit.initial-sync`, and Bedework 5 the two `limit` features, where they used to inherit `fragile` from `sync-token` or default to `full`.  DAViCal and SOGo ignore `DAV:limit` and answer a never-issued sync token with a 207 and no error.  Bedework 3 refuses a token it never issued, as it should, and answers a `DAV:limit` with a 500.  Bedework 5 cuts the reply at `DAV:limit` without the 507 the RFC asks for: following the tokens loses nothing, but a client takes the cut reply as complete and gets the rest only on its next sync.
+  - OX App Suite: `scheduling` is `full` (it was `unknown`), with `scheduling.schedule-tag` unsupported; inbox delivery and auto-scheduling stay `unknown`.
+  - Purelymail: `search.is-not-defined`, `search.time-range.event` and `search.time-range.todo` are `full` again (they were `fragile`).
+  - Stalwart: `search.time-range.todo.no-dtstart.no-due` is `unsupported`.
+  - GMX: `search.recurrences.includes-implicit.infinite-scope` is `fragile` (it was `full`): it failed in one run and passed in the next.
+  - Infomaniak: the wait after deleting a calendar (`synchronous-write.delete-calendar`) is raised from 12 to 20 seconds; a deleted calendar could still be there after 12.
+  - `well-known`: `unsupported` for Posteo, `full` for Robur.
+
+### Changed
+
+* `calendar-color` is now about a hex value such as `#FF0000FF`, the format clients use in practice.  Setting the colour by name (`blue`) is the new `calendar-color.name`; a server that rejects or ignores colour names is `unsupported` there, not `broken`.  Zimbra, SOGo, iCloud and OX App Suite are therefore `full` for `calendar-color` and `unsupported` for `calendar-color.name`.  For Synology, Purelymail, GMX and Infomaniak only colour names were measured, so their hex support is assumed.  `calendar-color.hex` is deprecated: a configuration setting it still works and gives a DeprecationWarning, and its `calendar-color` is then read as `calendar-color.name`.  https://github.com/python-caldav/caldav/pull/813
+* `save(no_overwrite=True)` and `save(no_create=True)` (and `add_event(..., no_overwrite=True)` and friends) now send `If-None-Match: *` and `If-Match: *`, so on an RFC-compliant server the flag is enforced at the same URL in the same request as the write, and another client can no longer slip in between the check and the PUT.  Against a server that does not honour the wildcard preconditions, an existing object may be overwritten, a missing one created, or a legitimate update refused (see "Potentially breaking changes" above).  Servers known not to honour them, as of this release:
+
+  - `If-None-Match: *`: SOGo, Zimbra
+  - `If-Match: *`: Bedework, GMX, iCloud, Posteo, Radicale, SOGo, Yahoo, Zimbra
+
+  A refusal still raises `ConsistencyError`.  A subclass overriding `_create()` or `_put()` (or their async variants) must accept a new `wildcard` parameter after `precondition`.  https://github.com/python-caldav/caldav/pull/802
+* When `save(no_overwrite=True)` or `save(no_create=True)` is refused because another object (at another URL) holds the UID, the error is now the new `UidConflictConsistencyError`, which is both a `UidConflictError` and a `ConsistencyError`, whether the server refused the UID or caldav's own UID search found it.  https://github.com/python-caldav/caldav/issues/806, https://github.com/python-caldav/caldav/pull/802, https://github.com/python-caldav/caldav/pull/807
+
+### Deprecated
+
+* Config file keys starting with `test_` are now reserved for test tooling, so other programs sharing the config file can drop them.  A section is marked for testing with `test_allowed: true` rather than `testing_allowed: true`, and the order test servers are tried in is set with `test_priority` rather than `priority`.  The old names still work, but emit a `DeprecationWarning`.  `test_priority` (or `priority`) in a section of the main config file was ignored before; it is now honoured.  https://github.com/python-caldav/caldav/issues/786, https://github.com/python-caldav/caldav/pull/804
+* `FeatureSet.copyFeatureSet()` in `caldav.compatibility_hints` has been renamed to `copy_feature_set()`, in line with the naming of the other methods.  The old name still works but emits a `DeprecationWarning`.  https://github.com/python-caldav/caldav/pull/790
+
+### Removed
+
+* The old-style compatibility flags are gone: `caldav.compatibility_hints.incompatibility_description`, and the `old_flags` key in a feature set.  They were only ever used by the test suite to skip or adjust tests, and every flag still in use is now a compatibility feature.  https://github.com/python-caldav/caldav/issues/585, https://github.com/python-caldav/caldav/pull/811
+
+### Fixed
+
+* `complete(handle_rrule=True)` on a recurring task with fixed times (`BY*` parts in the `RRULE`, e.g. `FREQ=YEARLY;BYMONTH=4,9`) did not advance the task when it was completed before its `DTSTART`: the next occurrence was looked for after the completion time, which found the occurrence just completed.  It is now looked for after `DTSTART`.  https://github.com/python-caldav/caldav/issues/782, https://github.com/python-caldav/caldav/pull/808
+* `aio.get_calendars()` ignored meta-sections, `*` and glob patterns in `config_section`, as well as the `calendar_name` and `calendar_url` filters of a config section.  It now finds the same calendars as the sync `get_calendars()`, and behaves like it on errors too: it no longer sends an OPTIONS probe first, so an unreachable server raises the error from the principal lookup rather than a `DAVError` saying "Failed to connect", and with `raise_errors=False` such an error is logged and the server skipped rather than raised.  https://github.com/python-caldav/caldav/issues/793, https://github.com/python-caldav/caldav/pull/800
+* Creating an `AsyncDAVClient` failed with an `ImportError` when only an httpx-family library was installed.  It works now; RFC 6764 discovery still needs niquests or requests, and is skipped with a warning without them.  `aio.get_davclient()` and `aio.get_calendars()` blocked the event loop while reading the config file and doing RFC 6764 discovery; they now do both in a worker thread.  https://github.com/python-caldav/caldav/issues/794, https://github.com/python-caldav/caldav/pull/800
+* The `supported-report-set` and `current-user-privilege-set` properties from `propfind()` were the raw lxml element.  They are now lists of the report and privilege names in Clark notation, e.g. `["{urn:ietf:params:xml:ns:caldav}calendar-query", "{DAV:}sync-collection"]`.  Code that walked the returned element has to read the list instead.  https://github.com/python-caldav/caldav/issues/795, https://github.com/python-caldav/caldav/pull/807
+* `caldav.testing`: `RadicaleServer` ignored its configured port, so Radicale always listened on 5232 and any other port timed out at startup.  `RadicaleServer.stop()` now closes both ends of its shutdown socketpair, and `XandikosServer.stop()` closes its event loop, so neither leaves a `ResourceWarning` behind.  https://github.com/python-caldav/caldav/issues/797, https://github.com/python-caldav/caldav/pull/800
+* A `200 OK` reply to the PUT of `save()` is now taken as success (RFC 9110 section 9.3.4 allows it for an overwrite).  Before, it was retried, and the retry raised `PutError` when the server answered `200` again.  https://github.com/python-caldav/caldav/pull/802
+* A long UID may be folded over several lines, and for an object that was not parsed yet `.id` returned only the first line.  As a result `save(no_create=True)` of such an existing object raised `ConsistencyError`, `save(no_overwrite=True)` overwrote it instead of raising, and `save(increase_seqno=False, only_this_recurrence=False)` wrote the cut UID back to the server.  `.id` now returns the whole UID, and a UID with a backslash escape such as `\,` is unescaped there too.  https://github.com/python-caldav/caldav/pull/787
 
 ## [3.5.0] - 2026-10-15
 

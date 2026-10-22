@@ -11,15 +11,21 @@ from calendaring_config import expand_env_vars as expand_env_vars
 
 log = logging.getLogger("caldav")
 
-"""
-This configuration parsing code was just copied from my plann library (and will be removed from there at some point in the future).  Test coverage is poor as for now.
-"""
+## The config file format and its parsing belong to calendaring-config.  What
+## is left here is caldav's own: mapping a section to DAVClient keyword
+## arguments, resolving feature profiles, and the order of the sources
+## (explicit arguments, test server, environment, file).
+##
+## TODO: the public expand_config_section, config_section, read_config and
+## extract_conn_params_from_section are kept for plann, and should be
+## deprecated (with warnings) once plann gets its calendars from
+## get_calendars() (https://github.com/PyCalendar/plann/issues/84).
+##
+## TODO: verify that we have test code for all kinds of corner cases
+##
+## TODO: verify that the config format is well enough documented
 
-## This is being moved from my plann library.  The code itself will be introduced into caldav 2.0, but proper test code and documentation will come in a later release (2.1?)
 
-
-## TODO TODO TODO - write test code for all the corner cases
-## TODO TODO TODO - write documentation of config format
 def expand_config_section(config, section="default", blacklist=None):
     """
     The leaf sections that ``section`` expands to, as a list.
@@ -43,13 +49,13 @@ def expand_config_section(config, section="default", blacklist=None):
 
 
 def config_section(config, section="default"):
-    if section in config and "inherits" in config[section]:
-        ret = config_section(config, config[section]["inherits"])
-    else:
-        ret = {}
-    if section in config:
-        ret.update(config[section])
-    return ret
+    """Section ``section`` with what it ``inherits`` copied in, or ``{}`` when
+    there is no such section.  ``inherits`` and the parents' ``contains`` and
+    ``disable`` are left out; the section's own are kept.  The rules are
+    calendaring-config's ``merged_section``."""
+    if section not in config:
+        return {}
+    return calendaring_config.merged_section(config, section)
 
 
 def read_config(fn, interactive_error=False):
@@ -356,6 +362,9 @@ def _caldav_connections(
     return [params for params in found if params]
 
 
+## TODO: the test server selection below, get_test_setting and
+## get_all_test_servers are test tooling, not config; move them to
+## caldav/testing.py (planned for 3.6.1).
 def _get_test_server_config(
     name: str | None, environment: bool, config_file: str | None = None
 ) -> dict[str, Any] | None:
@@ -616,7 +625,12 @@ def get_all_test_servers(
 
     result: dict[str, dict[str, Any]] = {}
     for section_name in cfg:
-        section_data = config_section(cfg, section_name)
+        try:
+            section_data = config_section(cfg, section_name)
+        except calendaring_config.ConfigError as e:
+            ## A broken section that is not a test server must not hide the others
+            log.warning(f"config section {section_name} skipped: {e}")
+            continue
         if get_test_setting(section_data, "test_allowed"):
             conn_params = extract_conn_params_from_section(section_data, str(path), section_name)
             if conn_params:
