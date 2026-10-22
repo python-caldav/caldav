@@ -4550,6 +4550,91 @@ class TestConfigSectionInheritance:
         assert result["caldav_username"] == "alice"
         assert result["caldav_password"] == "secret"
 
+    def test_result_is_a_leaf(self):
+        """plann hands the result to extract_conn_params_from_section, which
+        refused it as long as the inherits key was left in"""
+        from caldav.config import config_section, extract_conn_params_from_section
+
+        config = {
+            "base": {"caldav_url": "https://dav.example.com/", "contains": ["x"]},
+            "default": {"inherits": "base", "caldav_user": "bob"},
+            "x": {},
+        }
+        result = config_section(config, "default")
+        assert "inherits" not in result and "contains" not in result
+        assert extract_conn_params_from_section(result) == {
+            "url": "https://dav.example.com/",
+            "username": "bob",
+        }
+
+    def test_test_server_with_inherits(self, tmp_path):
+        import json
+
+        from caldav.config import get_all_test_servers
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "base": {"caldav_url": "https://dav.example.com/"},
+                    "srv": {"inherits": "base", "test_allowed": True},
+                }
+            )
+        )
+        assert get_all_test_servers(str(config_file))["srv"]["url"] == "https://dav.example.com/"
+
+    def test_broken_section_does_not_hide_test_servers(self, tmp_path):
+        import json
+
+        from caldav.config import get_all_test_servers
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "srv": {"caldav_url": "https://dav.example.com/", "test_allowed": True},
+                    "broken": {"inherits": "nosuch"},
+                    "a": {"inherits": "b"},
+                    "b": {"inherits": "a"},
+                }
+            )
+        )
+        assert list(get_all_test_servers(str(config_file))) == ["srv"]
+
+    def test_own_contains_and_disable_are_kept(self):
+        """only the parents' contains and disable are dropped"""
+        from caldav.config import config_section
+
+        config = {"meta": {"contains": ["a"], "disable": True}, "a": {}}
+        assert config_section(config, "meta") == {"contains": ["a"], "disable": True}
+
+    def test_parent_disable_is_not_inherited(self):
+        from caldav.config import config_section
+
+        config = {
+            "base": {"caldav_url": "https://dav.example.com/", "disable": True},
+            "child": {"inherits": "base"},
+        }
+        assert config_section(config, "child") == {"caldav_url": "https://dav.example.com/"}
+
+    def test_kind_mismatch_is_refused(self):
+        import calendaring_config
+        import pytest
+
+        from caldav.config import config_section
+
+        config = {
+            "jmap": {"kind": "jmap", "url": "https://jmap.example.com/"},
+            "child": {"inherits": "jmap", "caldav_url": "https://dav.example.com/"},
+        }
+        with pytest.raises(calendaring_config.ConfigError):
+            config_section(config, "child")
+
+    def test_missing_section_is_empty(self):
+        from caldav.config import config_section
+
+        assert config_section({"a": {}}, "nosuch") == {}
+
 
 class TestExpandEnvVars:
     """Unit tests for caldav.config.expand_env_vars."""

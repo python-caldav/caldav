@@ -186,7 +186,10 @@ sections share the same server or credentials:
         calendar_name: Tasks
 
 Inheritance is recursive: a section can inherit from a section that itself
-inherits from another.
+inherits from another.  A parent's ``contains`` and ``disable`` are not
+inherited.  Inheriting from a missing section, a cycle of ``inherits``, or a
+parent of another kind (a ``caldav_*`` section inheriting from a
+``kind: jmap`` one) is an error.
 
 Meta-sections (collections)
 ============================

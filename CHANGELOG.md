@@ -40,7 +40,7 @@ These are bug fixes or improvements, but code or configuration relying on the ol
   - `If-Match: *`: Bedework, GMX, iCloud, Posteo, Radicale, SOGo, Yahoo, Zimbra
 
   A refusal still raises `ConsistencyError`.  When the refusal is because another object (at another URL) holds the UID, it is the new `UidConflictConsistencyError`, which is both a `UidConflictError` and a `ConsistencyError`, whether the server refused the UID or caldav's own UID search found it (https://github.com/python-caldav/caldav/issues/806).  A subclass overriding `_create()` or `_put()` must accept their new `wildcard=` keyword.
-* Since the config file is now read through calendaring-config (see Added), some files are read differently: an empty file found first is used, rather than skipped for the next one; a section named directly that is missing or disabled, or a glob that matches nothing, is an error; a name in `contains` that matches nothing gives a warning; a disabled meta-section leaves out its members too; `*` is only the sections that are not meta-sections; and a config file named explicitly must exist.
+* Since the config file is now read through calendaring-config (see Added), some files are read differently: an empty file found first is used, rather than skipped for the next one; a section named directly that is missing or disabled, or a glob that matches nothing, is an error; a name in `contains` that matches nothing gives a warning; a disabled meta-section leaves out its members too; `*` is only the sections that are not meta-sections; `inherits` naming a missing section, or a cycle of them, is an error, where it used to be ignored or to recurse forever; `config_section()` leaves `inherits`, `contains` and `disable` out of the section it returns; and a config file named explicitly must exist.
 * `DAVClient.password` is now the `str` that was passed in, as on `AsyncDAVClient`; it used to be encoded to UTF-8 `bytes`.  The return type of `Calendar.multiget()` is annotated as a list, or a coroutine of one for an async client, like `search()`.  https://github.com/python-caldav/caldav/issues/799
 
 ### Added
@@ -53,7 +53,7 @@ These are bug fixes or improvements, but code or configuration relying on the ol
 
 #### Configuration
 
-* The config file is now read through the [calendaring-config](https://github.com/pycalendar/calendaring-config) package, which the file's other users (plann, calendaring) share; see https://github.com/python-caldav/caldav/issues/786.  This is a new dependency, `calendaring-config>=0.3` (it depends only on PyYAML), which matters to packagers.  New in the format:
+* The config file is now read through the [calendaring-config](https://github.com/pycalendar/calendaring-config) package, which the file's other users (plann, calendaring) share; see https://github.com/python-caldav/caldav/issues/786.  This is a new dependency, `calendaring-config>=0.5` (it depends only on PyYAML), which matters to packagers.  New in the format:
 
   - `~/.config/pycal/calendar.yaml` is searched first, before the old paths.
   - A section may say `kind: caldav` and drop the `caldav_` prefix.  Sections of other kinds (`kind: jmap`, a directory of `.ics` files) are skipped.
