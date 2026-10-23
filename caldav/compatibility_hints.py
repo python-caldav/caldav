@@ -1523,6 +1523,19 @@ nextcloud = {
 }
 
 ecloud = nextcloud | {
+    ## 2026-10-23: MKCALENDAR failed with 403 "Calendar limit reached" (a
+    ## SabreDAV Forbidden), making the server-tester grade create-calendar
+    ## unsupported.  The account held 27 live calendars, 15 of them empty
+    ## leftovers with bare-uuid cal_ids from test runs.  Calendars sitting in
+    ## the trashbin count towards the limit too: deleting the leftovers gave
+    ## room for one more creation only.  A DELETE carrying the header
+    ## "X-NC-CalDAV-No-Trashbin: 1" removes a calendar for good, and also
+    ## works on one already in the trashbin (it still shows up in a raw
+    ## depth-1 PROPFIND of the calendar home).  With the trashbin purged,
+    ## the next MKCALENDARs got 429 instead - the calendar-creation rate
+    ## limit, after a dozen creations within the hour.  The same run measured
+    ## well-known unsupported: /.well-known/caldav redirects to
+    ## /remote.php/dav/, which does not advertise calendar-access.
     #'search.is-not-defined': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
     #'search.text.case-sensitive': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
     'delete-calendar.free-namespace': False,
@@ -1616,6 +1629,7 @@ zimbra = {
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': {'support': 'ungraceful'},
+    ## One caldav-server-tester run on 2026-10-23 measured this ungraceful.
     'sync-token': {'support': 'fragile'},
     'search.is-not-defined': {'support': 'unsupported'},
     'search.text': {'support': 'unsupported'},
@@ -1736,16 +1750,10 @@ bedework_5_0_0 = {
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
     ## Writes are asynchronous: a read-back issued immediately after a PUT may
-    ## 404 or hand back the pre-write copy.  That is what separated the two
-    ## measurement runs - save-load.mutable came out "broken" (modification not
-    ## reflected after save and reload) in one and "full" in the other, and the
-    ## timezone probe's load() 404ed on a resource the PUT had just accepted.
-    ## The delay is what makes the rest of this profile reproducible.  Yet the
-    ## synchronous-write probe itself - one PUT, one direct GET - reads the
-    ## object back at once (save-load-delay 0, 2026-09-13), so it is too fast
-    ## to catch reliably: fragile, not unsupported.  Four runs on 2026-10-20/21
-    ## all measured ~1s; it stays fragile until more rounds show that the 0
-    ## does not come back.
+    ## 404 or hand back the pre-write copy.  However, in some cases the
+    ## delay is small and varies, sometimes the caldav-server-tester tool will
+    ## not catch the async behaviour, hence it's rated "fragile" rather than
+    ## "unsupported".
     "synchronous-write": {"support": "fragile", "delay": 3},
 
     ## MKCALENDAR works, but a successful one that sets no properties is
@@ -1778,16 +1786,19 @@ bedework_5_0_0 = {
         "support": "unsupported",
         "behaviour": "the restriction is accepted with a 200 ok propstat and then ignored; the collection is VEVENT-only",
     },
-    ## So whether Bedework stores tasks is unknown rather than unsupported: the
-    ## server has a task collection type, a CalDAV client just cannot make one.
-    ## What was measured is that a VTODO does not go into an event calendar;
-    ## together with the ignored component set that leaves a client nowhere to
-    ## put a task.  The children inherit "unknown".  The same goes for journals.
-    "save-load.todo": {"support": "unknown"},
+    ## The caldav-server-tester will yield "unsupported" on tasks and journals.
+    ## Bedework can store tasks on a tasklist, such task lists have been found
+    ## in the demo data, but the CalDAV user cannot create a tasklist.
+    ## The grading is hence set to "fragile".  Perhaps Bedework also supports
+    ## special journal collections, but this is "unknown" as for now.
+    "save-load.todo": {
+        "support": "fragile",
+        "behaviour": "only in a server-provisioned task collection; a client cannot create one, and a VTODO PUT into an event calendar is 403",
+    },
     "save-load.todo.mixed-calendar": {"support": "unsupported"},
     "save-load.journal": {"support": "unknown"},
     "save-load.journal.mixed-calendar": {"support": "unsupported"},
-    ## Not measured either: the tester had no tasks to search for.  A Bedework
+    ## Not measured: the tester had no task collection to search in.  A Bedework
     ## user with a working `tasks` collection may well see this work.
     "search.time-range.todo": {"support": "unknown"},
 
@@ -2060,6 +2071,8 @@ synology = davical | {
     ## .delete() degrades to wiping the objects, so a cal_id is never freed for
     ## reuse and a later MKCALENDAR at the same id gets 405.
     'delete-calendar': False,
+    ## sync-token (fragile, inherited from davical) and sync-token.delete
+    ## both came out full in a server-tester run on 2026-10-23.
     ## (scheduling.mailbox.inbox-delivery used to be pinned False here.  It was
     ## added in a bulk hints commit with no per-server evidence, and it cannot be
     ## probed on the configured server - the checker needs a second user account,
@@ -2107,6 +2120,8 @@ sogo = {
     },
     ## includes-implicit.todo has been observed as both supported and unsupported
     ## across different test runs.  Other includes-implicit children are unsupported.
+    ## A run on 2026-10-23 measured event, infinite-scope, todo and todo.pending
+    ## all unsupported.
     ## Marking the parent as fragile to avoid cascading derivation issues.
     "search.recurrences.includes-implicit": {
         "support": "fragile"
@@ -2194,6 +2209,7 @@ robur = {
     "search.time-range.alarm": {'support': 'unsupported'},
     "search.text": { "support": "unsupported", "behaviour": "a text search ignores the filter and returns all elements" },
     "search.recurrences.expanded.todo": { "support": "unsupported" },
+    ## 2026-10-23: one server-tester run measured this full.
     "search.recurrences.expanded.event": { "support": "fragile" },
     'search.recurrences.includes-implicit.todo': {'support': 'unsupported'},
     'principal-search': {'support': 'ungraceful'},
@@ -2551,6 +2567,8 @@ gmx = {
     ## 2026-10-11: two server-tester runs half an hour apart; in the first
     ## every MKCALENDAR/MKCOL attempt failed, in the second calendars were
     ## created (at the requested URL) and deleted on the first attempt.
+    ## 2026-10-23: one run created calendars fine (set-displayname and
+    ## stable-url full too).
     'create-calendar': {'support': 'fragile'},
     'create-calendar.auto': {'support': 'unsupported'},
     'create-calendar.with-supported-component-types': {'support': 'unsupported'},
@@ -2582,7 +2600,9 @@ gmx = {
     ## but worked 2026-10-11
     'search.time-range.open.end': {'support': 'fragile'},
     ## Open-start searches used to work (no hint, so full), but were
-    ## rejected with 403 Forbidden 2026-10-11
+    ## rejected with 403 Forbidden 2026-10-11.  2026-10-23: ungraceful
+    ## again, while open.end, open.start.duration, comp-type.optional and
+    ## includes-implicit.infinite-scope all came out full.
     'search.time-range.open.start': {'support': 'fragile'},
     ## Probed 2026-10-20
     "save-load.todo.uncomplete": {
