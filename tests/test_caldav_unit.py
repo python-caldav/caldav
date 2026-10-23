@@ -5886,13 +5886,15 @@ class TestPropstatStatusValidation:
 """
 
     def test_server_error_propstat_raises(self):
-        with pytest.raises(error.ResponseError):
+        with pytest.raises(error.ResponseError) as excinfo:
             MockedDAVResponse(self.XML).expand_simple_props(props=[dav.DisplayName()])
+        assert excinfo.value.status == 500
 
     def test_insufficient_storage_propstat_raises(self):
         xml = self.XML.replace("500 Internal Server Error", "507 Insufficient Storage")
-        with pytest.raises(error.ResponseError):
+        with pytest.raises(error.ResponseError) as excinfo:
             MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert excinfo.value.status == 507
 
     def test_404_propstat_is_still_a_missing_property(self):
         """The 404 quirk must survive: a 404 propstat means "not set here",
@@ -5900,6 +5902,17 @@ class TestPropstatStatusValidation:
         xml = self.XML.replace("500 Internal Server Error", "404 Not Found")
         result = MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
         assert result == {"/dav/calendars/user/broken/": {"{DAV:}displayname": None}}
+
+    @pytest.mark.parametrize(
+        "status", ["500 Internal Server Error", "HTTP/1.1 Internal Server Error"]
+    )
+    def test_unparseable_status_line_leaves_status_unset(self, status):
+        """A status line the client cannot read is no evidence of a code:
+        ``status`` stays None rather than claiming 200."""
+        xml = self.XML.replace("HTTP/1.1 500 Internal Server Error", status)
+        with pytest.raises(error.ResponseError) as excinfo:
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert excinfo.value.status is None
 
 
 class TestAsyncDAVClientCredentialPairing:
@@ -7665,8 +7678,9 @@ class TestSyncCollectionTruncated:
             b"<D:href>/dav/cal/</D:href>", b"<D:href>/dav/othercal/</D:href>"
         )
         _, calendar = self._calendar(page)
-        with pytest.raises(error.DAVError):
+        with pytest.raises(error.DAVError) as excinfo:
             calendar.get_objects_by_sync_token("tok-1", disable_fallback=True)
+        assert excinfo.value.status == 507
 
     def test_truncated_initial_sync_on_stalwart_stops_short(self):
         """Stalwart's checkpoint of a truncated initial sync skips members.

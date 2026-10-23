@@ -151,6 +151,17 @@ class TestXMLParsers:
         results = DAVResponse.from_bytes(b"", status_code=404).parse_propfind()
         assert results == []
 
+    @pytest.mark.parametrize(
+        "method", ["parse_propfind", "parse_calendar_query", "parse_sync_collection"]
+    )
+    def test_parse_failure_keeps_status(self, method):
+        """A failing reply raises a ResponseError carrying the HTTP status."""
+        from caldav.lib import error
+
+        with pytest.raises(error.ResponseError) as excinfo:
+            getattr(DAVResponse.from_bytes(b"", status_code=507), method)()
+        assert excinfo.value.status == 507
+
     def test_parse_calendar_query_response(self):
         """Parse calendar-query response with calendar data."""
         xml = b"""<?xml version="1.0"?>
@@ -279,8 +290,9 @@ END:VCALENDAR</C:calendar-data>
                 <D:status>HTTP/1.1 507 Insufficient Storage</D:status>
             </D:response>
         </D:multistatus>"""
-        with pytest.raises(error.ResponseError):
+        with pytest.raises(error.ResponseError) as excinfo:
             DAVResponse.from_bytes(xml).expand_simple_props([dav.GetEtag()])
+        assert excinfo.value.status == 507
 
     def test_parse_sync_collection_generic_responsedescription(self):
         """A 404 <response> may carry an arbitrary <responsedescription>.

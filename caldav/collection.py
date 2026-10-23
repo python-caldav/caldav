@@ -2352,7 +2352,9 @@ class Calendar(DAVObject):
         ## while the calendar URL may keep a literal @ (Nextcloud).
         marker = unquote(self.url.join(self._href_to_url(href)).path).rstrip("/")
         if marker != unquote(self.url.path).rstrip("/"):
-            raise error.ResponseError(f"sync-collection: 507 Insufficient Storage for {href}")
+            raise error.ResponseError(
+                f"sync-collection: 507 Insufficient Storage for {href}", status=507
+            )
         return True
 
     def _absorb_sync_page(

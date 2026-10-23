@@ -1,0 +1,1 @@
+A `ResponseError` raised for a failed PROPFIND, REPORT or sync-collection reply, or for a failing `<propstat>` status inside a multistatus (e.g. `507 Insufficient Storage`), now has its `status` attribute set; it was `None`, so the code had to be parsed out of the message.  The failed replies also keep `body` and `preconditions`, like other `DAVError`s.
