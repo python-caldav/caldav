@@ -842,7 +842,7 @@ class AsyncDAVClient(BaseDAVClient):
         url: str | None = None,
         sync_token: str | None = None,
         props: list[str] | None = None,
-        depth: int = 1,
+        depth: int = 0,
         headers: Mapping[str, str] | None = None,
     ) -> DAVResponse:
         """
@@ -852,7 +852,7 @@ class AsyncDAVClient(BaseDAVClient):
             url: Target calendar URL (defaults to self.url).
             sync_token: Previous sync token (None for initial sync).
             props: Properties to include in response.
-            depth: Search depth.
+            depth: Depth header; RFC 6578 defines sync-collection for 0 only.
             headers: Additional headers.
 
         Returns:

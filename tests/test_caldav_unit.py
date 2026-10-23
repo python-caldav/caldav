@@ -4382,10 +4382,12 @@ class TestDateToUtcConversion:
             def __init__(self):
                 super().__init__("<multistatus xmlns='DAV:'/>")
                 self.report_bodies = []
+                self.report_depths = []
 
             def request(self, url=None, method="GET", body=None, headers=None, *args, **kwargs):
                 if method == "REPORT" and body:
                     self.report_bodies.append(body)
+                    self.report_depths.append((headers or {}).get("Depth"))
                 return super().request(url, method, body, headers, *args, **kwargs)
 
         client = CapturingClient()
@@ -4402,6 +4404,9 @@ class TestDateToUtcConversion:
         # Must NOT contain bare date strings without time component
         assert "20260501Z" not in body
         assert "20260601Z" not in body
+        ## calendar-query is a Depth: 1 REPORT (RFC 4791 section 7.8),
+        ## unlike sync-collection, which shares the helper
+        assert client.report_depths[0] == "1"
 
     def test_searcher_coerces_date_to_datetime(self):
         """calendar.searcher(start=date(...)) must store datetime on the searcher,
@@ -7596,6 +7601,8 @@ class TestSyncCollectionTruncated:
         client, calendar = self._calendar(sync_page({"a.ics": '"a1"'}, "tok-2", truncated=False))
         result = calendar.get_objects_by_sync_token("tok-1")
         assert client.report.call_count == 1
+        ## RFC 6578 section 3.2: sync-collection is only defined for Depth: 0
+        assert client.report.call_args.args[2] == 0
         assert result.truncated is False
         assert result.sync_token == "tok-2"
         assert len(result) == 1

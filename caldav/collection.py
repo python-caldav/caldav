@@ -1796,23 +1796,26 @@ class Calendar(DAVObject):
         return url
 
     def _request_report_build_resultlist(
-        self, xml, comp_class=None, props=None, no_calendardata=False
+        self, xml, comp_class=None, props=None, no_calendardata=False, depth=1
     ) -> "tuple[Any, list[CalendarObjectResource]] | Coroutine[Any, Any, tuple[Any, list[CalendarObjectResource]]]":
         """
         Takes some input XML, does a report query on a calendar object
         and returns the resource objects found.
 
+        ``depth`` is 1 for calendar-query; sync-collection needs 0
+        (RFC 6578 section 3.2).
+
         For async clients, returns a coroutine that must be awaited.
         """
         props_ = [cdav.CalendarData()] if props is None else [cdav.CalendarData()] + props
         if self.is_async_client:
-            return self._async_request_report_build_resultlist(xml, comp_class, props_)
-        response = self._query(xml, 1, "report")
+            return self._async_request_report_build_resultlist(xml, comp_class, props_, depth)
+        response = self._query(xml, depth, "report")
         return self._post_request_report_build_resultlist(response, comp_class, props_)
 
-    async def _async_request_report_build_resultlist(self, xml, comp_class, props_):
+    async def _async_request_report_build_resultlist(self, xml, comp_class, props_, depth=1):
         """Async implementation of _request_report_build_resultlist."""
-        response = await self._query(xml, 1, "report")
+        response = await self._query(xml, depth, "report")
         return self._post_request_report_build_resultlist(response, comp_class, props_)
 
     def _populate_searcher(self, my_searcher, searchargs: dict, sort_reverse: bool) -> None:
@@ -2541,7 +2544,7 @@ class Calendar(DAVObject):
                         sync_token=token, props=["getetag"]
                     )
                     (response, objects) = self._request_report_build_resultlist(
-                        root, props=[dav.GetEtag()], no_calendardata=True
+                        root, props=[dav.GetEtag()], no_calendardata=True, depth=0
                     )
                     (token, truncated, again) = self._absorb_sync_page(
                         response, objects, collected, token, deleted
@@ -2642,7 +2645,7 @@ class Calendar(DAVObject):
                         sync_token=token, props=["getetag"]
                     )
                     (response, objects) = await self._request_report_build_resultlist(
-                        root, props=[dav.GetEtag()], no_calendardata=True
+                        root, props=[dav.GetEtag()], no_calendardata=True, depth=0
                     )
                     (token, truncated, again) = self._absorb_sync_page(
                         response, objects, collected, token, deleted

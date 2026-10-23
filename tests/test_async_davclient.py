@@ -2301,6 +2301,8 @@ class TestAsyncSyncCollectionTruncated:
 
         assert client.report.await_count == 2
         bodies = [to_normal_str(c.args[1]) for c in client.report.call_args_list]
+        ## RFC 6578 section 3.2: sync-collection is only defined for Depth: 0
+        assert [c.args[2] for c in client.report.call_args_list] == [0, 0]
         assert "tok-1" in bodies[0]
         assert "tok-2" in bodies[1]
         assert result.sync_token == "tok-3"
@@ -2434,3 +2436,4 @@ class TestAsyncSyncCollectionTruncated:
         assert response.sync_truncated is True
         assert response.sync_token == "tok-2"
         assert [r.href for r in response.results] == ["/dav/cal/a.ics"]
+        assert client.request.call_args.args[3]["Depth"] == "0"
