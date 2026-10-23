@@ -487,11 +487,21 @@ hence, "fragile".
         "save-load.event.timezone": {
             "description": "The server accepts events with non-UTC timezone information. When unsupported or broken, the server may reject events with timezone data (e.g., return 403 Forbidden). Related to GitHub issue https://github.com/python-caldav/caldav/issues/372."
         },
+        "save-load.event.floating": {
+            "description": "An event with a floating DTSTART and DTEND (a local time with neither TZID nor a UTC 'Z', RFC 5545 section 3.3.5) is stored floating, meaning the same wall-clock time in whatever time zone the user is in.  When 'unsupported', the server stores the time in a time zone of its own: SOGo adds a VTIMEZONE for Etc/UTC and gives DTSTART and DTEND TZID=Etc/UTC, so the event is pinned to 09:00 UTC.  SOGo keeps tasks floating.  'broken' when the stored time has both a TZID and a 'Z', which section 3.3.5 forbids.  The probe reads the server's own text: the icalendar library (7.3.0) itself writes a TZID=Etc/UTC time back with a 'Z', so a re-serialised object can look broken when the server's is not.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.3.5"],
+        },
         "save-load.icalendar": {"description": "Is it possible to save icalendar data to the calendar?  (Most likely yes - but we need a parent to collect all icalendar compatibility problems that aren't specific to one kind of object resource types"},
         "save-load.icalendar.related-to": {
             "description": "The server preserves RELATED-TO properties (RFC5545 section 3.8.4.5) when saving and loading calendar objects. When 'unsupported', the server may typically silently strip all RELATED-TO lines",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.5"],
+        },
+        "save-load.icalendar.attendee-params": {
+            "description": "The parameters of an ATTENDEE property (RFC 5545 section 3.8.4.1) are stored as sent.  A parameter added with the value RFC 5545 gives as its default (PARTSTAT=NEEDS-ACTION, ROLE=REQ-PARTICIPANT, CUTYPE=INDIVIDUAL, RSVP=FALSE) changes nothing, nor does SCHEDULE-STATUS, which RFC 6638 section 7.3 has the server set; those are 'full', with the additions named in the behaviour.  'unsupported' when a parameter is dropped or changed, or one is added that changes the meaning: SOGo adds RSVP=TRUE to every attendee, while the default is FALSE.  The probe stores an event with attendees but no ORGANIZER, so it is not a scheduling object resource and no iTIP processing applies.  See also save-load.mutable.attendee-partstat.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.1", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.2"],
         },
         "save-load.mutable": {
             "description": "A saved calendar object resource can be modified and PUT back to the server; the server accepts the update and returns the modified data on the next GET/REPORT. When 'unsupported', the server treats calendar objects as immutable after initial creation (e.g. Google Calendar's legacy CalDAV API). Replaces the old 'no_overwrite' compatibility flag.",
@@ -803,6 +813,12 @@ hence, "fragile".
             "description": "A PUT of an object whose UID another object resource in the same calendar already holds is refused (RFC 4791 section 5.3.2.1, precondition CALDAV:no-uid-conflict; the library raises UidConflictError).  The RFC requires it, but whether a server does is only known where it was observed, hence the default 'unknown'.  'ungraceful': refused, but without a precondition the library recognises, so it cannot tell the refusal from any other failed PUT.  When 'full' and save.if-none-match holds, save(no_overwrite=True) skips the UID search before the PUT: If-None-Match: * covers the same URL, and this covers the same UID under another URL.",
             "default": {"support": "unknown"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2.1"],
+        },
+        "delete": {"description": "Deleting a calendar object resource.  Deleting a whole calendar is delete-calendar."},
+        "delete.if-match": {
+            "description": "A DELETE carrying If-Match with an etag the object no longer has is refused with 412 Precondition Failed, and one carrying the current etag goes through.  RFC 9110 section 13.1.1 says the server MUST NOT perform the method when the condition does not hold; delete(if_match=True) relies on it to avoid deleting a version someone else has saved since it was loaded.  When 'broken', the condition is ignored and a stale If-Match deletes the object anyway (SOGo, while it honours a stale If-Match on PUT).  When 'unsupported', a DELETE with the current etag is refused too.  The default is 'full', as for save-load.mutable.if-match-wildcard: RFC 4791 section 2 requires ETag support as RFC 2616 defines it.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1", "https://datatracker.ietf.org/doc/html/rfc4791#section-2"],
         },
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
@@ -2148,6 +2164,13 @@ sogo = {
         "behaviour": "If-Match: * is ignored: it created a missing object (201); If-None-Match: * overwrote an existing object",
     },
     "save.if-none-match": {"support": "unsupported", "behaviour": "If-None-Match: * is ignored: it overwrote an existing object"},
+    ## Measured 2026-10-23.  A stale If-Match on PUT is refused with 412,
+    ## but on DELETE it is ignored.
+    "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
+    ## Tasks are kept floating; events are not.  The stored text is valid -
+    ## the 'Z' after the TZID seen client-side comes from the icalendar library.
+    "save-load.event.floating": {"support": "unsupported", "behaviour": "a floating time is stored with TZID=Etc/UTC"},
+    "save-load.icalendar.attendee-params": {"support": "unsupported", "behaviour": "RSVP=TRUE is added; PARTSTAT=NEEDS-ACTION is added"},
     ## Measured 2026-09-15.
     "create-calendar.with-supported-component-types": {
         "support": "unsupported",
