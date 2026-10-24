@@ -853,7 +853,7 @@ hence, "fragile".
         },
         "delete": {"description": "Deleting a calendar object resource.  Deleting a whole calendar is delete-calendar."},
         "delete.if-match": {
-            "description": "A DELETE carrying If-Match with an etag the object no longer has is refused with 412 Precondition Failed, and one carrying the current etag goes through.  RFC 9110 section 13.1.1 says the server MUST NOT perform the method when the condition does not hold; delete(if_match=True) relies on it to avoid deleting a version someone else has saved since it was loaded.  When 'broken', the condition is ignored and a stale If-Match deletes the object anyway (SOGo, while it honours a stale If-Match on PUT).  When 'unsupported', a DELETE with the current etag is refused too.  The default is 'full', as for save-load.mutable.if-match-wildcard: RFC 4791 section 2 requires ETag support as RFC 2616 defines it.",
+            "description": "A DELETE carrying If-Match with an etag the object no longer has is refused with 412 Precondition Failed, and one carrying the current etag goes through.  RFC 9110 section 13.1.1 says the server MUST NOT perform the method when the condition does not hold; delete(if_match=True) relies on it to avoid deleting a version someone else has saved since it was loaded.  When 'broken', the condition is ignored and a stale If-Match deletes the object anyway (SOGo, while it honours a stale If-Match on PUT; Zimbra, Bedework 3 and 5, Posteo).  When 'unsupported', a DELETE with the current etag is refused too.  The default is 'full', as for save-load.mutable.if-match-wildcard: RFC 4791 section 2 requires ETag support as RFC 2616 defines it.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1", "https://datatracker.ietf.org/doc/html/rfc4791#section-2"],
         },
@@ -1469,6 +1469,9 @@ xandikos = {
     ## Probed 2026-10-21 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "sync-token.delete.created-and-deleted": {"support": "unsupported", "behaviour": "a member created and deleted between two reports is not reported"},
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -1504,6 +1507,9 @@ radicale = {
     "calendar-order": {"support": "full"},
     ## Probed 2026-10-11 by the server tester
     "sync-token.limit": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists deleted members with a 404"},
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
 }
 
 ## Nextcloud can be configured a lot.  What particularly affects the compatibility
@@ -1582,6 +1588,10 @@ nextcloud = {
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
+    "sync-token.recreated": {"support": "broken", "behaviour": "a member deleted and re-created is reported as removed only"},
 }
 
 ecloud = nextcloud | {
@@ -1730,6 +1740,9 @@ zimbra = {
     "calendar-color": {"support": "full"},
     "calendar-color.name": {"support": "unsupported"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with STATUS, CLASS, TRANSP, LAST-MODIFIED and SEQUENCE added, yet the PUT answered with a strong ETag"},
 }
 
 ## Measured against the `ioggstream/bedework:latest` docker image, which is
@@ -1799,6 +1812,8 @@ bedework_3_10_3 = {
     ## Probed 2026-10-21 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "unsupported"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
 }
 
 ## Bedework 5.0.0, measured 2026-09-12 with caldav-server-tester against the
@@ -1948,6 +1963,10 @@ bedework_5_0_0 = {
     ## One account is configured, so the cross-user half of scheduling is
     ## untested; the server advertises scheduling and the mailboxes are there.
     "scheduling.auto-schedule": {"support": "unknown"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
+    "sync-token.delete.created-and-deleted": {"support": "unsupported", "behaviour": "a member created and deleted between two reports is not reported"},
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with CREATED and LAST-MODIFIED added, PRODID and DTSTAMP changed, yet the PUT answered with a strong ETag"},
 }
 
 baikal =  { ## version 0.10.1
@@ -1976,6 +1995,9 @@ baikal =  { ## version 0.10.1
     ## is honoured, on an initial sync it is ignored
     "sync-token.limit": {"support": "full"},
     "sync-token.limit.initial-sync": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
 } ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
 
 ## Some unknown version of baikal has this
@@ -2118,6 +2140,8 @@ davical = {
     ## extra properties not specified in RFC4791/RFC5545
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
 }
 
 ## Synology Calendar (the DSM package) embeds a modified DAViCal, hence
@@ -2143,6 +2167,8 @@ synology = davical | {
     ## requests to the attendee inbox.  Pin it again only with a real observation.)
     ## Test bookkeeping rather than a server feature.
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "sync-token.recreated": {"support": "broken", "behaviour": "a member deleted and re-created is reported as removed only"},
 }
 
 sogo = {
@@ -2225,6 +2251,8 @@ sogo = {
     # Ephemeral Docker container: wipe objects (delete-calendar fragile)
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with CLASS added, yet the PUT answered with a strong ETag"},
 }
 ## Old notes for sogo (todo - incorporate them in the structure above).
 ## The commented-out lists here and below name flags of the old-style
@@ -2305,6 +2333,8 @@ robur = {
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
     'well-known': {'support': 'full'},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
 }
 
 posteo = {
@@ -2345,6 +2375,9 @@ posteo = {
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
     'well-known': {'support': 'unsupported'},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
+    "multiget.missing-href": {"support": "ungraceful", "behaviour": "a multiget naming a missing object failed: calendar-multiget answered 404"},
 }
 
 #calendar_mail_ru = [
@@ -2389,6 +2422,9 @@ davis = {
     ## token the limit is honoured, on an initial sync it is ignored
     "sync-token.limit": {"support": "full"},
     "sync-token.limit.initial-sync": {"support": "unsupported", "behaviour": "DAV:limit is ignored"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
 }
 
 ## Apple CalendarServer (CCS) - archived 2019, Python 2/Twisted.
@@ -2449,6 +2485,10 @@ ccs = {
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists the collection itself"},
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
 }
 
 ## Stalwart - all-in-one mail & collaboration server (CalDAV added 2024/2025)
@@ -2554,6 +2594,15 @@ stalwart = {
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists the collection itself"},
+    "sync-token.recreated": {"support": "quirk", "behaviour": "reported twice: as removed, then as changed"},
+    "multiget.limit": {"support": "unsupported", "behaviour": "stops at WebDav.maxResults with a 507"},
+    "propfind.limit": {"support": "unsupported", "behaviour": "the whole PROPFIND answers 507 above WebDav.maxResults"},
+    "sync-token.delete.created-and-deleted": {
+        "support": "unsupported",
+        "behaviour": "not reported, unless a member it already had changed in the same interval",
+    },
 }
 
 ## Lots of transient problems with purelymail
@@ -2595,6 +2644,8 @@ purelymail = {
     "scheduling": {"support": "unsupported"},
     ## Known, not a breach of standard
     "get-supported-components": {"support": "unsupported"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
 }
 
 gmx = {
@@ -2680,6 +2731,9 @@ gmx = {
     },
     ## Probed 2026-10-20 by caldav-server-tester
     'search.recurrences.includes-implicit.infinite-scope': {'support': 'fragile', 'behaviour': 'unsupported in one run, full in the next (2026-10-20/21)'},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    ## save.etag is a quirk (weak on PUT, strong on GET); nothing is rewritten
+    "save.etag.matches-stored": {"support": "full"},
 }
 
 ## https://ox.io/
@@ -2820,6 +2874,8 @@ ox = {
     "calendar-color": {"support": "full"},
     "calendar-color.name": {"support": "unsupported", "behaviour": "colour names are accepted but ignored: set 'blue' or 'green', '#CEE7FFFF' comes back"},
     "calendar-order": {"support": "unsupported"},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
 }
 
 ## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served
@@ -2880,17 +2936,12 @@ infomaniak = {
     ## Principal search is effectively unsupported (lists nothing / errors out).
     'principal-search': {'support': 'ungraceful'},
     'principal-search.by-name.self': {'support': 'unsupported'},
-    ## This was added 2026-08-28.  I believe the compatibility tests have passed
-    ## before.  I don't think this part of the test suite has changed.  It could
-    ## be that the behaviour has changed at the server side.  418 was originally an
-    ## April joke and may mean anything ... but it's sometimes used as a rate-limit
-    ## response.  However, it seems to consistently break exactly here.
-    ## The removed member comes back with status 418 inside the multistatus, which
-    ## caldav's _validate_status turns into a ResponseError - the sync raises rather
-    ## than silently coming back wrong, hence "ungraceful".
-    'sync-token.delete': {'support': 'ungraceful', 'behaviour': "418 I'm a teapot"},
     ## Probed 2026-10-13 by the server tester
     'sync-token.limit': {'support': 'unsupported', 'behaviour': 'DAV:limit is ignored'},
+    ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
+    "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
+    "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
 }
 
 ## Yahoo Calendar (https://caldav.calendar.yahoo.com/), a hosted service.
