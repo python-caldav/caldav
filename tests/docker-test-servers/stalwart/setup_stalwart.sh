@@ -159,6 +159,43 @@ create_user "user1" "caldavtest1"
 create_user "user2" "caldavtest2"
 create_user "user3" "caldavtest3"
 
+MAX_RESULTS="${STALWART_MAX_RESULTS:-50}"
+echo ""
+echo "Lowering WebDav.maxResults to ${MAX_RESULTS}..."
+# Stalwart caps PROPFIND, sync-collection and calendar-multiget answers at
+# WebDav.maxResults (2000 by default), with a 507 for the collection.  A low
+# cap lets caldav-server-tester see it with few objects
+# (CALDAV_SERVER_TESTER_LIMIT_OBJECTS).  The setting applies on a settings
+# reload, which refuses the image's default SpamDnsblServer entries
+# ("bit_and"); each entry it names is removed, in this container only.
+RESULT=$(jmap_call "{
+    \"using\": [\"urn:ietf:params:jmap:core\"],
+    \"methodCalls\": [[\"x:WebDav/set\", {
+        \"accountId\": \"d333333\",
+        \"update\": {\"singleton\": {\"maxResults\": ${MAX_RESULTS}}}
+    }, \"0\"]]
+}")
+if ! echo "$RESULT" | grep -q '"updated"'; then
+    echo "Warning: setting maxResults returned: $RESULT"
+fi
+for i in $(seq 1 40); do
+    RESULT=$(jmap_call '{"using":["urn:ietf:params:jmap:core"],"methodCalls":[["x:Action/set",{"accountId":"d333333","create":{"r":{"@type":"ReloadSettings"}}},"0"]]}')
+    if echo "$RESULT" | grep -q '"created"'; then
+        echo "maxResults is ${MAX_RESULTS}"
+        break
+    fi
+    BAD=$(echo "$RESULT" | python3 -c "import json,sys; b=json.load(sys.stdin)['methodResponses'][0][1]['notCreated']['r']['objectId']; print(b['object'], b['id'])" 2>/dev/null || true)
+    if [ -z "$BAD" ] || [ "$i" -eq 40 ]; then
+        echo "Warning: settings reload returned: $RESULT"
+        break
+    fi
+    read -r BAD_OBJECT BAD_ID <<< "$BAD"
+    jmap_call "{
+        \"using\": [\"urn:ietf:params:jmap:core\"],
+        \"methodCalls\": [[\"x:${BAD_OBJECT}/set\", {\"accountId\": \"d333333\", \"destroy\": [\"${BAD_ID}\"]}, \"0\"]]
+    }" > /dev/null
+done
+
 echo ""
 echo "Verifying CalDAV access..."
 # v0.16+: CalDAV path encodes the @ in the email address as %40.

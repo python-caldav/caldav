@@ -381,6 +381,23 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-15.2"],
         },
+        "propfind.limit": {
+            "description": "A Depth: 1 PROPFIND on a calendar lists every member, however many there are.  When 'unsupported', the server stops at a limit of its own and answers 507 Insufficient Storage for the collection (Stalwart, at its WebDav.maxResults setting, 2000 by default); the behaviour names the number of members seen.  The probe can only see a limit below the number of objects it stores, which the CALDAV_SERVER_TESTER_LIMIT_OBJECTS environment variable sets; without it the feature is not probed.",
+            "default": {"support": "full"},
+        },
+        "multiget": {
+            "description": "The calendar-multiget REPORT (RFC 4791 section 7.9), which fetches calendar objects by href.  The library uses it in load()'s fallback and to fetch the objects a sync report names.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-7.9"],
+        },
+        "multiget.missing-href": {
+            "description": "A calendar-multiget naming an href that does not exist answers it with a 404 entry in the multistatus.  RFC 4791 section 7.9 and the multistatus of RFC 4918 section 13 give every requested href a response.  When 'unsupported', the href is left out (Baikal), so a client cannot tell a missing object from one the server forgot to answer for.",
+            "default": {"support": "full"},
+        },
+        "multiget.limit": {
+            "description": "A calendar-multiget answers every href it names, however many.  When 'unsupported', the server answers at most a number of its own and a 507 for the collection, even when the request asked for no more (Stalwart, at its WebDav.maxResults setting, 2000 by default); a client should then fetch in batches.  As for propfind.limit, the probe only sees a limit below CALDAV_SERVER_TESTER_LIMIT_OBJECTS.",
+            "default": {"support": "full"},
+        },
         "delete-calendar": {
             "description": "RFC4791 says nothing about deletion of calendars, so the server implementation is free to choose weather this should be supported or not.  Section 3.2.3.2 in RFC 6638 says that if a calendar is deleted, all the calendarobjectresources on the calendar should also be deleted - but it's a bit unclear if this only applies to scheduling objects or not.  Some calendar servers moves the object to a trashcan rather than deleting it.  'fragile' is a negative status and additionally switches on Calendar.delete()'s retry-and-poll loop, which re-issues the DELETE.  A delete that always goes through but takes a measurable time to settle is not fragile: that is synchronous-write.delete-calendar",
             ## Independent feature (directly probed): the default marks it so the
@@ -706,6 +723,21 @@ hence, "fragile".
         "sync-token.delete": {
             "description": "Server correctly handles sync-collection reports after objects have been deleted from the calendar (solved in Nextcloud in https://github.com/nextcloud/server/pull/44130)"
         },
+        "sync-token.delete.created-and-deleted": {
+            "description": "A member created and deleted again between two sync reports is reported as removed in the second one, as RFC 6578 section 3.5.2 requires.  A client that created the object itself learns that it is gone.  When 'unsupported', it is not mentioned at all (Xandikos, Stalwart), so a client waiting for its own create to show up waits forever.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.5.2"],
+        },
+        "sync-token.recreated": {
+            "description": "A member deleted and re-created at the same href between two sync reports is reported once, as changed (RFC 6578 sections 3.5.1 and 3.2: a member URL appears only once).  Not under sync-token.delete: Bedework 5 does not report deletions, yet reports a re-created member correctly.  'quirk' when it is reported twice, as removed and then as changed (Stalwart): the later entry is the one that counts.  'broken' when it is reported as removed only (Nextcloud, Synology), so a client drops an object that exists.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.5.1"],
+        },
+        "sync-token.initial-sync": {
+            "description": "A sync report from an empty token lists exactly the current members of the collection: RFC 6578 section 3.4 says it MUST NOT return removed members.  'quirk' when it lists more, which a client can filter away (keep only hrefs below the collection, answered 200): Radicale lists deleted members with a 404, Stalwart also lists the collection itself.  The behaviour says which.  The limit on an initial sync is sync-token.limit.initial-sync, which inherits from sync-token.limit rather than from this.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.4"],
+        },
         "sync-token.invalid-token": {
             "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status (Xandikos: 412).  'ungraceful' means an error without the precondition (Xandikos and CCS answer 500 for a malformed token).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
@@ -804,6 +836,11 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-8.8.3"],
         },
+        "save.etag.matches-stored": {
+            "description": "A strong ETag in a PUT answer belongs to what the server stored.  RFC 4791 section 5.3.4 lets a server store an object otherwise than sent (add DTSTAMP or CLASS, reorder properties), but then the PUT MUST NOT answer with a strong ETag, so that a client holding the data it sent next to that ETag holds what the server has.  When 'broken', the server rewrites the object and still answers with a strong ETag - merely reordering properties included, since a strong ETag promises identical bytes (Radicale, Xandikos, CCS and Infomaniak reorder, SOGo adds CLASS, Zimbra and Bedework 5 add properties); the data the library keeps is then not what a GET returns.  A server storing the object as sent, or rewriting it and answering with a weak ETag or none (Bedework 3, OX), is 'full'.  Not probed where save.etag is broken, since an unusable ETag matches nothing.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.4"],
+        },
         "save.if-none-match": {
             "description": "A PUT carrying If-None-Match: * to an existing object is refused with 412 Precondition Failed, and creates a missing object.  RFC 9110 section 13.1.2 has '*' hold only when the resource has no current representation, so it means 'create, but never overwrite'; RFC 4791 section 5.3.2 tells CalDAV clients to send it when creating.  save(no_overwrite=True) sends it, so the server enforces 'do not overwrite' in the same request rather than after a search.  When 'unsupported', the server overwrites the existing object (SOGo ignores the header; Zimbra compares '*' as a literal etag, so the condition always holds) - the library then does not send it, nor anywhere else this is not supported ('full' or 'quirk'), and relies on the UID search before the PUT, as before.  The default is 'full': RFC 4791 section 2 requires a CalDAV server to support ETags as RFC 2616 defines them, and RFC 2616 section 14.26 (now RFC 9110 section 13.1.2) says the server MUST NOT perform the method when '*' is given and the object exists.",
             "default": {"support": "full"},
@@ -819,6 +856,15 @@ hence, "fragile".
             "description": "A DELETE carrying If-Match with an etag the object no longer has is refused with 412 Precondition Failed, and one carrying the current etag goes through.  RFC 9110 section 13.1.1 says the server MUST NOT perform the method when the condition does not hold; delete(if_match=True) relies on it to avoid deleting a version someone else has saved since it was loaded.  When 'broken', the condition is ignored and a stale If-Match deletes the object anyway (SOGo, while it honours a stale If-Match on PUT).  When 'unsupported', a DELETE with the current etag is refused too.  The default is 'full', as for save-load.mutable.if-match-wildcard: RFC 4791 section 2 requires ETag support as RFC 2616 defines it.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1", "https://datatracker.ietf.org/doc/html/rfc4791#section-2"],
+        },
+        "delete.missing": {
+            "description": "A DELETE of a calendar object that does not exist answers 404 Not Found (RFC 9110 section 15.5.5).  When 'unsupported', it succeeds anyway (2xx), so a client cannot tell that someone else deleted the object first.",
+            "default": {"support": "full"},
+        },
+        "delete.missing.if-match": {
+            "description": "A DELETE carrying If-Match on an object that does not exist still answers 404.  RFC 9110 section 13.2.1 has a server ignore the preconditions when the request would fail without them, so the missing object wins over the failed condition.  When 'unsupported', the server answers 412 Precondition Failed (Baikal, Davis, Nextcloud, CCS, OX, Robur, Purelymail, Infomaniak), and delete(if_match=True) on an object someone else already deleted raises an etag mismatch rather than NotFoundError.  Independent of delete.if-match: SOGo ignores a stale If-Match, yet answers a missing object with 404.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.2.1"],
         },
         "save.duplicate-uid": {},
         "save.duplicate-uid.cross-calendar": {
