@@ -7,6 +7,7 @@ https?://evil.attacker.com/caldav/
 # Localhost URLs for test servers (not accessible in CI)
 http://localhost:\d+/.*
 http://localhost/.*
+http://127\.0\.0\.1(:\d+)?/.*
 http://.*@localhost:\d+/.*
 
 # Internal Docker hostnames (only reachable inside compose network)

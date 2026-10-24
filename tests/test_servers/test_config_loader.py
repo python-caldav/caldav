@@ -58,8 +58,12 @@ test-servers:
         """Test that nonexistent explicit config falls back to default locations."""
         # Temporarily change to a directory without any config files
         # and set HOME to temp dir to avoid finding real user configs
+        from . import config_loader
+
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr(config_loader, "TEST_CONFIG_LOCATIONS", [])
+        monkeypatch.setattr(config_loader, "get_all_test_servers", dict)
         cfg = load_test_server_config("/nonexistent/path/test_servers.yaml")
         # Should return empty dict when no config found in any location
         assert cfg == {}
@@ -177,3 +181,140 @@ class TestEnabledFalseDisablesRegisteredServer:
         registry.load_from_config({"baikal": {"type": "docker", "enabled": True}})
 
         assert [s.name for s in registry.enabled_servers()] == ["baikal"]
+
+
+class TestConfigSourcesUnion:
+    """https://github.com/python-caldav/caldav/issues/817: every source counts.
+
+    The loader used to stop at the first source it found, so a test-server
+    yaml hid the ``test_allowed`` sections of the caldav configuration.
+    """
+
+    @pytest.fixture
+    def sources(self, tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
+        from . import config_loader
+
+        checkout_yaml = tmp_path / "checkout.yaml"
+        user_yaml = tmp_path / "user.yaml"
+        monkeypatch.setattr(
+            config_loader, "TEST_CONFIG_LOCATIONS", [str(checkout_yaml), str(user_yaml)]
+        )
+        monkeypatch.setattr(
+            config_loader,
+            "get_all_test_servers",
+            lambda: {
+                "fromconf": {"url": "https://conf.example.com/"},
+                "both": {"url": "https://conf-both.example.com/"},
+            },
+        )
+        return checkout_yaml, user_yaml
+
+    def test_union_of_yaml_files_and_test_allowed(self, sources) -> None:
+        checkout_yaml, user_yaml = sources
+        checkout_yaml.write_text(
+            "test-servers:\n"
+            "  fromcheckout: {type: external, url: 'https://checkout.example.com/'}\n"
+            "  both: {type: external, url: 'https://yaml-both.example.com/'}\n"
+        )
+        user_yaml.write_text(
+            "fromuser: {type: external, url: 'https://user.example.com/'}\n"
+            "fromcheckout: {type: external, url: 'https://shadowed.example.com/'}\n"
+        )
+        cfg = load_test_server_config()
+        assert set(cfg) == {"fromcheckout", "fromuser", "fromconf", "both"}
+        ## Earlier sources win on a name clash
+        assert cfg["fromcheckout"]["url"] == "https://checkout.example.com/"
+        assert cfg["both"]["url"] == "https://yaml-both.example.com/"
+        assert cfg["fromconf"]["type"] == "external"
+        assert cfg["fromconf"]["enabled"] is True
+
+    def test_name_clash_is_case_insensitive(self, sources) -> None:
+        checkout_yaml, _ = sources
+        checkout_yaml.write_text("Both: {type: external, enabled: false}\n")
+        cfg = load_test_server_config()
+        assert "both" not in cfg
+        assert cfg["Both"]["enabled"] is False
+
+    def test_broken_caldav_config_keeps_yaml_servers(self, sources, monkeypatch) -> None:
+        from . import config_loader
+
+        checkout_yaml, _ = sources
+        checkout_yaml.write_text("fromcheckout: {type: external, url: 'https://c.example.com/'}\n")
+
+        def broken():
+            raise ValueError("not a mapping of sections")
+
+        monkeypatch.setattr(config_loader, "get_all_test_servers", broken)
+        with pytest.warns(UserWarning, match="test_allowed"):
+            cfg = load_test_server_config()
+        assert set(cfg) == {"fromcheckout"}
+
+    def test_explicit_file_is_used_alone(self, sources, tmp_path: Path) -> None:
+        explicit = tmp_path / "explicit.yaml"
+        explicit.write_text("only: {type: external, url: 'https://only.example.com/'}\n")
+        assert set(load_test_server_config(str(explicit))) == {"only"}
+
+    def test_checkout_yaml_does_not_depend_on_cwd(self, tmp_path: Path, monkeypatch) -> None:
+        from . import config_loader
+
+        monkeypatch.chdir(tmp_path)
+        checkout_yaml = Path(__file__).resolve().parent.parent / "caldav_test_servers.yaml"
+        assert str(checkout_yaml) in [
+            str(Path(loc).expanduser().resolve()) for loc in config_loader.TEST_CONFIG_LOCATIONS
+        ]
+
+
+class TestExternalServerAccessibility:
+    """https://github.com/python-caldav/caldav/issues/817: probe external servers."""
+
+    @pytest.fixture
+    def listener(self):
+        import socket
+
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        sock.listen()
+        yield sock.getsockname()[1]
+        sock.close()
+
+    def test_reachable(self, listener: int) -> None:
+        from .base import ExternalTestServer
+
+        server = ExternalTestServer({"name": "ext", "url": f"http://127.0.0.1:{listener}/dav/"})
+        assert server.is_accessible()
+
+    def test_unreachable(self) -> None:
+        import socket
+
+        from .base import ExternalTestServer
+
+        ## Grab a free port, then release it, so nothing listens there
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        sock.close()
+        server = ExternalTestServer({"name": "ext", "url": f"http://127.0.0.1:{port}/"})
+        assert not server.is_accessible()
+
+    def test_bare_domain_without_features(self) -> None:
+        from .base import ExternalTestServer
+
+        server = ExternalTestServer({"name": "ext", "url": "dav.invalid"})
+        assert not server.is_accessible()
+
+    def test_url_from_features(self, listener: int) -> None:
+        from .base import ExternalTestServer
+
+        server = ExternalTestServer(
+            {
+                "name": "ext",
+                "features": {
+                    "auto-connect.url": {
+                        "domain": f"127.0.0.1:{listener}",
+                        "scheme": "http",
+                        "basepath": "/",
+                    }
+                },
+            }
+        )
+        assert server.is_accessible()

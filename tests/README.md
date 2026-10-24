@@ -60,13 +60,15 @@ it moves on to the next available server.
 
 ## Test Configuration
 
-Test configuration uses YAML or JSON files. The configuration loader searches
-these locations in order:
+Test configuration uses YAML or JSON files. The configuration loader reads
+all of these sources and merges the servers found; on a name clash the source
+listed first wins:
 
-1. `tests/caldav_test_servers.yaml`
+1. `tests/caldav_test_servers.yaml` (in the checkout, whatever the current directory)
 2. `tests/caldav_test_servers.json`
 3. `~/.config/caldav/test_servers.yaml`
 4. `~/.config/caldav/test_servers.json`
+5. sections with `test_allowed: true` in the caldav configuration file
 
 ### Setting Up Test Configuration
 

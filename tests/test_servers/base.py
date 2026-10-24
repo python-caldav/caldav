@@ -608,13 +608,27 @@ class ExternalTestServer(TestServer):
         self._started_by_us = False
 
     def is_accessible(self) -> bool:
-        """
-        External servers are assumed accessible.
+        """Check that the server's host accepts TCP connections on its port.
 
-        The caldav library will handle connection errors with proper messages
-        if the server is actually unreachable.
+        A URL without a path is resolved from the features (auto-connect.url)
+        without RFC6764 discovery.  Authentication, TLS and DAV support are
+        left for the caldav library to report.
         """
-        return True
+        import socket
+        from urllib.parse import urlsplit
+
+        from caldav.base_client import _auto_url
+
+        try:
+            url, _ = _auto_url(self.url, self.features or {}, enable_rfc6764=False)
+            parts = urlsplit(str(url))
+            port = parts.port or (443 if parts.scheme == "https" else 80)
+            if not parts.hostname:
+                return False
+            with socket.create_connection((parts.hostname, port), timeout=DEFAULT_HTTP_TIMEOUT):
+                return True
+        except (OSError, ValueError):
+            return False
 
 
 # Deferred registration to avoid circular imports
