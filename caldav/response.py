@@ -640,6 +640,11 @@ class DAVResponse:
             ## 404s; flag it in debug mode if a server pairs them with some
             ## other status so we notice and revisit this handling.
             error.assert_("404" in status)
+        if status and " 404 " in status:
+            ## The resource is gone, so whatever its propstats say is moot.
+            ## Infomaniak adds an empty propstat with 418 to a removed member
+            ## of a sync-collection reply, which would otherwise raise.
+            propstats = []
         return (cast(str, href), propstats, status)
 
     def _parse_scheduling_response_objects(self, parent) -> dict:

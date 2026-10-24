@@ -1,0 +1,1 @@
+`Calendar.get_objects_by_sync_token()` no longer raises when a server answers a removed member with an extra propstat carrying an unexpected status: the propstats of a response whose own status is 404 are now ignored.  Infomaniak adds an empty propstat with "418 I'm a teapot" to every removed member.
