@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from .config_loader import ConfigParseError, load_test_server_config
+from caldav.testing.config_loader import ConfigParseError, load_test_server_config
 
 
 class TestLoadTestServerConfig:
@@ -58,7 +58,7 @@ test-servers:
         """Test that nonexistent explicit config falls back to default locations."""
         # Temporarily change to a directory without any config files
         # and set HOME to temp dir to avoid finding real user configs
-        from . import config_loader
+        from caldav.testing import config_loader
 
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -141,8 +141,8 @@ class TestEnabledFalseDisablesRegisteredServer:
     """
 
     def _registry_with_registered_server(self):
-        from .base import TestServer
-        from .registry import ServerRegistry
+        from caldav.testing.base import TestServer
+        from caldav.testing.registry import ServerRegistry
 
         class _FakeDocker(TestServer):
             server_type = "docker"
@@ -192,7 +192,7 @@ class TestConfigSourcesUnion:
 
     @pytest.fixture
     def sources(self, tmp_path: Path, monkeypatch) -> tuple[Path, Path]:
-        from . import config_loader
+        from caldav.testing import config_loader
 
         checkout_yaml = tmp_path / "checkout.yaml"
         user_yaml = tmp_path / "user.yaml"
@@ -236,7 +236,7 @@ class TestConfigSourcesUnion:
         assert cfg["Both"]["enabled"] is False
 
     def test_broken_caldav_config_keeps_yaml_servers(self, sources, monkeypatch) -> None:
-        from . import config_loader
+        from caldav.testing import config_loader
 
         checkout_yaml, _ = sources
         checkout_yaml.write_text("fromcheckout: {type: external, url: 'https://c.example.com/'}\n")
@@ -255,12 +255,14 @@ class TestConfigSourcesUnion:
         assert set(load_test_server_config(str(explicit))) == {"only"}
 
     def test_checkout_yaml_does_not_depend_on_cwd(self, tmp_path: Path, monkeypatch) -> None:
-        from . import config_loader
+        from caldav.testing import config_loader
 
         monkeypatch.chdir(tmp_path)
-        checkout_yaml = Path(__file__).resolve().parent.parent / "caldav_test_servers.yaml"
-        assert str(checkout_yaml) in [
-            str(Path(loc).expanduser().resolve()) for loc in config_loader.TEST_CONFIG_LOCATIONS
+        # The directory is resolved, not the file: a developer's yaml may be a symlink
+        checkout_yaml = Path(__file__).resolve().parent / "caldav_test_servers.yaml"
+        assert checkout_yaml in [
+            Path(loc).expanduser().parent.resolve() / Path(loc).name
+            for loc in config_loader.TEST_CONFIG_LOCATIONS
         ]
 
 
@@ -278,7 +280,7 @@ class TestExternalServerAccessibility:
         sock.close()
 
     def test_reachable(self, listener: int) -> None:
-        from .base import ExternalTestServer
+        from caldav.testing.base import ExternalTestServer
 
         server = ExternalTestServer({"name": "ext", "url": f"http://127.0.0.1:{listener}/dav/"})
         assert server.is_accessible()
@@ -286,7 +288,7 @@ class TestExternalServerAccessibility:
     def test_unreachable(self) -> None:
         import socket
 
-        from .base import ExternalTestServer
+        from caldav.testing.base import ExternalTestServer
 
         ## Grab a free port, then release it, so nothing listens there
         sock = socket.socket()
@@ -297,13 +299,13 @@ class TestExternalServerAccessibility:
         assert not server.is_accessible()
 
     def test_bare_domain_without_features(self) -> None:
-        from .base import ExternalTestServer
+        from caldav.testing.base import ExternalTestServer
 
         server = ExternalTestServer({"name": "ext", "url": "dav.invalid"})
         assert not server.is_accessible()
 
     def test_url_from_features(self, listener: int) -> None:
-        from .base import ExternalTestServer
+        from caldav.testing.base import ExternalTestServer
 
         server = ExternalTestServer(
             {

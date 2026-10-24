@@ -364,7 +364,7 @@ def _caldav_connections(
 
 ## TODO: the test server selection below, get_test_setting and
 ## get_all_test_servers are test tooling, not config; move them to
-## caldav/testing.py (planned for 3.6.1).
+## the caldav.testing package.
 def _get_test_server_config(
     name: str | None, environment: bool, config_file: str | None = None
 ) -> dict[str, Any] | None:
@@ -376,15 +376,15 @@ def _get_test_server_config(
     (20) and configured / test_allowed servers (30) by default.  Any server
     can override its priority via ``test_priority: <int>`` in its config.
 
-    When running from the source tree the full registry is used (embedded +
-    docker + external).  When caldav is pip-installed without the test
-    infrastructure, only embedded servers from ``caldav.testing`` plus any
-    ``test_allowed`` config-file sections are available.
+    The servers are those of the ``caldav.testing`` registry (embedded,
+    docker and external), plus the ``test_allowed`` sections of
+    ``config_file``.
 
     Args:
         name: Optional server name or server_type to restrict selection.
-        environment: Whether to read PYTHON_CALDAV_TEST_SERVER_NAME.
-        config_file: Explicit config file path (for test_allowed fallback).
+        environment: Whether to read PYTHON_CALDAV_TEST_SERVER_NAME, and to
+            find the config file through CALENDARING_CONFIG_FILE / CALDAV_CONFIG_FILE.
+        config_file: Explicit config file path, for its test_allowed sections.
 
     Returns:
         Connection parameters dict, or None if no server could be started.
@@ -401,7 +401,7 @@ def _get_test_server_config(
 
     for server in _collect_test_servers(name, config_file):
         was_already_started = server._started
-        # Servers from caldav.testing (pip-installed caldav) have no session lock
+        # A _ConfiguredServer has no session lock
         claim = getattr(server, "claim_server", None)
         claimed = False
         try:
@@ -427,59 +427,32 @@ def _collect_test_servers(name: str | None, config_file: str | None) -> list[Any
     """
     Return a priority-ordered list of available test servers.
 
-    Tries the full registry first (source tree); falls back to embedded
-    servers from ``caldav.testing`` plus ``test_allowed`` config sections
-    (pip-installed users).
+    The registry reads the default config file, so ``config_file`` adds
+    only what it holds beyond that: a file named explicitly or through
+    CALENDARING_CONFIG_FILE / CALDAV_CONFIG_FILE.
     """
-    try:
-        from tests.test_servers.registry import get_registry
+    from caldav.testing.registry import get_registry
 
-        servers: list[Any] = list(get_registry().enabled_servers())
-    except ImportError:
-        servers = _get_pip_test_servers(config_file)
+    servers: list[Any] = list(get_registry().enabled_servers())
+    if config_file:
+        known = {s.name.lower() for s in servers}
+        servers += [
+            _ConfiguredServer(section_name, params)
+            for section_name, params in get_all_test_servers(config_file).items()
+            if section_name.lower() not in known
+        ]
+        servers.sort(key=lambda s: s.priority)
 
     if name is not None:
         servers = [s for s in servers if name.lower() in (s.name.lower(), s.server_type.lower())]
     return servers
 
 
-def _get_pip_test_servers(config_file: str | None) -> list[Any]:
-    """
-    Build a server list for pip-installed users (no tests/ available).
-
-    Includes embedded servers from caldav.testing and any test_allowed
-    sections from config files, all sorted by priority.
-    """
-    from caldav.testing import RadicaleServer, XandikosServer
-
-    servers: list[Any] = []
-
-    try:
-        import xandikos  # noqa: F401
-
-        servers.append(XandikosServer())
-    except ImportError:
-        pass
-
-    try:
-        import radicale  # noqa: F401
-
-        servers.append(RadicaleServer())
-    except ImportError:
-        pass
-
-    for section_name, params in get_all_test_servers(config_file).items():
-        servers.append(_ConfiguredServer(section_name, params))
-
-    return sorted(servers, key=lambda s: s.priority)
-
-
 class _ConfiguredServer:
     """
-    Thin wrapper around a ``test_allowed`` config-file section.
-
-    Used only in pip-installed mode; in the source tree these sections are
-    loaded into the registry as ``ExternalTestServer`` instances instead.
+    Thin wrapper around a ``test_allowed`` section of a config file that
+    the registry does not read (see ``_collect_test_servers``); the
+    registry loads the default file's sections as ``ExternalTestServer``.
     """
 
     server_type = "external"

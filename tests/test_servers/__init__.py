@@ -1,6 +1,11 @@
 """
 Test server framework for caldav tests.
 
+The implementation lives in caldav.testing (shipped with the package, so that
+other projects can use it); this package re-exports it, and each submodule is
+an alias of its caldav.testing counterpart, so existing imports and
+monkeypatching keep working.
+
 This package provides a unified framework for starting and managing
 test servers (Radicale, Xandikos, Docker containers) for both sync
 and async tests.
@@ -23,7 +28,10 @@ Usage:
         server.stop()
 """
 
-from .base import (
+import importlib
+import sys
+
+from caldav.testing.base import (
     DEFAULT_HTTP_TIMEOUT,
     MAX_STARTUP_WAIT_SECONDS,
     STARTUP_POLL_INTERVAL,
@@ -32,9 +40,14 @@ from .base import (
     ExternalTestServer,
     TestServer,
 )
-from .config_loader import ConfigParseError, load_test_server_config
-from .helpers import client_context, has_test_servers
-from .registry import ServerRegistry, get_available_servers, get_registry
+from caldav.testing.config_loader import ConfigParseError, load_test_server_config
+from caldav.testing.helpers import client_context, has_test_servers
+from caldav.testing.registry import ServerRegistry, get_available_servers, get_registry
+
+for _name in ("base", "config_loader", "docker", "embedded", "helpers", "registry"):
+    sys.modules[f"{__name__}.{_name}"] = globals()[_name] = importlib.import_module(
+        f"caldav.testing.{_name}"
+    )
 
 __all__ = [
     # High-level helpers

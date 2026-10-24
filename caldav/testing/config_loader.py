@@ -19,7 +19,7 @@ from caldav.config import expand_env_vars, get_all_test_servers
 # Test-specific config file locations (don't need test_allowed).  The
 # checkout's file is found relative to this module, not to the current
 # directory, so projects running from elsewhere see it too.
-_TESTS_DIR = Path(__file__).resolve().parent.parent
+_TESTS_DIR = Path(__file__).resolve().parent.parent.parent / "tests"
 TEST_CONFIG_LOCATIONS = [
     str(_TESTS_DIR / "caldav_test_servers.yaml"),
     str(_TESTS_DIR / "caldav_test_servers.json"),

@@ -232,14 +232,24 @@ test-servers:
 
 ## Test Server Framework
 
-The `test_servers/` directory contains the unified test server framework:
+The framework is part of the installed package, as `caldav.testing`, so other
+projects can use it without a source checkout:
 
-- `base.py` - Base classes for test servers
-- `config_loader.py` - Configuration file loading
-- `registry.py` - Server discovery and registration
-- `embedded.py` - Embedded server implementations (Radicale, Xandikos)
-- `docker.py` - Docker server implementations
-- `helpers.py` - Test helper utilities
+- `caldav/testing/__init__.py` - the embedded Radicale and Xandikos servers
+- `caldav/testing/base.py` - Base classes for test servers
+- `caldav/testing/config_loader.py` - Configuration file loading
+- `caldav/testing/registry.py` - Server discovery and registration
+- `caldav/testing/embedded.py` - Registry wrappers for the embedded servers
+- `caldav/testing/docker.py` - Docker server implementations
+- `caldav/testing/helpers.py` - Test helper utilities
+
+`tests/test_servers/` re-exports all of it, so `from tests.test_servers import ...`
+keeps working.  The docker-compose files (`tests/docker-test-servers/`) are not
+shipped: they are found relative to a source checkout, or, from an installed
+caldav, through `CALDAV_DOCKER_TEST_SERVERS_DIR` pointing at that directory.
+Without them, a docker server that is already running (e.g. a CI service
+container) is not discovered; give it a config entry instead (`type: baikal`
+and its `url`).
 
 ## Continuous Integration
 

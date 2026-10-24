@@ -17,10 +17,22 @@ from typing import IO, Any
 
 from caldav.config import get_test_setting
 
-try:
-    import niquests as requests
-except ImportError:
-    import requests  # type: ignore
+
+def docker_servers_dir() -> Path:
+    """Directory holding the per-server ``start.sh``/``docker-compose.yml`` files.
+
+    These stay in the source repository, not in the installed package.  Point
+    ``CALDAV_DOCKER_TEST_SERVERS_DIR`` at ``tests/docker-test-servers`` of a
+    checkout to use them from an installed caldav; without it, the directory is
+    looked up relative to the module (found when caldav is a source checkout).
+    """
+    env = os.environ.get("CALDAV_DOCKER_TEST_SERVERS_DIR")
+    if env:
+        return Path(env).expanduser()
+    return Path(__file__).resolve().parent.parent.parent / "tests" / "docker-test-servers"
+
+
+from caldav.lib.http_sync import requests
 
 # Constants - extracted from magic numbers in conf.py
 DEFAULT_HTTP_TIMEOUT = 5
@@ -402,9 +414,7 @@ class DockerTestServer(TestServer):
         # Docker directory - default to tests/docker-test-servers/<name>
         from pathlib import Path
 
-        default_docker_dir = (
-            Path(__file__).parent.parent / "docker-test-servers" / self.name.lower()
-        )
+        default_docker_dir = docker_servers_dir() / self.name.lower()
         self.docker_dir = Path(self.config.get("docker_dir", default_docker_dir))
         # Set when start() fails, so later tests fail fast instead of
         # re-running start.sh and waiting for the full timeout every time.

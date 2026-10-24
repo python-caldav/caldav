@@ -1,12 +1,12 @@
 """
-Lightweight embedded CalDAV test servers.
+CalDAV test servers, shipped with the package.
 
-Provides XandikosServer and RadicaleServer that are part of the installed
-package so that pip-installed users can use get_davclient() with
-PYTHON_CALDAV_USE_TEST_SERVER=1 without needing the full test infrastructure
-from the source tree.
+This module holds the lightweight embedded XandikosServer and RadicaleServer,
+used by get_davclient() with PYTHON_CALDAV_USE_TEST_SERVER=1.
 
-Docker and external server support lives in tests/test_servers/ (source only).
+The registry, config loader and the Docker and external server classes are
+submodules of this package (base, registry, config_loader, docker, ...); the
+docker-compose files stay in the source repository.
 """
 
 import copy

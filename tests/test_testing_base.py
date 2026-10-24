@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from . import base
-from .base import DockerTestServer
+from caldav.testing import base
+from caldav.testing.base import DockerTestServer
 
 
 @pytest.fixture(autouse=True)
@@ -112,7 +112,7 @@ class TestSessionLock:
 
     CLAIM = (
         "import sys; sys.path.insert(0, {root!r}); "
-        "from tests.test_servers.base import TestServer; "
+        "from caldav.testing.base import TestServer; "
         "TestServer.claim_server({name!r})"
     )
 
@@ -230,7 +230,7 @@ class TestSessionLock:
     def test_fallback_uses_servers_without_session_lock(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Pip-installed caldav has no tests/ and so no claim_server() on its servers."""
+        """A server from an explicit config file has no claim_server()."""
         from caldav import config
 
         server = config._ConfiguredServer("Lambda", {"url": "http://localhost:1/Lambda/"})
@@ -285,3 +285,66 @@ class TestSessionLock:
         server._started = True  # as get_server_params() leaves it at collection
         server.start()
         assert counter.read_text().count("run") == 1
+
+
+class TestDockerServersDir:
+    def test_env_var_names_the_checkout_directory(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv("CALDAV_DOCKER_TEST_SERVERS_DIR", str(tmp_path))
+        assert base.docker_servers_dir() == tmp_path
+        from caldav.testing.docker import BaikalTestServer
+
+        assert BaikalTestServer().docker_dir == tmp_path / "baikal"
+
+    def test_registry_discovers_servers_from_env_var_dir(self, tmp_path, monkeypatch) -> None:
+        from caldav.testing import docker  # noqa: F401  (registers the classes)
+        from caldav.testing.registry import ServerRegistry
+
+        (tmp_path / "baikal").mkdir()
+        (tmp_path / "baikal" / "start.sh").write_text("#!/bin/sh\n")
+        monkeypatch.setenv("CALDAV_DOCKER_TEST_SERVERS_DIR", str(tmp_path))
+        monkeypatch.setattr(DockerTestServer, "verify_docker", staticmethod(lambda: True))
+        registry = ServerRegistry()
+        registry._discover_docker_servers()
+        server = registry.get("Baikal")
+        assert server is not None and server.docker_dir == tmp_path / "baikal"
+
+    def test_docker_is_not_probed_without_the_compose_directory(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        from caldav.testing.registry import ServerRegistry
+
+        monkeypatch.setenv("CALDAV_DOCKER_TEST_SERVERS_DIR", str(tmp_path / "missing"))
+
+        def probe() -> bool:
+            raise AssertionError("docker probed with no docker-test-servers directory")
+
+        monkeypatch.setattr(DockerTestServer, "verify_docker", staticmethod(probe))
+        ServerRegistry()._discover_docker_servers()
+
+
+class TestCollectTestServers:
+    def test_explicit_config_file_reaches_the_server_list(self, tmp_path, monkeypatch) -> None:
+        """A config file given to get_davclient() (or by CALDAV_CONFIG_FILE) is honoured."""
+        import json
+
+        from caldav import config
+        from caldav.testing import registry
+
+        monkeypatch.setattr(registry, "_global_registry", registry.ServerRegistry())
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            json.dumps(
+                {"OnlyHere": {"caldav_url": "https://dav.example.com/", "test_allowed": True}}
+            )
+        )
+        names = [s.name for s in config._collect_test_servers(None, str(config_file))]
+        assert "OnlyHere" in names
+
+
+def test_test_servers_submodules_are_package_attributes(monkeypatch) -> None:
+    """``monkeypatch.setattr("tests.test_servers.base.X", ...)`` resolves through attributes."""
+    import tests.test_servers
+
+    assert tests.test_servers.base is base
+    monkeypatch.setattr("tests.test_servers.base.DEFAULT_HTTP_TIMEOUT", 1)
+    assert base.DEFAULT_HTTP_TIMEOUT == 1

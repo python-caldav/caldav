@@ -302,16 +302,15 @@ class ServerRegistry:
 
     def _discover_docker_servers(self) -> None:
         """Discover available Docker servers."""
-        from pathlib import Path
-
         from .base import DockerTestServer
-
-        docker_available = DockerTestServer.verify_docker()
+        from .base import docker_servers_dir as _docker_servers_dir
 
         # Look for docker-test-servers directories
-        docker_servers_dir = Path(__file__).parent.parent / "docker-test-servers"
+        docker_servers_dir = _docker_servers_dir()
         if not docker_servers_dir.exists():
             return
+
+        docker_available = DockerTestServer.verify_docker()
 
         # Check each subdirectory for a start.sh script
         for server_dir in docker_servers_dir.iterdir():
@@ -378,7 +377,7 @@ def get_registry() -> ServerRegistry:
 
             warnings.warn(
                 f"Failed to load test server configuration: {e}. "
-                "Check tests/caldav_test_servers.yaml for errors.",
+                "Check the test server configuration for errors.",
                 UserWarning,
                 stacklevel=2,
             )

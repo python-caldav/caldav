@@ -36,7 +36,7 @@ def client_context(server_index: int = 0, server_name: str | None = None):
 
     Usage::
 
-        from tests.test_servers import client_context
+        from caldav.testing.helpers import client_context
 
         with client_context() as client:
             principal = client.principal()

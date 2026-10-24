@@ -10,12 +10,8 @@ import os
 from typing import Any
 from urllib.parse import quote
 
-try:
-    import niquests as requests
-except ImportError:
-    import requests  # type: ignore
-
 from caldav import compatibility_hints
+from caldav.lib.http_sync import requests
 
 from .base import DEFAULT_HTTP_TIMEOUT, DockerTestServer
 from .registry import register_server_class
