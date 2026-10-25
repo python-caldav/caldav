@@ -639,13 +639,3 @@ class ExternalTestServer(TestServer):
                 return True
         except (OSError, ValueError):
             return False
-
-
-# Deferred registration to avoid circular imports
-def _register_external_server() -> None:
-    from .registry import register_server_class
-
-    register_server_class("external", ExternalTestServer)
-
-
-_register_external_server()

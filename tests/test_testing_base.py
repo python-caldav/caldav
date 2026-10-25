@@ -348,3 +348,30 @@ def test_test_servers_submodules_are_package_attributes(monkeypatch) -> None:
     assert tests.test_servers.base is base
     monkeypatch.setattr("tests.test_servers.base.DEFAULT_HTTP_TIMEOUT", 1)
     assert base.DEFAULT_HTTP_TIMEOUT == 1
+
+
+@pytest.mark.parametrize(
+    "module",
+    [
+        "caldav.testing",
+        "caldav.testing.base",
+        "caldav.testing.config_loader",
+        "caldav.testing.docker",
+        "caldav.testing.embedded",
+        "caldav.testing.helpers",
+        "caldav.testing.registry",
+    ],
+)
+def test_each_testing_module_imports_on_its_own(module: str) -> None:
+    """A consumer may import any submodule first; none may depend on another having been imported."""
+    import os
+    import subprocess
+    import sys
+
+    import caldav
+
+    # This checkout's caldav, not whatever the editable install points at (a worktree's main checkout)
+    root = str(Path(caldav.__file__).resolve().parent.parent)
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join([root, os.environ.get("PYTHONPATH", "")])}
+    code = f"import {module}; from caldav.testing.registry import get_server_class; assert get_server_class('external')"
+    subprocess.run([sys.executable, "-c", code], check=True, cwd=root, env=env)
