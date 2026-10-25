@@ -125,6 +125,7 @@ class AsyncDAVClient(BaseDAVClient):
             principal = await client.get_principal()
     """
 
+    is_async = True
     proxy: str | None = None
     url: URL = None
     huge_tree: bool = False

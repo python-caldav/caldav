@@ -143,9 +143,7 @@ class DAVObject:
         """
         if self.client is None:
             return False
-        from caldav.async_davclient import AsyncDAVClient
-
-        return isinstance(self.client, AsyncDAVClient)
+        return self.client.is_async is True
 
     def children(
         self, type: str | None = None
