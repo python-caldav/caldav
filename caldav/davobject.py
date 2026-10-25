@@ -143,7 +143,8 @@ class DAVObject:
         """
         if self.client is None:
             return False
-        return self.client.is_async is True
+        # `is True` is deliberate: a Mock attribute must count as False.
+        return getattr(self.client, "is_async", False) is True
 
     def children(
         self, type: str | None = None

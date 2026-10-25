@@ -313,3 +313,35 @@ class TestBackwardCompatibleReExports:
         from caldav.lib.http_sync import Response as SharedResponse
 
         assert Response is SharedResponse
+
+
+_SYNC_WITHOUT_ASYNC = textwrap.dedent(
+    """
+    import sys
+
+    class Blocker:
+        def find_spec(self, fullname, path=None, target=None):
+            if fullname.split(".")[0] in {names!r}:
+                raise ImportError("blocked by the test: " + fullname)
+            return None
+
+    sys.meta_path.insert(0, Blocker())
+    from caldav import DAVClient
+    from caldav.collection import Calendar
+
+    client = DAVClient(url="http://cal.example.com/")
+    calendar = Calendar(client=client, url="http://cal.example.com/cal/")
+    assert calendar.is_async_client is False
+    """
+)
+
+
+@pytest.mark.skipif(not importlib.util.find_spec("requests"), reason="requests not installed")
+def test_sync_client_works_without_an_async_library() -> None:
+    """A requests-only install must not trip over the async client's import."""
+    result = subprocess.run(
+        [sys.executable, "-c", _SYNC_WITHOUT_ASYNC.format(names=set(ASYNC_CANDIDATES))],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
