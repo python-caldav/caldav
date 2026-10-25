@@ -40,6 +40,7 @@ from .calendarobjectresource import (
     FreeBusy,
     Journal,
     Todo,
+    _quote_uid,
 )
 from .compatibility_hints import (
     at_literal_is_refused,
@@ -2147,6 +2148,11 @@ class Calendar(DAVObject):
          comp_class: filter by component type (Event, Todo, Journal)
          comp_filter: for backward compatibility.  Don't use!
 
+        If the server refuses the UID search (iCloud answers 412, issue
+        #783), the object is fetched as ``<uid>.ics``, or else found
+        among all objects of the type.  On such a server a missing UID
+        costs a download of all objects of the type, on every call.
+
         Returns:
          CalendarObjectResource (Event, Todo, or Journal)
         """
@@ -2161,20 +2167,36 @@ class Calendar(DAVObject):
         ## search(uid=...) does substring matching on the server side, so we
         ## apply an exact match filter afterwards to preserve the semantics of
         ## this method (see testObjectByUID).
-        items_found = self.search(
-            uid=uid,
-            comp_class=comp_class,
-            xml=comp_filter,
-            post_filter=True,
-            _hacks="insist",
-            include_completed=True,
-        )
-        items_found = [o for o in items_found if o.id == uid]
-
-        if not items_found:
-            raise error.NotFoundError("%s not found on server" % uid)
-        error.assert_(len(items_found) == 1)
-        return items_found[0]
+        try:
+            items_found = self.search(
+                uid=uid,
+                comp_class=comp_class,
+                xml=comp_filter,
+                post_filter=True,
+                _hacks="insist",
+                include_completed=True,
+            )
+        except (error.NotFoundError, error.RateLimitError, error.AuthorizationError):
+            ## the fallback won't help with these
+            raise
+        except error.DAVError as e:
+            if comp_filter is not None:
+                raise
+            log.debug(f"Search by UID failed ({e}), trying GET {uid}.ics and a full scan")
+            url = self._uid_fallback_url(uid)
+            if url is not None:
+                try:
+                    found = self._uid_fallback_object(
+                        url, self.client.request(str(url)), uid, comp_class
+                    )
+                except error.RateLimitError:
+                    raise
+                except error.DAVError:
+                    found = None
+                if found is not None:
+                    return found
+            items_found = self.search(comp_class=comp_class, include_completed=True)
+        return self._uid_match(items_found, uid)
 
     async def _async_get_object_by_uid(
         self,
@@ -2183,16 +2205,73 @@ class Calendar(DAVObject):
         comp_class: Optional["CalendarObjectResource"] = None,
     ) -> "Event":
         """Async helper for get_object_by_uid()."""
-        items_found = await self.search(
-            uid=uid,
-            comp_class=comp_class,
-            xml=comp_filter,
-            post_filter=True,
-            _hacks="insist",
-            include_completed=True,
-        )
-        items_found = [o for o in items_found if o.id == uid]
+        try:
+            items_found = await self.search(
+                uid=uid,
+                comp_class=comp_class,
+                xml=comp_filter,
+                post_filter=True,
+                _hacks="insist",
+                include_completed=True,
+            )
+        except (error.NotFoundError, error.RateLimitError, error.AuthorizationError):
+            ## the fallback won't help with these
+            raise
+        except error.DAVError as e:
+            if comp_filter is not None:
+                raise
+            log.debug(f"Search by UID failed ({e}), trying GET {uid}.ics and a full scan")
+            url = self._uid_fallback_url(uid)
+            if url is not None:
+                try:
+                    found = self._uid_fallback_object(
+                        url, await self.client.request(str(url)), uid, comp_class
+                    )
+                except error.RateLimitError:
+                    raise
+                except error.DAVError:
+                    found = None
+                if found is not None:
+                    return found
+            items_found = await self.search(comp_class=comp_class, include_completed=True)
+        return self._uid_match(items_found, uid)
 
+    def _uid_fallback_url(self, uid: str) -> "URL | None":
+        """Return the URL save() would use for this UID, or None if GET
+        by URL is unsupported."""
+        if not self.client.features.is_supported("save-load.get-by-url"):
+            return None
+        return self.url.join(_quote_uid(uid, self.client.features) + ".ics")
+
+    def _uid_fallback_object(
+        self,
+        url: "URL",
+        response: Any,
+        uid: str,
+        comp_class: Optional["CalendarObjectResource"],
+    ) -> "CalendarObjectResource | None":
+        """Return the object in a GET response if it has this UID and
+        type, else None."""
+        if not 200 <= response.status < 300:
+            return None
+        found_class = self._calendar_comp_class_by_data(response.raw)
+        if found_class is CalendarObjectResource:  ## not calendar data
+            return None
+        if comp_class is not None and found_class is not comp_class:
+            return None
+        obj = found_class(self.client, url=url, data=response.raw, parent=self)
+        try:
+            if obj.id != uid:
+                return None
+        except ValueError:  ## unparsable data
+            return None
+        obj._keep_raw_data(getattr(response, "_raw_body", None))
+        obj._update_tag_props(response)
+        return obj
+
+    def _uid_match(self, items_found: list, uid: str) -> "CalendarObjectResource":
+        """Return the single object in items_found with exactly this UID."""
+        items_found = [o for o in items_found if o.id == uid]
         if not items_found:
             raise error.NotFoundError("%s not found on server" % uid)
         error.assert_(len(items_found) == 1)
