@@ -368,10 +368,8 @@ def test_each_testing_module_imports_on_its_own(module: str) -> None:
     import subprocess
     import sys
 
-    import caldav
-
     # This checkout's caldav, not whatever the editable install points at (a worktree's main checkout)
-    root = str(Path(caldav.__file__).resolve().parent.parent)
+    root = str(Path(base.__file__).resolve().parents[2])
     env = {**os.environ, "PYTHONPATH": os.pathsep.join([root, os.environ.get("PYTHONPATH", "")])}
     code = f"import {module}; from caldav.testing.registry import get_server_class; assert get_server_class('external')"
     subprocess.run([sys.executable, "-c", code], check=True, cwd=root, env=env)
