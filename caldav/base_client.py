@@ -175,6 +175,8 @@ class BaseDAVClient(ABC):
     - Common properties (username, password, auth_type, etc.)
     """
 
+    is_async = False
+
     # Property lists for PROPFIND requests - shared between sync and async
     CALENDAR_HOME_SET_PROPS = ["{urn:ietf:params:xml:ns:caldav}calendar-home-set"]
     CALENDAR_LIST_PROPS = [

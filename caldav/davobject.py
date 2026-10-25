@@ -143,9 +143,8 @@ class DAVObject:
         """
         if self.client is None:
             return False
-        from caldav.async_davclient import AsyncDAVClient
-
-        return isinstance(self.client, AsyncDAVClient)
+        # `is True` is deliberate: a Mock attribute must count as False.
+        return getattr(self.client, "is_async", False) is True
 
     def children(
         self, type: str | None = None
