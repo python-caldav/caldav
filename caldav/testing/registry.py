@@ -33,10 +33,12 @@ Servers are registered — and therefore returned — in this order:
 
 import os
 
-from .base import TestServer
+from .base import ExternalTestServer, TestServer
 
-# Server class registry - maps type names to server classes
-_SERVER_CLASSES: dict[str, type[TestServer]] = {}
+# Server class registry - maps type names to server classes.  The external
+# class is registered here rather than in base, which must not import this
+# module: base is imported first, from here.
+_SERVER_CLASSES: dict[str, type[TestServer]] = {"external": ExternalTestServer}
 
 
 def register_server_class(type_name: str, server_class: type[TestServer]) -> None:
