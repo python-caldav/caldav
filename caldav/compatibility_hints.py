@@ -2631,7 +2631,7 @@ stalwart = {
     "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists the collection itself"},
     "sync-token.recreated": {"support": "quirk", "behaviour": "reported twice: as removed, then as changed"},
     "multiget.limit": {"support": "unsupported", "behaviour": "stops at WebDav.maxResults with a 507"},
-    "propfind.limit": {"support": "unsupported", "behaviour": "the whole PROPFIND answers 507 above WebDav.maxResults"},
+    "propfind.limit": {"support": "unsupported", "behaviour": "lists up to WebDav.maxResults members (50 in the docker setup), then a 507 for the collection"},
     "search.limit": {"support": "unsupported", "behaviour": "a calendar-query stops at WebDav.maxResults with a 507"},
     "sync-token.delete.created-and-deleted": {
         "support": "unsupported",
