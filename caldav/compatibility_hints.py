@@ -213,7 +213,7 @@ class FeatureSet:
             ## one from those children either: _derive_from_subfeatures skips
             ## every child that has an explicit default, which both of them do,
             ## so is_supported("auth") answers from the type default whatever
-            ## the children say.  Five existing nodes have the same shape.
+            ## the children say.  Six existing nodes have the same shape.
         },
         "auth.www-authenticate": {
             "description": "Server includes a WWW-Authenticate header in a 401 response, as RFC7235 section 3.1 requires.  Without it a client has no scheme to negotiate with.  Over TLS, with no auth_type configured, this library guesses Basic once (logging a warning); otherwise the supplied credentials are never transmitted, and the bare 401 surfaces as an AuthorizationError indistinguishable from a rejected password.  'unsupported' means a 401 came back carrying no WWW-Authenticate at all (Yahoo Calendar); pinning auth_type skips the guess and its warning, and is the only cure over plain HTTP or for a server wanting a scheme other than Basic - which scheme to pin is not something such a server tells you.  'unknown' means no 401 could be provoked, so the question was never put.  The behaviour field carries the challenge the server sent, where it sent one.",
@@ -244,8 +244,16 @@ class FeatureSet:
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers come with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (True means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
-        "get-supported-components": {
-            "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
+        "supported-components": {
+            ## Grouping node for the CALDAV:supported-calendar-component-set
+            ## property, shaped like "auth": the children carry defaults and
+            ## are never derived from each other, so this node answers the type
+            ## default whatever they say.  Do not hint it - the ancestor walk
+            ## would hand the hint to both children.
+        },
+        "supported-components.property-exists": {
+            "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3) on a calendar.  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.  Up to caldav 3.6.0 this was 'get-supported-components'.",
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.2.3"],
         },
         "propfind": {
@@ -958,7 +966,21 @@ hence, "fragile".
     def _bool_key(self, feature):
         return self._BOOL_KEYS.get(self.find_feature(feature).get('type'))
 
+    def _current_name(self, feature):
+        """The name ``feature`` goes by now: a renamed feature is translated,
+        with a DeprecationWarning pointing at the caller of the public method."""
+        if feature in _RENAMED_FEATURES:
+            new_name = _RENAMED_FEATURES[feature]
+            warnings.warn(
+                f"The '{feature}' feature is deprecated - use '{new_name}'",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            return new_name
+        return feature
+
     def set_feature(self, feature, value=True):
+        feature = self._current_name(feature)
         if isinstance(value, dict) or (isinstance(value, bool) and self._bool_key(feature)):
             fc = {feature: value}
         elif isinstance(value, str):
@@ -1005,6 +1027,15 @@ hence, "fragile".
                 feature_set['calendar-color.name'] = feature_set.pop('calendar-color')
             feature_set['calendar-color'] = feature_set.pop('calendar-color.hex')
         for feature in feature_set:
+            if feature in _RENAMED_FEATURES:
+                new_name = _RENAMED_FEATURES[feature]
+                warnings.warn(
+                    f"The '{feature}' feature is deprecated - use '{new_name}'",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                self._copy_feature_set({new_name: feature_set[feature]}, collapse=False)
+                continue
             if feature == 'write-delay':
                 warnings.warn(
                     "The 'write-delay' feature is deprecated - use 'synchronous-write', "
@@ -1177,6 +1208,7 @@ hence, "fragile".
         is unsupported it basically means that feature foo.bar is also
         unsupported.  Hence the extra logic visiting "nodes".
         """
+        feature = self._current_name(feature)
         feature_info = self.find_feature(feature)
         feature_ = feature
         while True:
@@ -2357,7 +2389,7 @@ robur = {
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
-    "get-supported-components": {"support": "unsupported"},
+    "supported-components.property-exists": {"support": "unsupported"},
     "save.etag": {'support': 'broken', 'behaviour': "malformed etag 'a22ccfb2985aed13f50b4991a110d32253fd99aa'"},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
@@ -2677,7 +2709,7 @@ purelymail = {
     ## Known, work in progress
     "scheduling": {"support": "unsupported"},
     ## Known, not a breach of standard
-    "get-supported-components": {"support": "unsupported"},
+    "supported-components.property-exists": {"support": "unsupported"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
 }
@@ -3195,6 +3227,14 @@ def at_spelling_is_significant(features: Any) -> bool:
     encoded on the way out.
     """
     return not at_spellings_are_aliased(features)
+
+
+## Features that were renamed, old name -> new name.  _copy_feature_set
+## translates the old name with a DeprecationWarning.
+_RENAMED_FEATURES = {
+    ## Renamed after 3.6.0, when the property got an obedience sibling
+    "get-supported-components": "supported-components.property-exists",
+}
 
 
 def write_delay(features: Any, feature: str = "synchronous-write") -> float:
