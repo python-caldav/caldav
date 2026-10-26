@@ -1006,6 +1006,81 @@ class TestSupportedComponents:
         assert not features.is_supported("supported-components.property-exists")
 
 
+class TestComponentSetFeatures:
+    """Three questions about the component set, asked in three places.
+
+    - ``supported-components.property-exists``: does a calendar report it?
+    - ``supported-components.honoured``: does the server accept exactly what
+      the property lists - every type when it is absent (RFC 4791 section 5.2.3)?
+    - ``create-calendar.with-supported-component-types``: does a MKCALENDAR
+      naming a set give a calendar with that set, and ``.multiple`` when the
+      set names several types?
+    """
+
+    HONOURED = "supported-components.honoured"
+    EXISTS = "supported-components.property-exists"
+    CREATE = "create-calendar.with-supported-component-types"
+    MULTIPLE = "create-calendar.with-supported-component-types.multiple"
+
+    @pytest.mark.parametrize("feature", [HONOURED, EXISTS, CREATE, MULTIPLE])
+    def test_defaults_to_full(self, feature: str) -> None:
+        assert FeatureSet.FEATURES[feature]["default"] == {"support": "full"}
+        assert FeatureSet().is_supported(feature, str) == "full"
+
+    def test_an_absent_property_says_nothing_about_obedience(self) -> None:
+        """The property is optional, so nothing below its absence is moot."""
+        features = FeatureSet({self.EXISTS: {"support": "unsupported"}})
+        assert features.is_supported(self.HONOURED, str) == "full"
+        assert features.is_supported("supported-components", str) == "full"
+
+    def test_disobedience_says_nothing_about_existence(self) -> None:
+        features = FeatureSet({self.HONOURED: {"support": "broken"}})
+        assert features.is_supported(self.EXISTS, str) == "full"
+        assert features.is_supported("supported-components", str) == "full"
+
+    def test_collapse_keeps_both_children(self) -> None:
+        features = FeatureSet(
+            {self.EXISTS: {"support": "unsupported"}, self.HONOURED: {"support": "unsupported"}}
+        )
+        listed = features.dotted_feature_set_list()
+        assert self.EXISTS in listed
+        assert self.HONOURED in listed
+        assert "supported-components" not in listed
+
+    def test_a_refused_multiple_leaves_creation_alone(self) -> None:
+        """CCS: one type per calendar, but that one type is honoured."""
+        features = FeatureSet({self.MULTIPLE: {"support": "unsupported"}})
+        assert features.is_supported(self.CREATE, str) == "full"
+
+    @pytest.mark.parametrize("ancestor", ["create-calendar", CREATE])
+    def test_multiple_inherits_an_unprobeable_ancestor(self, ancestor: str) -> None:
+        features = FeatureSet({ancestor: {"support": "unsupported"}})
+        assert features.is_supported(self.MULTIPLE, str) == "unsupported"
+
+    @pytest.mark.parametrize(
+        ("profile", "expected"),
+        [
+            ## advertised, not obeyed: a VEVENT goes into a VTODO-only calendar
+            ("bedework_3_10_3", {CREATE: "full", HONOURED: "broken"}),
+            ("davical", {CREATE: "full", HONOURED: "broken"}),
+            ("synology", {CREATE: "full", HONOURED: "broken"}),
+            ("stalwart", {CREATE: "full", HONOURED: "broken"}),
+            ## the calendar is VEVENT-only, whatever was asked for
+            ("bedework_5_0_0", {CREATE: "unsupported", HONOURED: "full"}),
+            ("sogo", {CREATE: "unsupported", EXISTS: "full"}),
+            ("gmx", {CREATE: "unsupported", MULTIPLE: "unknown"}),
+            ("yahoo", {CREATE: "unknown"}),
+            ("ccs", {CREATE: "full", MULTIPLE: "unsupported"}),
+            ("robur", {EXISTS: "unsupported", HONOURED: "broken"}),
+            ("purelymail", {EXISTS: "unsupported", HONOURED: "full"}),
+        ],
+    )
+    def test_profiles(self, profile: str, expected: dict[str, str]) -> None:
+        features = FeatureSet(_resolve_features(profile))
+        for feature, support in expected.items():
+            assert features.is_supported(feature, str) == support, feature
+
+
 class TestObservationBool:
     """A server-observation is not supported or unsupported - it is observed
     to be True or False, stored as ``{"value": <bool>}``.  A client-feature

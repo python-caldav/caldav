@@ -494,3 +494,38 @@ def test_component_set_unobtainable(
 def test_bedework_5_has_nowhere_to_put_a_task() -> None:
     client = FakeClient(compatibility_hints.bedework_5_0_0)
     assert component_set_unobtainable(client, ["VTODO"])
+
+
+## Where a restricted calendar is out of reach, as it was before the
+## component-set features were split into creation and obedience: the split
+## must not move any profile in or out of this list.
+UNOBTAINABLE = {
+    ("bedework_5_0_0", "VTODO"),
+    ("bedework_5_0_0", "VJOURNAL"),
+    ("sogo", "VJOURNAL"),
+    ("posteo", "VJOURNAL"),
+    ("yahoo", "VTODO"),
+    ("yahoo", "VJOURNAL"),
+}
+
+
+def _profile_names() -> list[str]:
+    return [
+        name
+        for name, profile in vars(compatibility_hints).items()
+        if isinstance(profile, dict) and not name.startswith("_") and name.islower()
+    ]
+
+
+@pytest.mark.parametrize("profile", _profile_names())
+@pytest.mark.parametrize("component", ["VTODO", "VJOURNAL"])
+def test_unobtainable_component_sets_per_profile(profile: str, component: str) -> None:
+    """Obeying the set is not what the fixtures ask: they ask whether a calendar
+    created for ``component`` takes it.  Bedework 3 lets a VEVENT into a
+    VTODO-only calendar, and still a VJOURNAL-only calendar is there for the
+    journals it cannot mix with events."""
+    from caldav.config import resolve_features
+
+    client = FakeClient(resolve_features(profile))
+    unobtainable = bool(component_set_unobtainable(client, [component]))
+    assert unobtainable is ((profile, component) in UNOBTAINABLE)
