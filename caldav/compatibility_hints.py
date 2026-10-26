@@ -520,6 +520,16 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.1", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.2"],
         },
+        "save-load.icalendar.participant": {
+            "description": "A PARTICIPANT component (RFC 9073 section 7.1) inside a VEVENT is stored and comes back.  'unsupported' when the event is stored without it.  'ungraceful' when the event is refused: CCS and Bedework 3 answer 403, robur 400, GMX and Ox 500 (and Zimbra, reportedly).  A client keeping data of its own in PARTICIPANT components loses it on those servers.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9073#section-7.1"],
+        },
+        "save-load.icalendar.vtimezone": {
+            "description": "The VTIMEZONE a client sends with an object comes back with it.  RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID an object uses.  RFC 7809 lets a server leave VTIMEZONEs out, but only for a client asking for that with the CalDAV-Timezones: F request header, which the probe does not send.  'unsupported' when the object comes back without it, so a client that resolves TZIDs only from the object's own VTIMEZONEs cannot place the times.  'ungraceful' when an object carrying a VTIMEZONE is refused.  See also save-load.event.timezone.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
+        },
         "save-load.mutable": {
             "description": "A saved calendar object resource can be modified and PUT back to the server; the server accepts the update and returns the modified data on the next GET/REPORT. When 'unsupported', the server treats calendar objects as immutable after initial creation (e.g. Google Calendar's legacy CalDAV API). Replaces the old 'no_overwrite' compatibility flag.",
             "default": {"support": "full"},
@@ -1753,6 +1763,8 @@ zimbra = {
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
     ## If tests are yielding unexpected results, try to increase this:
@@ -2294,6 +2306,8 @@ sogo = {
 #]
 
 robur = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (400)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     "auto-connect.url": {
@@ -2432,6 +2446,9 @@ davis = {
 ## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
 ## VJOURNAL is not supported at all.
 ccs = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
+    "save-load.icalendar.vtimezone": {"support": "unsupported", "behaviour": "the event comes back with TZID=Europe/Berlin but no VTIMEZONE for it"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-13: DAV:limit is refused with a 507 and
@@ -2649,6 +2666,8 @@ purelymail = {
 }
 
 gmx = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500, ical4j casts the Participant to a VAlarm)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     'auto-connect.url': {
