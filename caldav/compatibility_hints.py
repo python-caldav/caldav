@@ -559,6 +559,10 @@ hence, "fragile".
             "description": "Server correctly filters calendar-query results by component type.  'unsupported': the comp-filter is silently ignored and the whole calendar is returned, but nothing of the requested type is dropped - the library keeps the comp-filter and filters the result client-side.  'broken': a typed query drops objects of the requested type (e.g. Bedework returns VTODOs for a VEVENT query and nothing for a VTODO query) - the library leaves the comp-filter out of the query and filters client-side.",
             "default": {"support": "full"}
         },
+        "search.limit": {
+            "description": "A calendar-query answers every object it matches, however many.  When 'unsupported', the server answers at most a number of its own, with a 507 Insufficient Storage for the collection, or a 507 for the whole query (Stalwart lists up to its WebDav.maxResults setting, 2000 by default); a client should then narrow the query, e.g. split its time range.  'broken' when the answer is cut without a 507, so a client takes it as complete.  As for propfind.limit, the probe only sees a limit below CALDAV_SERVER_TESTER_LIMIT_OBJECTS.",
+            "default": {"support": "full"},
+        },
         ## TODO - there is still quite a lot of search-related
         ## stuff that hasn't been moved from the old "quirk list"
         "search.time-range": {
@@ -2616,6 +2620,7 @@ stalwart = {
     "sync-token.recreated": {"support": "quirk", "behaviour": "reported twice: as removed, then as changed"},
     "multiget.limit": {"support": "unsupported", "behaviour": "stops at WebDav.maxResults with a 507"},
     "propfind.limit": {"support": "unsupported", "behaviour": "the whole PROPFIND answers 507 above WebDav.maxResults"},
+    "search.limit": {"support": "unsupported", "behaviour": "a calendar-query stops at WebDav.maxResults with a 507"},
     "sync-token.delete.created-and-deleted": {
         "support": "unsupported",
         "behaviour": "not reported, unless a member it already had changed in the same interval",
