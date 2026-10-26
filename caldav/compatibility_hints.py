@@ -446,6 +446,8 @@ hence, "fragile".
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
+        "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: Ox answers the PUT with 201 and the GET with 404, while the same task without the ATTENDEE is kept.", "default": {"support": "full"}},
+        "save-load.todo.completed-without-status": {"description": "A task with a COMPLETED date-time but no STATUS (RFC 5545 makes neither require the other) is stored with its COMPLETED.  'unsupported' when COMPLETED is dropped (Ox).  A server adding STATUS:COMPLETED is fine.", "default": {"support": "full"}},
         "save-load.journal": {
             "description": "The server will even accept journals",
             "default": { "support": "full" }
@@ -529,6 +531,16 @@ hence, "fragile".
             "description": "The VTIMEZONE a client sends with an object comes back with it.  RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID an object uses.  RFC 7809 lets a server leave VTIMEZONEs out, but only for a client asking for that with the CalDAV-Timezones: F request header, which the probe does not send.  'unsupported' when the object comes back without it, so a client that resolves TZIDs only from the object's own VTIMEZONEs cannot place the times.  'ungraceful' when an object carrying a VTIMEZONE is refused.  See also save-load.event.timezone.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
+        },
+        "save-load.icalendar.x-property": {
+            "description": "An X- property (RFC 5545 section 3.8.8.2) is stored with the object, in an event and in a task.  'unsupported' when it is dropped from either (Ox keeps it in an event and drops it from a task), so a client cannot keep data of its own in one; the behaviour says which.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.2"],
+        },
+        "save-load.icalendar.unknown-property": {
+            "description": "A property whose name RFC 5545 does not define, but which is not an X- one either (iana-token syntax, RFC 5545 section 3.8.8.1), is stored with the object.  The probe sends ESTIMATED-DURATION, from a draft task extension, on a task.  'unsupported' when it is dropped (Ox).",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.1"],
         },
         "save-load.mutable": {
             "description": "A saved calendar object resource can be modified and PUT back to the server; the server accepts the update and returns the modified data on the next GET/REPORT. When 'unsupported', the server treats calendar objects as immutable after initial creation (e.g. Google Calendar's legacy CalDAV API). Replaces the old 'no_overwrite' compatibility flag.",
@@ -2764,6 +2776,12 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
+    "save-load.icalendar.x-property": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER is dropped, in a task"},
+    "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
+    "save-load.todo.attendee": {"support": "broken", "behaviour": "the task is accepted, then gone (404)"},
+    "save-load.todo.completed-without-status": {"support": "unsupported", "behaviour": "COMPLETED is dropped"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-11
