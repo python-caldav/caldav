@@ -15,6 +15,7 @@ import logging
 import re
 import uuid
 import warnings
+from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import date as _date
 from datetime import datetime, timezone
@@ -2148,16 +2149,64 @@ class Calendar(DAVObject):
          comp_class: filter by component type (Event, Todo, Journal)
          comp_filter: for backward compatibility.  Don't use!
 
-        If the server refuses the UID search (iCloud answers 412, issue
-        #783), the object is fetched as ``<uid>.ics``, or else found
-        among all objects of the type.  On such a server a missing UID
-        costs a download of all objects of the type, on every call.
+        Unless the ``search.text.uid`` feature says the server handles
+        UID searches, a failing search (iCloud answers 412, issue #783)
+        makes this fetch the object as ``<uid>.ics``, the name ``save()``
+        gives it.  If the server is known not to handle UID searches
+        (``search.text.uid`` unsupported or broken), the search is
+        skipped.  Should the object not be found that way, and the
+        search failed with 412 or is known to fail, the object is found
+        among all objects of the type - a download of the whole calendar
+        for every missing UID.
 
         Returns:
          CalendarObjectResource (Event, Todo, or Journal)
         """
+        gen = self._uid_lookup(uid, comp_filter, comp_class)
         if self.is_async_client:
-            return self._async_get_object_by_uid(uid, comp_filter, comp_class)
+            return self._async_run_uid_lookup(gen)
+        try:
+            step = next(gen)
+            while True:
+                try:
+                    result = self._uid_lookup_step(*step)
+                except error.DAVError as e:
+                    step = gen.throw(e)
+                else:
+                    step = gen.send(result)
+        except StopIteration as done:
+            return done.value
+
+    async def _async_run_uid_lookup(self, gen: Generator) -> "CalendarObjectResource":
+        """Async driver for _uid_lookup(), see get_object_by_uid()."""
+        try:
+            step = next(gen)
+            while True:
+                try:
+                    result = await self._uid_lookup_step(*step)
+                except error.DAVError as e:
+                    step = gen.throw(e)
+                else:
+                    step = gen.send(result)
+        except StopIteration as done:
+            return done.value
+
+    def _uid_lookup_step(self, action: str, arg: Any) -> Any:
+        """Execute one step of _uid_lookup().  Returns a coroutine with
+        an async client."""
+        if action == "search":
+            return self.search(**arg)
+        return self.client.request(str(arg))
+
+    def _uid_lookup(
+        self,
+        uid: str,
+        comp_filter: cdav.CompFilter | None,
+        comp_class: Optional["CalendarObjectResource"],
+    ) -> Generator:
+        """The logic of get_object_by_uid(), as a generator yielding
+        ``("search", kwargs)`` and ``("request", url)`` for the driver to
+        execute, and getting the results (or the DAVError) back."""
         ## Use self.search() rather than CalDAVSearcher directly, so that any
         ## monkey-patching of Calendar.search (e.g. the search-cache delay that
         ## tests/test_caldav.py wraps it with for servers with lazy search
@@ -2167,73 +2216,63 @@ class Calendar(DAVObject):
         ## search(uid=...) does substring matching on the server side, so we
         ## apply an exact match filter afterwards to preserve the semantics of
         ## this method (see testObjectByUID).
-        try:
-            items_found = self.search(
-                uid=uid,
-                comp_class=comp_class,
-                xml=comp_filter,
-                post_filter=True,
-                _hacks="insist",
-                include_completed=True,
-            )
-        except (error.NotFoundError, error.RateLimitError, error.AuthorizationError):
-            ## the fallback won't help with these
-            raise
-        except error.DAVError as e:
-            if comp_filter is not None:
+        ##
+        ## No return_defaults: an unconfigured server is not known to be fine.
+        uid_search = self.client.features.is_supported(
+            "search.text.uid", return_type=str, return_defaults=False
+        )
+        known_to_fail = uid_search in ("unsupported", "broken", "ungraceful")
+        ## The deprecated comp_filter has no fallback.
+        fallback = comp_filter is None and uid_search not in ("full", "quirk")
+        scan = False
+        search_error = None
+        if not (fallback and known_to_fail):
+            try:
+                items_found = yield (
+                    "search",
+                    dict(
+                        uid=uid,
+                        comp_class=comp_class,
+                        xml=comp_filter,
+                        post_filter=True,
+                        _hacks="insist",
+                        include_completed=True,
+                    ),
+                )
+                return self._uid_match(items_found, uid)
+            except (error.NotFoundError, error.RateLimitError, error.AuthorizationError):
+                ## the fallback won't help with these
                 raise
-            log.debug(f"Search by UID failed ({e}), trying GET {uid}.ics and a full scan")
-            url = self._uid_fallback_url(uid)
-            if url is not None:
-                try:
-                    found = self._uid_fallback_object(
-                        url, self.client.request(str(url)), uid, comp_class
-                    )
-                except error.RateLimitError:
+            except error.DAVError as e:
+                if not fallback:
                     raise
-                except error.DAVError:
-                    found = None
-                if found is not None:
-                    return found
-            items_found = self.search(comp_class=comp_class, include_completed=True)
-        return self._uid_match(items_found, uid)
-
-    async def _async_get_object_by_uid(
-        self,
-        uid: str,
-        comp_filter: cdav.CompFilter | None = None,
-        comp_class: Optional["CalendarObjectResource"] = None,
-    ) -> "Event":
-        """Async helper for get_object_by_uid()."""
-        try:
-            items_found = await self.search(
-                uid=uid,
-                comp_class=comp_class,
-                xml=comp_filter,
-                post_filter=True,
-                _hacks="insist",
-                include_completed=True,
-            )
-        except (error.NotFoundError, error.RateLimitError, error.AuthorizationError):
-            ## the fallback won't help with these
-            raise
-        except error.DAVError as e:
-            if comp_filter is not None:
+                scan = e.status == 412
+                search_error = e
+                log.debug(f"Search by UID failed ({e}), trying GET {uid}.ics")
+        else:
+            scan = True
+        url = self._uid_fallback_url(uid)
+        if url is not None:
+            try:
+                response = yield ("request", url)
+                found = self._uid_fallback_object(url, response, uid, comp_class)
+            except error.RateLimitError:
                 raise
-            log.debug(f"Search by UID failed ({e}), trying GET {uid}.ics and a full scan")
-            url = self._uid_fallback_url(uid)
-            if url is not None:
-                try:
-                    found = self._uid_fallback_object(
-                        url, await self.client.request(str(url)), uid, comp_class
-                    )
-                except error.RateLimitError:
+            except error.DAVError:
+                found = None
+            if found is not None:
+                return found
+        items_found = []
+        if scan:
+            try:
+                items_found = yield (
+                    "search",
+                    dict(comp_class=comp_class, include_completed=True),
+                )
+            except error.DAVError as e:
+                if search_error is None:
                     raise
-                except error.DAVError:
-                    found = None
-                if found is not None:
-                    return found
-            items_found = await self.search(comp_class=comp_class, include_completed=True)
+                raise e from search_error
         return self._uid_match(items_found, uid)
 
     def _uid_fallback_url(self, uid: str) -> "URL | None":

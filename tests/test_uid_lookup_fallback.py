@@ -199,7 +199,7 @@ class TestUidLookupFallback:
         cal = calendar([PRECONDITION_FAILED, NOT_FOUND, forbidden()])
         with pytest.raises(error.AuthorizationError) as excinfo:
             cal.get_event_by_uid(UID)
-        assert "412" in str(excinfo.value.__context__)
+        assert "412" in str(excinfo.value.__cause__)
 
     def test_comp_filter_is_not_retried(self):
         cal = calendar([PRECONDITION_FAILED])
@@ -227,3 +227,71 @@ class TestUidLookupFallbackAsync:
         )
         assert asyncio.run(cal.get_event_by_uid(SLASH_UID)).id == SLASH_UID
         assert methods(cal) == ["REPORT", "GET", "REPORT"]
+
+
+def uid_feature(support):
+    return {"search.text.uid": {"support": support}}
+
+
+SCAN_ANSWER = (207, multistatus(("/calendars/user/cal/ev.ics", ical(UID))))
+
+
+class TestUidLookupFeature:
+    """What the search.text.uid feature changes: whether the UID search is
+    tried, whether it may fall back to GET, and whether to scan."""
+
+    @pytest.mark.parametrize("support", ["unsupported", "broken", "ungraceful"])
+    def test_search_is_skipped_when_known_to_fail(self, support):
+        cal = calendar([(200, ical(UID))], features=uid_feature(support))
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["GET"]
+
+    @pytest.mark.parametrize("support", ["unsupported", "broken", "ungraceful"])
+    def test_scan_after_get_when_known_to_fail(self, support):
+        cal = calendar([NOT_FOUND, SCAN_ANSWER], features=uid_feature(support))
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["GET", "REPORT"]
+
+    def test_known_to_fail_without_get_by_url(self):
+        cal = calendar(
+            [SCAN_ANSWER],
+            features={
+                **uid_feature("unsupported"),
+                "save-load.get-by-url": {"support": "unsupported"},
+            },
+        )
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["REPORT"]
+
+    @pytest.mark.parametrize("support", ["full", "quirk"])
+    def test_explicitly_supported_has_no_fallback(self, support):
+        cal = calendar([PRECONDITION_FAILED], features=uid_feature(support))
+        with pytest.raises(error.ReportError):
+            cal.get_event_by_uid(UID)
+        assert methods(cal) == ["REPORT"]
+
+    @pytest.mark.parametrize("support", [None, "fragile", "unknown"])
+    def test_other_failures_try_get_but_do_not_scan(self, support):
+        features = uid_feature(support) if support else None
+        cal = calendar([SERVER_ERROR, NOT_FOUND], features=features)
+        with pytest.raises(error.NotFoundError):
+            cal.get_event_by_uid(UID)
+        assert methods(cal) == ["REPORT", "GET"]
+
+    @pytest.mark.parametrize("support", [None, "fragile", "unknown"])
+    def test_412_scans_unless_explicitly_supported(self, support):
+        features = uid_feature(support) if support else None
+        cal = calendar([PRECONDITION_FAILED, NOT_FOUND, SCAN_ANSWER], features=features)
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["REPORT", "GET", "REPORT"]
+
+    def test_async_search_is_skipped_when_known_to_fail(self):
+        cal = calendar([NOT_FOUND, SCAN_ANSWER], features=uid_feature("broken"), is_async=True)
+        assert asyncio.run(cal.get_event_by_uid(UID)).id == UID
+        assert methods(cal) == ["GET", "REPORT"]
+
+    def test_async_other_failures_do_not_scan(self):
+        cal = calendar([SERVER_ERROR, NOT_FOUND], is_async=True)
+        with pytest.raises(error.NotFoundError):
+            asyncio.run(cal.get_event_by_uid(UID))
+        assert methods(cal) == ["REPORT", "GET"]
