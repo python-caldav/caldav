@@ -710,7 +710,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5"],
         },
         "search.text.uid": {
-            "description": "A calendar-query with a UID prop-filter works.  'unsupported' when the filter is ignored and the whole calendar comes back; 'ungraceful' or 'broken' when the query fails (iCloud answers any UID filter with 412) or answers wrongly.  Independent of search.text: a server may do text searches on other properties and still fail on UID.  See https://github.com/python-caldav/caldav/issues/783",
+            "description": "A calendar-query with a UID prop-filter works.  'unsupported' when the filter is ignored and the whole calendar comes back; 'ungraceful' or 'broken' when the query fails (iCloud answers any UID filter with 412) or answers wrongly.  A server may do text searches on other properties and still fail on UID, so it can be set on its own; where it is not, it takes the value of search.text, as sub-features do.  See https://github.com/python-caldav/caldav/issues/783",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
         },

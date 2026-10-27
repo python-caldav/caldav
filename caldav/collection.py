@@ -2153,7 +2153,7 @@ class Calendar(DAVObject):
         UID searches, a failing search (iCloud answers 412, issue #783)
         makes this fetch the object as ``<uid>.ics``, the name ``save()``
         gives it.  If the server is known not to handle UID searches
-        (``search.text.uid`` unsupported or broken), the search is
+        (``search.text.uid`` unsupported, broken or ungraceful), the search is
         skipped.  Should the object not be found that way, and the
         search failed with 412 or is known to fail, the object is found
         among all objects of the type - a download of the whole calendar
@@ -2226,6 +2226,7 @@ class Calendar(DAVObject):
         ## The deprecated comp_filter has no fallback.
         fallback = comp_filter is None and uid_search not in ("full", "quirk")
         scan = False
+        absent = False
         search_error = None
         if not (fallback and known_to_fail):
             try:
@@ -2266,6 +2267,7 @@ class Calendar(DAVObject):
                 ):
                     ## the server names every object <uid>.ics: nothing to scan for
                     scan = False
+                    absent = True
             except error.RateLimitError:
                 raise
             except error.DAVError:
@@ -2273,6 +2275,10 @@ class Calendar(DAVObject):
             if found is not None:
                 return found
         items_found = []
+        if search_error is not None and not (scan or absent):
+            ## the search failed and nothing says the object is not there:
+            ## a NotFoundError would be a false answer
+            raise search_error
         if scan:
             try:
                 items_found = yield (

@@ -272,11 +272,18 @@ class TestUidLookupFeature:
 
     @pytest.mark.parametrize("support", [None, "fragile", "unknown"])
     def test_other_failures_try_get_but_do_not_scan(self, support):
+        """The search failure is raised, not turned into "not found": a
+        GET miss does not show the object is absent."""
         features = uid_feature(support) if support else None
         cal = calendar([SERVER_ERROR, NOT_FOUND], features=features)
-        with pytest.raises(error.NotFoundError):
+        with pytest.raises(error.ReportError) as excinfo:
             cal.get_event_by_uid(UID)
+        assert not isinstance(excinfo.value, error.NotFoundError)
         assert methods(cal) == ["REPORT", "GET"]
+
+    def test_other_failure_is_overridden_by_a_get_hit(self):
+        cal = calendar([SERVER_ERROR, (200, ical(UID))])
+        assert cal.get_event_by_uid(UID).id == UID
 
     @pytest.mark.parametrize("support", [None, "fragile", "unknown"])
     def test_412_scans_unless_explicitly_supported(self, support):
@@ -292,7 +299,7 @@ class TestUidLookupFeature:
 
     def test_async_other_failures_do_not_scan(self):
         cal = calendar([SERVER_ERROR, NOT_FOUND], is_async=True)
-        with pytest.raises(error.NotFoundError):
+        with pytest.raises(error.ReportError):
             asyncio.run(cal.get_event_by_uid(UID))
         assert methods(cal) == ["REPORT", "GET"]
 
@@ -340,3 +347,37 @@ class TestUidIcsEnforced:
         with pytest.raises(error.NotFoundError):
             asyncio.run(cal.get_event_by_uid(UID))
         assert methods(cal) == ["REPORT", "GET"]
+
+
+class TestUidLookupFallbackAsyncErrors:
+    @pytest.mark.parametrize(
+        "search_failure, raised",
+        [
+            (forbidden(), error.AuthorizationError),
+            (error.RateLimitError(CAL_URL, "Too Many Requests"), error.RateLimitError),
+        ],
+        ids=["403", "429"],
+    )
+    def test_search_failures_that_are_raised(self, search_failure, raised):
+        cal = calendar([search_failure], is_async=True)
+        with pytest.raises(raised):
+            asyncio.run(cal.get_event_by_uid(UID))
+        assert methods(cal) == ["REPORT"]
+
+    def test_failing_scan_is_chained_to_the_412(self):
+        cal = calendar([PRECONDITION_FAILED, NOT_FOUND, forbidden()], is_async=True)
+        with pytest.raises(error.AuthorizationError) as excinfo:
+            asyncio.run(cal.get_event_by_uid(UID))
+        assert "412" in str(excinfo.value.__cause__)
+
+
+class TestInheritedFeature:
+    """search.text.uid is usually not configured itself but inherited."""
+
+    @pytest.mark.parametrize("profile", ["robur", "bedework_3_10_3"])
+    def test_profiles_without_text_search_skip_the_search(self, profile):
+        from caldav import compatibility_hints
+
+        cal = calendar([NOT_FOUND, SCAN_ANSWER], features=getattr(compatibility_hints, profile))
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["GET", "REPORT"]
