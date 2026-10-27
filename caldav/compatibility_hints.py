@@ -213,7 +213,7 @@ class FeatureSet:
             ## one from those children either: _derive_from_subfeatures skips
             ## every child that has an explicit default, which both of them do,
             ## so is_supported("auth") answers from the type default whatever
-            ## the children say.  Five existing nodes have the same shape.
+            ## the children say.  Other nodes have the same shape.
         },
         "auth.www-authenticate": {
             "description": "Server includes a WWW-Authenticate header in a 401 response, as RFC7235 section 3.1 requires.  Without it a client has no scheme to negotiate with.  Over TLS, with no auth_type configured, this library guesses Basic once (logging a warning); otherwise the supplied credentials are never transmitted, and the bare 401 surfaces as an AuthorizationError indistinguishable from a rejected password.  'unsupported' means a 401 came back carrying no WWW-Authenticate at all (Yahoo Calendar); pinning auth_type skips the guess and its warning, and is the only cure over plain HTTP or for a server wanting a scheme other than Basic - which scheme to pin is not something such a server tells you.  'unknown' means no 401 could be provoked, so the question was never put.  The behaviour field carries the challenge the server sent, where it sent one.",
@@ -244,9 +244,25 @@ class FeatureSet:
         "get-current-user-principal.has-calendar": {
             "type": "server-observation",
             "description": "Principal has one or more calendars.  Some servers and providers come with a pre-defined calendar for each user, for other servers a calendar has to be explicitly created (True means there exists a calendar - it may be because the calendar was already provisioned together with the principal, or it may be because a calendar was created manually, the checks can't see the difference)"},
-        "get-supported-components": {
-            "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3).  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.",
+        "supported-components": {
+            ## Grouping node for the CALDAV:supported-calendar-component-set
+            ## property, shaped like "auth": the children carry defaults and
+            ## are never derived from each other, so this node answers the type
+            ## default whatever they say.  Do not hint it - the ancestor walk
+            ## would hand the hint to both children.
+        },
+        "supported-components.property-exists": {
+            "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3) on a calendar.  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.  Up to caldav 3.6.0 this was 'get-supported-components'.",
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.2.3"],
+        },
+        "supported-components.honoured": {
+            "description": "Server accepts exactly the component types the supported-calendar-component-set property lists, and every type where the property is absent.  RFC 4791 section 5.2.3 makes storing an unlisted type an error (the CALDAV:supported-calendar-component precondition of section 5.3.2.1) and has a calendar without the property accept all types, so 'broken' is either violation: a set advertised but not enforced (Bedework 3.10, DAViCal and Stalwart take a VEVENT into a calendar reporting ['VTODO']), or a type refused by a calendar that advertises no set.  Like save.etag.matches-stored, it holds trivially in the branch a server does not take - an absent property is not a fault here (see supported-components.property-exists).",
+            "default": {"support": "full"},
+            "links": [
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-5.2.3",
+                "https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2.1",
+            ],
         },
         "propfind": {
             "description": "Server supports the PROPFIND method (RFC4918 section 9.1): a PROPFIND for a named property returns a multistatus response.  Independent feature (not just a grouping node) so that a server lacking a sub-feature like propfind.allprop.resourcetype is not mistaken for one that does not support PROPFIND at all.",
@@ -269,7 +285,14 @@ class FeatureSet:
             "links": ["https://datatracker.ietf.org/doc/html/rfc3744#section-2", "https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
         },
         "create-calendar.with-supported-component-types": {
-            "description": "Server honours the supported-calendar-component-set restriction set at MKCALENDAR time.  When 'full', the server both advertises (or enforces) the restriction; when 'unsupported', the restriction is silently ignored (wrong-type objects can be saved to the calendar).  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.",
+            "description": "A MKCALENDAR naming a supported-calendar-component-set gives a calendar with that set.  RFC 4791 section 5.3.1.1 has a server that cannot set a property answer 207 with 403 or 409 for it and create nothing; 'unsupported' means the calendar was created with another set (reported as another set, or not reported while an object outside the requested set can be saved to it) - Bedework 5 answers the property '200 ok' and makes a VEVENT-only calendar.  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.  Whether the server then obeys the set it reports is supported-components.honoured.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1.1"],
+        },
+        "create-calendar.with-supported-component-types.multiple": {
+            "description": "A MKCALENDAR naming several component types (VEVENT and VTODO in the probe) gives a calendar taking all of them.  'unsupported' is a refusal the RFC 4791 section 5.3.1.1 way (CCS answers 207 with 403 'Invalid CALDAV:supported-calendar-component-set' and creates nothing); 'broken' is a calendar that refuses a type it was asked to take or reports another set.  Not the same question as save-load.todo.mixed-calendar, which is about the calendar a server already has.  The tester measures it also where the parent is negative, but a profile that hints the parent negative and says nothing about this feature is read as negative here too - state it.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.1.1"],
         },
         "calendar-color": {
             "description": "Server stores the nonstandard Apple/Mozilla {http://apple.com/ns/ical/}calendar-color property on a calendar collection, set with a hex value (e.g. '#FF0000FF') - the de facto format.  'broken' is a read-only property (the same value comes back regardless of what is set).  Not described by RFC4791/RFC5545, so a server that rejects or ignores it ('unsupported') is not breaching any RFC.  The default is 'fragile' because the behaviour varies a lot between servers and is rarely worth asserting on (TODO: wouldn't unknown be better?).",
@@ -446,6 +469,8 @@ hence, "fragile".
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
+        "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: Ox answers the PUT with 201 and the GET with 404, while the same task without the ATTENDEE is kept.", "default": {"support": "full"}},
+        "save-load.todo.completed-without-status": {"description": "A task with a COMPLETED date-time but no STATUS (RFC 5545 makes neither require the other) is stored with its COMPLETED.  'unsupported' when COMPLETED is dropped (Ox).  A server adding STATUS:COMPLETED is fine.", "default": {"support": "full"}},
         "save-load.journal": {
             "description": "The server will even accept journals",
             "default": { "support": "full" }
@@ -520,6 +545,26 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.1", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.2"],
         },
+        "save-load.icalendar.participant": {
+            "description": "A PARTICIPANT component (RFC 9073 section 7.1) inside a VEVENT is stored and comes back.  'unsupported' when the event is stored without it.  'ungraceful' when the event is refused: CCS and Bedework 3 answer 403, robur 400, GMX and Ox 500 (and Zimbra, reportedly).  A client keeping data of its own in PARTICIPANT components loses it on those servers.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9073#section-7.1"],
+        },
+        "save-load.icalendar.vtimezone": {
+            "description": "The VTIMEZONE a client sends with an object comes back with it.  RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID an object uses.  RFC 7809 lets a server leave VTIMEZONEs out, but only for a client asking for that with the CalDAV-Timezones: F request header, which the probe does not send.  'unsupported' when the object comes back without it, so a client that resolves TZIDs only from the object's own VTIMEZONEs cannot place the times.  'ungraceful' when an object carrying a VTIMEZONE is refused.  See also save-load.event.timezone.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
+        },
+        "save-load.icalendar.x-property": {
+            "description": "An X- property (RFC 5545 section 3.8.8.2) is stored with the object, in an event and in a task.  'unsupported' when it is dropped from either (Ox keeps it in an event and drops it from a task), so a client cannot keep data of its own in one; the behaviour says which.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.2"],
+        },
+        "save-load.icalendar.unknown-property": {
+            "description": "A property whose name RFC 5545 does not define, but which is not an X- one either (iana-token syntax, RFC 5545 section 3.8.8.1), is stored with the object.  The probe sends ESTIMATED-DURATION, from a draft task extension, on a task.  'unsupported' when it is dropped (Ox).",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.1"],
+        },
         "save-load.mutable": {
             "description": "A saved calendar object resource can be modified and PUT back to the server; the server accepts the update and returns the modified data on the next GET/REPORT. When 'unsupported', the server treats calendar objects as immutable after initial creation (e.g. Google Calendar's legacy CalDAV API). Replaces the old 'no_overwrite' compatibility flag.",
             "default": {"support": "full"},
@@ -548,6 +593,10 @@ hence, "fragile".
         "search.comp-type": {
             "description": "Server correctly filters calendar-query results by component type.  'unsupported': the comp-filter is silently ignored and the whole calendar is returned, but nothing of the requested type is dropped - the library keeps the comp-filter and filters the result client-side.  'broken': a typed query drops objects of the requested type (e.g. Bedework returns VTODOs for a VEVENT query and nothing for a VTODO query) - the library leaves the comp-filter out of the query and filters client-side.",
             "default": {"support": "full"}
+        },
+        "search.limit": {
+            "description": "A calendar-query answers every object it matches, however many.  When 'unsupported', the server answers at most a number of its own, with a 507 Insufficient Storage for the collection, or a 507 for the whole query (Stalwart lists up to its WebDav.maxResults setting, 2000 by default); a client should then narrow the query, e.g. split its time range.  'broken' when the answer is cut without a 507, so a client takes it as complete.  As for propfind.limit, the probe only sees a limit below CALDAV_SERVER_TESTER_LIMIT_OBJECTS.",
+            "default": {"support": "full"},
         },
         ## TODO - there is still quite a lot of search-related
         ## stuff that hasn't been moved from the old "quirk list"
@@ -932,7 +981,21 @@ hence, "fragile".
     def _bool_key(self, feature):
         return self._BOOL_KEYS.get(self.find_feature(feature).get('type'))
 
+    def _current_name(self, feature):
+        """The name ``feature`` goes by now: a renamed feature is translated,
+        with a DeprecationWarning pointing at the caller of the public method."""
+        if feature in _RENAMED_FEATURES:
+            new_name = _RENAMED_FEATURES[feature]
+            warnings.warn(
+                f"The '{feature}' feature is deprecated - use '{new_name}'",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+            return new_name
+        return feature
+
     def set_feature(self, feature, value=True):
+        feature = self._current_name(feature)
         if isinstance(value, dict) or (isinstance(value, bool) and self._bool_key(feature)):
             fc = {feature: value}
         elif isinstance(value, str):
@@ -979,6 +1042,15 @@ hence, "fragile".
                 feature_set['calendar-color.name'] = feature_set.pop('calendar-color')
             feature_set['calendar-color'] = feature_set.pop('calendar-color.hex')
         for feature in feature_set:
+            if feature in _RENAMED_FEATURES:
+                new_name = _RENAMED_FEATURES[feature]
+                warnings.warn(
+                    f"The '{feature}' feature is deprecated - use '{new_name}'",
+                    DeprecationWarning,
+                    stacklevel=3,
+                )
+                self._copy_feature_set({new_name: feature_set[feature]}, collapse=False)
+                continue
             if feature == 'write-delay':
                 warnings.warn(
                     "The 'write-delay' feature is deprecated - use 'synchronous-write', "
@@ -1151,6 +1223,7 @@ hence, "fragile".
         is unsupported it basically means that feature foo.bar is also
         unsupported.  Hence the extra logic visiting "nodes".
         """
+        feature = self._current_name(feature)
         feature_info = self.find_feature(feature)
         feature_ = feature
         while True:
@@ -1699,6 +1772,8 @@ zimbra = {
     ## may not be the one the server reports.
     'save-load.stable-url': {'support': 'unsupported', 'behaviour': "the object keeps the name it was stored under, but the collection moved to its display-name-derived canonical URL and the cal_id alias 404s on child objects, so an object URL constructed under the requested cal_id does not resolve"},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
+    ## Measured 2026-10-27: a set naming VTODO as well as VEVENT yields an events-only calendar.
+    'create-calendar.with-supported-component-types.multiple': {'support': 'broken', 'behaviour': "asked for VEVENT and VTODO, the calendar reports ['VEVENT', 'VFREEBUSY']"},
     'save-load.todo.recurrences.count': {'support': 'unsupported'}, ## This is a new problem?
     'save-load.journal': {'support': 'ungraceful'},
     ## One caldav-server-tester run on 2026-10-23 measured this ungraceful.
@@ -1753,6 +1828,13 @@ zimbra = {
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
+    ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
+    ## storing a component type outside the set an error.
+    "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
+    ## Measured 2026-10-26: several types are reported back as one name.
+    "create-calendar.with-supported-component-types.multiple": {"support": "broken", "behaviour": "asked for VEVENT and VTODO, the calendar reports one concatenated name, ['VEVENTVTODO']"},
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
     ## If tests are yielding unexpected results, try to increase this:
@@ -1862,6 +1944,11 @@ bedework_5_0_0 = {
     "create-calendar.with-supported-component-types": {
         "support": "unsupported",
         "behaviour": "the restriction is accepted with a 200 ok propstat and then ignored; the collection is VEVENT-only",
+    },
+    ## Measured 2026-10-26: a set of several types is ignored just the same.
+    "create-calendar.with-supported-component-types.multiple": {
+        "support": "broken",
+        "behaviour": "asked for VEVENT and VTODO, the calendar reports only VEVENT",
     },
     ## The caldav-server-tester will yield "unsupported" on tasks and journals.
     ## Bedework can store tasks on a tasklist, such task lists have been found
@@ -2115,6 +2202,9 @@ icloud = {
 ## See the synology profile above: Synology Calendar ships a modified DAViCal,
 ## so the two profiles should be kept in sync where the fork has not diverged.
 davical = {
+    ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
+    ## storing a component type outside the set an error.
+    "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     ## A fresh account comes without a calendar (observed on the docker test server)
@@ -2246,8 +2336,10 @@ sogo = {
     ## Measured 2026-09-15.
     "create-calendar.with-supported-component-types": {
         "support": "unsupported",
-        "behaviour": "the component set is ignored: a VTODO-only calendar advertises VEVENT, VFREEBUSY and VTODO, and a VEVENT can be saved to it",
+        "behaviour": "the component set is ignored: a VTODO-only calendar advertises VEVENT, VFREEBUSY and VTODO",
     },
+    ## Measured 2026-10-26: a set of several types is taken, and both types are stored.
+    "create-calendar.with-supported-component-types.multiple": {"support": "full"},
     # Ephemeral Docker container: wipe objects (delete-calendar fragile)
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
 
@@ -2294,6 +2386,8 @@ sogo = {
 #]
 
 robur = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (400)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "unsupported", "behaviour": "a second object with the same UID was stored (201)"},
     "auto-connect.url": {
@@ -2327,7 +2421,10 @@ robur = {
     'save-load.icalendar.related-to': {'support': 'unsupported'},
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     "sync-token": {"support": "ungraceful"},
-    "get-supported-components": {"support": "unsupported"},
+    "supported-components.property-exists": {"support": "unsupported"},
+    ## No property is reported, which means every type is accepted (RFC 4791
+    ## section 5.2.3), yet VJOURNAL is refused: see save-load.journal above.
+    "supported-components.honoured": {"support": "broken", "behaviour": "the calendar reports no component set, which means every type is accepted, yet a VJOURNAL is refused"},
     "save.etag": {'support': 'broken', 'behaviour': "malformed etag 'a22ccfb2985aed13f50b4991a110d32253fd99aa'"},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
@@ -2428,10 +2525,15 @@ davis = {
 }
 
 ## Apple CalendarServer (CCS) - archived 2019, Python 2/Twisted.
-## MKCALENDAR always creates VEVENT-only calendars; supported-calendar-component-set
-## cannot be changed.  The pre-provisioned "tasks" calendar supports VTODO only.
-## VJOURNAL is not supported at all.
+## MKCALENDAR creates a calendar with the one component type it is asked for;
+## a set naming several is refused.  The pre-provisioned "tasks" calendar
+## supports VTODO only.  VJOURNAL is not supported at all.
 ccs = {
+    ## Observed 2026-10-26: refused as RFC 4791 section 5.3.1.1 describes
+    "create-calendar.with-supported-component-types.multiple": {"support": "unsupported", "behaviour": "MKCALENDAR for VEVENT and VTODO answers 207 with 403 'Invalid CALDAV:supported-calendar-component-set', and no calendar is created"},
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
+    "save-load.icalendar.vtimezone": {"support": "unsupported", "behaviour": "the event comes back with TZID=Europe/Berlin but no VTIMEZONE for it"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-13: DAV:limit is refused with a 507 and
@@ -2496,6 +2598,9 @@ ccs = {
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
 ## Feature support mostly unknown until tested; starting with empty hints.
 stalwart = {
+    ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
+    ## storing a component type outside the set an error.
+    "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-11.  calendaring-sync found that it also answers a token
@@ -2598,7 +2703,8 @@ stalwart = {
     "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists the collection itself"},
     "sync-token.recreated": {"support": "quirk", "behaviour": "reported twice: as removed, then as changed"},
     "multiget.limit": {"support": "unsupported", "behaviour": "stops at WebDav.maxResults with a 507"},
-    "propfind.limit": {"support": "unsupported", "behaviour": "the whole PROPFIND answers 507 above WebDav.maxResults"},
+    "propfind.limit": {"support": "unsupported", "behaviour": "lists up to WebDav.maxResults members (50 in the docker setup), then a 507 for the collection"},
+    "search.limit": {"support": "unsupported", "behaviour": "a calendar-query stops at WebDav.maxResults with a 507"},
     "sync-token.delete.created-and-deleted": {
         "support": "unsupported",
         "behaviour": "not reported, unless a member it already had changed in the same interval",
@@ -2643,12 +2749,14 @@ purelymail = {
     ## Known, work in progress
     "scheduling": {"support": "unsupported"},
     ## Known, not a breach of standard
-    "get-supported-components": {"support": "unsupported"},
+    "supported-components.property-exists": {"support": "unsupported"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
 }
 
 gmx = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500, ical4j casts the Participant to a VAlarm)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     'auto-connect.url': {
@@ -2692,6 +2800,8 @@ gmx = {
     'create-calendar': {'support': 'fragile'},
     'create-calendar.auto': {'support': 'unsupported'},
     'create-calendar.with-supported-component-types': {'support': 'unsupported'},
+    ## Never probed: stated so the parent's hint is not read as an answer
+    'create-calendar.with-supported-component-types.multiple': {'support': 'unknown'},
     ## save.duplicate-uid.cross-calendar and save-load.mutable.attendee-partstat
     ## were once recorded as failing; that was caldav sending the weak PUT
     ## ETag as If-Match on the follow-up save, not a GMX limitation.
@@ -2740,6 +2850,12 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
+    ## Probed 2026-10-26 by caldav-server-tester
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
+    "save-load.icalendar.x-property": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER is dropped, in a task"},
+    "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
+    "save-load.todo.attendee": {"support": "broken", "behaviour": "the task is accepted, then gone (404)"},
+    "save-load.todo.completed-without-status": {"support": "unsupported", "behaviour": "COMPLETED is dropped"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     ## Probed 2026-10-11
@@ -3153,6 +3269,14 @@ def at_spelling_is_significant(features: Any) -> bool:
     encoded on the way out.
     """
     return not at_spellings_are_aliased(features)
+
+
+## Features that were renamed, old name -> new name.  _copy_feature_set
+## translates the old name with a DeprecationWarning.
+_RENAMED_FEATURES = {
+    ## Renamed after 3.6.0, when the property got an obedience sibling
+    "get-supported-components": "supported-components.property-exists",
+}
 
 
 def write_delay(features: Any, feature: str = "synchronous-write") -> float:
