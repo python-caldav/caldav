@@ -387,6 +387,46 @@ END:VCALENDAR""",
         crlf = (head + "CATEGORIES:\nCATEGORIES:foo\n" + tail).replace("\n", "\r\n")
         assert vcal.fix(crlf) == head + "CATEGORIES:foo\n" + tail
 
+    def test_drop_vtimezone_without_observances(self) -> None:
+        """A VTIMEZONE without any STANDARD or DAYLIGHT observance is dropped.
+
+        RFC 5545 section 3.6.5 requires one, but OneCalendar writes a
+        VTIMEZONE holding only a TZID, and vobject fails on the whole object
+        (https://github.com/python-caldav/caldav/issues/831).  Without it,
+        the TZID is resolved by name.
+        """
+        head = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Codespark//OneCalendar//EN\n"
+        event = (
+            "BEGIN:VEVENT\nUID:test\nDTSTAMP:20261027T000000Z\n"
+            "DTSTART;TZID=Europe/Amsterdam:20261207T130000\n"
+            "DTEND;TZID=Europe/Amsterdam:20261207T140000\n"
+            "END:VEVENT\nEND:VCALENDAR\n"
+        )
+        empty = "BEGIN:VTIMEZONE\nTZID:Europe/Amsterdam\nEND:VTIMEZONE\n"
+        fixed = vcal.fix(head + empty + event)
+        assert fixed == head + event
+        dtstart = vobject.readOne(fixed).vevent.dtstart.value
+        assert dtstart.astimezone(utc) == datetime(2026, 12, 7, 12, 0, tzinfo=utc)
+        ## servers send CRLF; fix() relies on to_normal_str normalising it
+        assert vcal.fix((head + empty + event).replace("\n", "\r\n")) == head + event
+        ## a VTIMEZONE with an observance stays, also when written in lowercase
+        vtimezone = (
+            "BEGIN:VTIMEZONE\nTZID:Europe/Amsterdam\n"
+            "BEGIN:STANDARD\nDTSTART:19701025T030000\n"
+            "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\n"
+            "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+            "END:STANDARD\nEND:VTIMEZONE\n"
+        )
+        for compliant in (vtimezone, vtimezone.replace("BEGIN:STANDARD", "begin:standard")):
+            assert vcal.fix(head + compliant + event) == head + compliant + event
+
+    def test_fix_is_linear_on_unterminated_vtimezones(self) -> None:
+        """The VTIMEZONE rule stops scanning at the next BEGIN: line."""
+        ical = "BEGIN:VCALENDAR\n" + "BEGIN:VTIMEZONE\nTZID:x\n" * 20000 + "END:VCALENDAR\n"
+        start = time.monotonic()
+        vcal.fix(ical)
+        assert time.monotonic() - start < 1, "vcal.fix() must not be quadratic"
+
     def test_fixup_warning_blames_nobody(self) -> None:
         """The fixup is logged as a warning, but the broken data may come from
         the server, the client or a library in between - don't blame one."""

@@ -101,6 +101,13 @@ def fix(event):
     stored next to the real CATEGORIES line.  Drop it.  This is a
     temporary workaround until the upstream bug is fixed.
 
+    8) A VTIMEZONE must hold at least one STANDARD or DAYLIGHT
+    observance (RFC 5545 section 3.6.5), but OneCalendar writes one
+    with only a TZID, and vobject fails on the whole object
+    (https://github.com/python-caldav/caldav/issues/831, upstream fix
+    proposed in https://github.com/py-vobject/vobject/pull/150).  Drop
+    it; the TZID is then resolved by name.
+
     All logic here is done with on the ical string, and not on
     icalendar objects.  There are two reasons for it, originally
     optimization (not having to parse the icalendar data and create an
@@ -136,6 +143,15 @@ def fix(event):
     ## 7) drop empty CATEGORIES lines (not followed by a folded continuation).
     ## Temporary workaround for https://github.com/collective/icalendar/issues/1722
     fixed = re.sub(r"^CATEGORIES(?:;[^:\n]*)?:\r?\n(?![ \t])", "", fixed, flags=re.MULTILINE)
+
+    ## 8) drop a VTIMEZONE without STANDARD or DAYLIGHT.  Stopping at any
+    ## BEGIN: line keeps an observance in, and keeps the scan linear.
+    fixed = re.sub(
+        r"^BEGIN:VTIMEZONE\r?\n(?:(?!BEGIN:)[^\n]*\n)*?END:VTIMEZONE\r?\n",
+        "",
+        fixed,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
 
     ## 6) add DTSTAMP if not given
     ## (corner case that DTSTAMP is given in one but not all the recurrences is ignored)
