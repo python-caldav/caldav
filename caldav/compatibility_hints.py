@@ -706,6 +706,11 @@ hence, "fragile".
             "description": "According to RFC4791 the search done should be a substring search.  The search.text.substring feature is set if the calendar server does this (as opposed to only return full matches).  Substring matches does not always make sense, but it's mandated by the RFC.  When a server does a substring match on some properties but an exact match on others, the support should be marked as fragile.  Except for categories, which are handled in search.text.category.substring",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7.5"],
         },
+        "search.text.uid": {
+            "description": "A calendar-query with a UID prop-filter works.  'unsupported' when the filter is ignored and the whole calendar comes back; 'ungraceful' or 'broken' when the query fails (iCloud answers any UID filter with 412) or answers wrongly.  Independent of search.text: a server may do text searches on other properties and still fail on UID.  See https://github.com/python-caldav/caldav/issues/783",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.7"],
+        },
         "search.text.category": {
             "description": "Search for category should work.  This is not explicitly specified in RFC4791, but covered in section 9.7.5.  No examples targets categories explicitly, but there are some text match examples in section 7.8.6 and following sections",
             ## Independent feature (directly probed): the default marks it so the
@@ -2176,6 +2181,7 @@ icloud = {
     },
     'save.duplicate-uid.cross-calendar': {'support': 'ungraceful', 'behaviour': 'PUT refused'},
     'scheduling.schedule-tag': {'support': 'unsupported', 'behaviour': 'no Schedule-Tag returned on GET or via PROPFIND'},
+    'search.text.uid': {'support': 'ungraceful', 'behaviour': 'any UID filter in a calendar-query is answered with 412 (#783)'},
     ## 2026-10-14: on another account, is-not-defined.category/class and
     ## search.text.case-* found nothing (an empty 207) in two tester runs, and
     ## SUMMARY and CATEGORIES filters by hand did not either, also 30 minutes
