@@ -8194,6 +8194,16 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
         assert [m for m, _ in sent] == ["PUT"]
         assert sent[-1][1]["if-none-match"] == "*"
 
+    @pytest.mark.parametrize("support", ["unsupported", "broken", "ungraceful"])
+    def test_uid_lookup_kept_where_uid_search_fails(self, base, support) -> None:
+        """If-None-Match only guards the URL: without no-uid-conflict a
+        UID under another filename must still be looked for, by GET and
+        a scan where the UID search itself fails."""
+        client, sent = self._client(base, features={"search.text.uid": {"support": support}})
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["GET", "REPORT", "PUT"]
+        assert sent[-1][1]["if-none-match"] == "*"
+
     def test_plain_save_sends_no_if_none_match(self, base) -> None:
         client, sent = self._client(base, features=self.NO_UID_CONFLICT)
         self._run(self._event(client).save())
