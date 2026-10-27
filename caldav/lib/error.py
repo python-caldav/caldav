@@ -143,6 +143,24 @@ class DAVError(Exception):
         )
 
 
+def _parse_dav_error(body: object):
+    """The root element of a ``DAV:error`` body, or None if it is not one."""
+    if isinstance(body, str):
+        body = body.encode("utf-8")
+    if not isinstance(body, bytes) or not body.strip():
+        return None
+    from lxml import etree
+
+    try:
+        root = etree.fromstring(
+            body,
+            parser=etree.XMLParser(resolve_entities=False, no_network=True),
+        )
+    except Exception:
+        return None
+    return root if root.tag == "{DAV:}error" else None
+
+
 def parse_preconditions(body: object) -> list[str]:
     """Return the precondition/postcondition element tags of a DAV:error body.
 
@@ -152,20 +170,8 @@ def parse_preconditions(body: object) -> list[str]:
     Anything that is not a well-formed DAV:error document - an empty body, HTML,
     plain text, some other XML root - yields an empty list rather than an error.
     """
-    if isinstance(body, str):
-        body = body.encode("utf-8")
-    if not isinstance(body, bytes) or not body.strip():
-        return []
-    from lxml import etree
-
-    try:
-        root = etree.fromstring(
-            body,
-            parser=etree.XMLParser(resolve_entities=False, no_network=True),
-        )
-    except Exception:
-        return []
-    if root.tag != "{DAV:}error":
+    root = _parse_dav_error(body)
+    if root is None:
         return []
     return [child.tag for child in root if isinstance(child.tag, str)]
 
@@ -255,7 +261,25 @@ class UidConflictError(PutError):
     Where earlier versions raised another error for the same answer, a
     subclass that is also that error is raised instead
     (``UID_CONFLICT_ERRORS``), so existing handlers keep catching it.
+
+    ``href`` is the object that holds the UID, where the server names it
+    (RFC 4791 section 5.3.2.1 and RFC 6638 section 3.2.4.1 allow a
+    ``DAV:href`` inside the precondition element).  It is as the server
+    sent it - usually a path, not resolved against ``url``.  Many servers
+    name none, and then it is None.
     """
+
+    @property
+    def href(self) -> str | None:
+        root = _parse_dav_error(self.body)
+        if root is None:
+            return None
+        for child in root:
+            if child.tag in UID_CONFLICT_PRECONDITIONS:
+                for h in child.iterfind("{DAV:}href"):
+                    if href := (h.text or "").strip():
+                        return href
+        return None
 
 
 class DeleteError(DAVError):

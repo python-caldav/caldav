@@ -7850,7 +7850,25 @@ class TestPreconditionsOnOtherStatuses:
         assert isinstance(exc_info.value, error.PutError)
         assert exc_info.value.preconditions == ["{urn:ietf:params:xml:ns:caldav}no-uid-conflict"]
         assert exc_info.value.body
+        assert exc_info.value.href == "/dav/user/mycal/other.ics"
         assert [m for m, _ in sent] == ["PUT"]
+
+    def test_uid_conflict_href_is_optional(self) -> None:
+        """The holder's href is only a "may": none is not an error."""
+        for body in (None, b"", b"<<<", b"<html/>", UNIQUE_SCHEDULING_BODY, LOCK_TOKEN_BODY):
+            assert error.UidConflictError("/x", body=body).href is None
+
+    def test_uid_conflict_href_variants(self) -> None:
+        """str bodies, unique-scheduling-object-resource (RFC 6638), blank
+        hrefs and surrounding whitespace."""
+        ns = b'<D:error xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+        for tag in (b"no-uid-conflict", b"unique-scheduling-object-resource"):
+            body = ns + b"<C:" + tag + b"><D:href> </D:href><D:href> /b.ics </D:href></C:" + tag
+            body += b"></D:error>"
+            assert error.UidConflictError("/x", body=body).href == "/b.ics"
+        assert error.UidConflictError("/x", body=NO_UID_CONFLICT_BODY.decode()).href == (
+            "/dav/user/mycal/other.ics"
+        )
 
     def test_put_412_uid_conflict_with_schedule_tag(self, base) -> None:
         client, _ = self._client(base, 412, NO_UID_CONFLICT_BODY)
