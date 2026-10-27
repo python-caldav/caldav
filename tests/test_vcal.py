@@ -420,6 +420,29 @@ END:VCALENDAR""",
         for compliant in (vtimezone, vtimezone.replace("BEGIN:STANDARD", "begin:standard")):
             assert vcal.fix(head + compliant + event) == head + compliant + event
 
+    def test_drop_vtimezone_without_observances_edge_cases(self) -> None:
+        """Only the empty VTIMEZONE goes; folded lines and X- components don't fool the rule."""
+        head = "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
+        tail = "BEGIN:VEVENT\nUID:test\nDTSTAMP:20261027T000000Z\nEND:VEVENT\nEND:VCALENDAR\n"
+        empty = "BEGIN:VTIMEZONE\nTZID:Europe/Amsterdam\nEND:VTIMEZONE\n"
+        valid = (
+            "BEGIN:VTIMEZONE\nTZID:Europe/Oslo\n"
+            "BEGIN:STANDARD\nDTSTART:19701025T030000\n"
+            "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+            "END:STANDARD\nEND:VTIMEZONE\n"
+        )
+        ## an empty VTIMEZONE next to a valid one: only the empty one is dropped
+        assert vcal.fix(head + empty + valid + tail) == head + valid + tail
+        assert vcal.fix(head + valid + empty + tail) == head + valid + tail
+        ## a folded line is part of its property, even if it looks like BEGIN:STANDARD
+        folded = (
+            "BEGIN:VTIMEZONE\nTZID:Europe/Amsterdam\nX-NOTE:foo\n BEGIN:STANDARD\nEND:VTIMEZONE\n"
+        )
+        assert vcal.fix(head + folded + tail) == head + tail
+        ## a VTIMEZONE holding only an X- component is not touched
+        xcomp = "BEGIN:VTIMEZONE\nTZID:x\nBEGIN:X-FOO\nEND:X-FOO\nEND:VTIMEZONE\n"
+        assert vcal.fix(head + xcomp + tail) == head + xcomp + tail
+
     def test_fix_is_linear_on_unterminated_vtimezones(self) -> None:
         """The VTIMEZONE rule stops scanning at the next BEGIN: line."""
         ical = "BEGIN:VCALENDAR\n" + "BEGIN:VTIMEZONE\nTZID:x\n" * 20000 + "END:VCALENDAR\n"
