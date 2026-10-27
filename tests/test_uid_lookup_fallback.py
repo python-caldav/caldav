@@ -371,13 +371,22 @@ class TestUidLookupFallbackAsyncErrors:
         assert "412" in str(excinfo.value.__cause__)
 
 
-class TestInheritedFeature:
-    """search.text.uid is usually not configured itself but inherited."""
+class TestMeasuredProfiles:
+    """The profiles say what the tester measured: Robur ignores the UID
+    filter, while Zimbra and Bedework search by UID although they do not
+    search text."""
 
-    @pytest.mark.parametrize("profile", ["robur", "bedework_3_10_3"])
-    def test_profiles_without_text_search_skip_the_search(self, profile):
+    def test_robur_skips_the_search(self):
         from caldav import compatibility_hints
 
-        cal = calendar([NOT_FOUND, SCAN_ANSWER], features=getattr(compatibility_hints, profile))
+        cal = calendar([NOT_FOUND, SCAN_ANSWER], features=compatibility_hints.robur)
         assert cal.get_event_by_uid(UID).id == UID
         assert methods(cal) == ["GET", "REPORT"]
+
+    @pytest.mark.parametrize("profile", ["zimbra", "bedework_3_10_3", "bedework_5_0_0"])
+    def test_profiles_with_a_working_uid_search_keep_it(self, profile):
+        from caldav import compatibility_hints
+
+        cal = calendar([SCAN_ANSWER], features=getattr(compatibility_hints, profile))
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["REPORT"]

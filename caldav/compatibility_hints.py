@@ -1710,6 +1710,8 @@ ecloud = nextcloud | {
 
 ## Zimbra is not very good at it's caldav support
 zimbra = {
+    ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
+    'search.text.uid': {'support': 'full'},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
     ## Observed by testCancelSingleRecurrence, 2026-10-20
@@ -1836,6 +1838,8 @@ zimbra = {
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
+    ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
+    "search.text.uid": {"support": "full"},
     ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
     ## storing a component type outside the set an error.
     "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
@@ -1914,6 +1918,8 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
+    ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
+    "search.text.uid": {"support": "full"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
     ## Writes are asynchronous: a read-back issued immediately after a PUT may
@@ -2395,6 +2401,8 @@ sogo = {
 #]
 
 robur = {
+    ## Measured with caldav-server-tester, 2026-10-27.
+    "search.text.uid": {"support": "unsupported", "behaviour": "objects not matching the UID come back"},
     ## Probed 2026-10-26 by caldav-server-tester
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (400)"},
     ## Measured with caldav-server-tester, 2026-10-19.
