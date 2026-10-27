@@ -295,3 +295,48 @@ class TestUidLookupFeature:
         with pytest.raises(error.NotFoundError):
             asyncio.run(cal.get_event_by_uid(UID))
         assert methods(cal) == ["REPORT", "GET"]
+
+
+FORCES_UID_ICS = {"save-load.stable-url": {"support": "unsupported", "forces_uid_ics": True}}
+
+
+class TestUidIcsEnforced:
+    """A server that always names an object <uid>.ics has nothing for the
+    full scan to find when the GET misses."""
+
+    @pytest.mark.parametrize("miss", [NOT_FOUND, (410, "")])
+    def test_no_scan_when_get_misses(self, miss):
+        cal = calendar([PRECONDITION_FAILED, miss], features=FORCES_UID_ICS)
+        with pytest.raises(error.NotFoundError):
+            cal.get_event_by_uid(UID)
+        assert methods(cal) == ["REPORT", "GET"]
+
+    def test_no_scan_when_search_is_skipped(self):
+        cal = calendar([NOT_FOUND], features={**FORCES_UID_ICS, **uid_feature("ungraceful")})
+        with pytest.raises(error.NotFoundError):
+            cal.get_event_by_uid(UID)
+        assert methods(cal) == ["GET"]
+
+    @pytest.mark.parametrize("is_async", [False, True])
+    def test_get_miss_is_conclusive_after_other_search_failure(self, is_async):
+        """The GET miss decides, not the search error."""
+        cal = calendar([SERVER_ERROR, NOT_FOUND], features=FORCES_UID_ICS, is_async=is_async)
+        with pytest.raises(error.NotFoundError):
+            asyncio.run(cal.get_event_by_uid(UID)) if is_async else cal.get_event_by_uid(UID)
+        assert methods(cal) == ["REPORT", "GET"]
+
+    def test_scan_when_get_fails_otherwise(self):
+        cal = calendar([PRECONDITION_FAILED, SERVER_ERROR, SCAN_ANSWER], features=FORCES_UID_ICS)
+        assert cal.get_event_by_uid(UID).id == UID
+        assert methods(cal) == ["REPORT", "GET", "REPORT"]
+
+    def test_scan_when_not_enforced(self):
+        features = {"save-load.stable-url": {"support": "unsupported"}}
+        cal = calendar([PRECONDITION_FAILED, NOT_FOUND, SCAN_ANSWER], features=features)
+        assert cal.get_event_by_uid(UID).id == UID
+
+    def test_async_no_scan_when_get_misses(self):
+        cal = calendar([PRECONDITION_FAILED, NOT_FOUND], features=FORCES_UID_ICS, is_async=True)
+        with pytest.raises(error.NotFoundError):
+            asyncio.run(cal.get_event_by_uid(UID))
+        assert methods(cal) == ["REPORT", "GET"]

@@ -2157,7 +2157,8 @@ class Calendar(DAVObject):
         skipped.  Should the object not be found that way, and the
         search failed with 412 or is known to fail, the object is found
         among all objects of the type - a download of the whole calendar
-        for every missing UID.
+        for every missing UID - unless the server is known to name every
+        object ``<uid>.ics`` (``forces_uid_ics`` on ``save-load.stable-url``).
 
         Returns:
          CalendarObjectResource (Event, Todo, or Journal)
@@ -2256,6 +2257,15 @@ class Calendar(DAVObject):
             try:
                 response = yield ("request", url)
                 found = self._uid_fallback_object(url, response, uid, comp_class)
+                if (
+                    found is None
+                    and response.status in (404, 410)
+                    and self.client.features.is_supported(
+                        "save-load.stable-url", return_type=dict
+                    ).get("forces_uid_ics")
+                ):
+                    ## the server names every object <uid>.ics: nothing to scan for
+                    scan = False
             except error.RateLimitError:
                 raise
             except error.DAVError:
