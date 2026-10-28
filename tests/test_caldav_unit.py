@@ -8583,6 +8583,16 @@ class TestUidConflictBareStatus(_SaveRequests):
         node = fs.is_supported("save.no-uid-conflict.if-none-match", return_type=dict)
         assert node["status"] == 409
 
+    @pytest.mark.parametrize("server", ["sogo", "purelymail"])
+    def test_href_given_not_inherited_where_unprobed(self, server) -> None:
+        """A refusal without the precondition has no href to read: the
+        child must not take the parent's level."""
+        from caldav import compatibility_hints
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet(getattr(compatibility_hints, server))
+        assert fs.is_supported("save.no-uid-conflict.href-given", return_type=str) == "unknown"
+
     @pytest.mark.parametrize("server", ["bedework_3_10_3", "bedework_5_0_0"])
     def test_hints_of_bedework(self, server) -> None:
         from caldav import compatibility_hints

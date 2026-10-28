@@ -961,7 +961,10 @@ hence, "fragile".
                 "Where the server refuses a duplicate UID with the precondition, the precondition "
                 "element names the object holding the UID in a DAV:href, as RFC 4791 section 5.3.2.1 "
                 "says it SHOULD; UidConflictError.href gives it, and is None where it is not given.  "
-                "Nothing in the library depends on it.  Only probed where the precondition is given."
+                "Nothing in the library depends on it.  Only probed where the precondition is given.  "
+                "Where a profile states the parent, this one inherits the parent's level rather than "
+                "its own default, so state it too ('unknown' where the refusal has no "
+                "precondition to read an href from)."
             ),
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2.1"],
@@ -2343,6 +2346,7 @@ synology = davical | {
 sogo = {
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "quirk", "status": 409, "precondition": False, "behaviour": "refused with a bare 409"},
+    "save.no-uid-conflict.href-given": {"support": "unknown"},
     "scheduling.schedule-tag": False,
     "scheduling.mailbox.inbox-delivery": False,
     ## SOGo rejects calendar-color set as a colour name, but takes a hex
@@ -2685,6 +2689,8 @@ stalwart = {
     "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "quirk", "status": 412, "precondition": True, "behaviour": "refused with 412 and the precondition"},
+    ## Spelled out: unset, it would be the parent's 'quirk'.
+    "save.no-uid-conflict.href-given": {"support": "full"},
     ## Probed 2026-10-11.  calendaring-sync found that it also answers a token
     ## whose history is gone with a partial report and no error.
     "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
@@ -2797,6 +2803,7 @@ stalwart = {
 purelymail = {
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with 403, with no-uid-conflict in the CardDAV namespace"},
+    "save.no-uid-conflict.href-given": {"support": "unknown"},
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
     ## A plain listing reflects a new, edited, completed or deleted object at
@@ -2841,6 +2848,7 @@ gmx = {
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500, ical4j casts the Participant to a VAlarm)"},
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "full"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
     'auto-connect.url': {
         'scheme': 'https',
         'domain': 'caldav.gmx.net',
