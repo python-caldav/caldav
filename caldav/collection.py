@@ -977,6 +977,9 @@ class Calendar(DAVObject):
             root=mkcol, query_method=method, url=path, expected_return_value=_CREATED_STATUSES
         )
         _assert_created(response, method)
+        if isinstance(getattr(response, "redirected_to", None), URL):
+            ## Created at the Location of a redirect
+            self.url = response.redirected_to
 
         if creation_delay:
             self._wait_until(self._exists, creation_delay, "the new calendar to appear")
@@ -1103,6 +1106,9 @@ class Calendar(DAVObject):
             root=mkcol, query_method=method, url=path, expected_return_value=_CREATED_STATUSES
         )
         _assert_created(response, method)
+        if isinstance(getattr(response, "redirected_to", None), URL):
+            ## Created at the Location of a redirect
+            self.url = response.redirected_to
 
         if creation_delay:
             await self._async_wait_until(

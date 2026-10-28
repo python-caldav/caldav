@@ -292,6 +292,9 @@ class DAVResponse:
     huge_tree: bool = False
     reason: str = ""
     davclient: Any = None
+    ## Where the request ended up, when the client repeated it at the
+    ## Location of a redirect (``BaseDAVClient._redirect_target()``)
+    redirected_to: Any = None
     results: list[PropfindResult | CalendarQueryResult] | None = None
     _sync_token: str | None = None
     #: href of the RFC 6578 section 3.6 truncation marker, if the reply had one
