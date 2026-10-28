@@ -904,8 +904,66 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2", "https://datatracker.ietf.org/doc/html/rfc4791#section-2", "https://datatracker.ietf.org/doc/html/rfc2616#section-14.26", "https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.2"],
         },
         "save.no-uid-conflict": {
-            "description": "A PUT of an object whose UID another object resource in the same calendar already holds is refused (RFC 4791 section 5.3.2.1, precondition CALDAV:no-uid-conflict; the library raises UidConflictError).  The RFC requires it, but whether a server does is only known where it was observed, hence the default 'unknown'.  'ungraceful': refused, but without a precondition the library recognises, so it cannot tell the refusal from any other failed PUT.  When 'full' and save.if-none-match holds, save(no_overwrite=True) skips the UID search before the PUT: If-None-Match: * covers the same URL, and this covers the same UID under another URL.",
+            "description": (
+                "The server refuses to store two objects with the same UID in one calendar.  RFC 4791 "
+                "section 5.3.2.1 says it MUST: a PUT of an object whose UID another object in the "
+                "calendar already has is refused, with the precondition CALDAV:no-uid-conflict in the "
+                "error body (for a scheduling object RFC 6638 section 3.2.4.1's "
+                "CALDAV:unique-scheduling-object-resource does as well), and the library raises "
+                "UidConflictError.  Graded by a plain PUT, without conditional headers; for one "
+                "carrying If-None-Match: *, see the child feature.  "
+                "'full': refused with 403 or 409 and the precondition.  "
+                "'quirk': refused otherwise, but in a way the library still recognises.  The extra key "
+                "'status' is the HTTP status, 'precondition' whether the body names the precondition.  "
+                "With the precondition (412 from Xandikos and Stalwart) the library goes by the body.  "
+                "Without it, the status alone could mean something else, so the library takes it for "
+                "a UID conflict only where the PUT carried no conditional header except "
+                "If-None-Match: *, and a GET then finds nothing at the URL - which takes a server "
+                "answering 404 for a missing object (non-existing-raises-not-found.object), and a "
+                "status other than 403.  The caldav-server-tester "
+                "grades a bare status 'quirk' only after checking that nothing was stored at the URL, "
+                "and that the same PUT with another UID goes through.  "
+                "'ungraceful': refused, but not recognisably - a bare 403, which a read-only calendar "
+                "answers too, or a refusal the tester could not confirm.  The library then raises "
+                "what the status gives, not UidConflictError.  "
+                "'unsupported': the duplicate is stored.  "
+                "Where the duplicate is refused at all ('full', 'quirk' or 'ungraceful'), "
+                "save(no_overwrite=True) only has to guard the URL, and leaves out its search for the "
+                "UID, which may download the whole calendar: it sends If-None-Match: * (where "
+                "save.if-none-match holds), or else GETs the URL first (where save-load.stable-url "
+                "holds).  "
+                "The default is 'unknown' rather than the 'full' the RFC asks for, since a wrong "
+                "'full' is harmful: save(no_overwrite=True) would leave out the search, and on one of "
+                "the several servers that store duplicates, silently store one."
+            ),
             "default": {"support": "unknown"},
+            "extra_keys": {
+                "status": "quirk: the HTTP status the server refuses with",
+                "precondition": "quirk: whether the error body names the precondition",
+            },
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2.1", "https://datatracker.ietf.org/doc/html/rfc6638#section-3.2.4.1"],
+        },
+        "save.no-uid-conflict.if-none-match": {
+            "description": (
+                "save.no-uid-conflict for a PUT carrying If-None-Match: *, as save(no_overwrite=True) "
+                "sends it, with the same grades and extra keys.  A server may answer it otherwise: "
+                "Bedework refuses a plain PUT with 403 CALDAV:no-uid-conflict, but this one with a bare "
+                "412.  Where it is not stated, it is what save.no-uid-conflict says."
+            ),
+            "default": {"support": "unknown"},
+            "extra_keys": {
+                "status": "quirk: the HTTP status the server refuses with",
+                "precondition": "quirk: whether the error body names the precondition",
+            },
+        },
+        "save.no-uid-conflict.href-given": {
+            "description": (
+                "Where the server refuses a duplicate UID with the precondition, the precondition "
+                "element names the object holding the UID in a DAV:href, as RFC 4791 section 5.3.2.1 "
+                "says it SHOULD; UidConflictError.href gives it, and is None where it is not given.  "
+                "Nothing in the library depends on it.  Only probed where the precondition is given."
+            ),
+            "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2.1"],
         },
         "delete": {"description": "Deleting a calendar object resource.  Deleting a whole calendar is delete-calendar."},
@@ -1544,9 +1602,9 @@ xandikos = {
         "support": "broken",
         "behaviour": "the reply is cut at DAV:limit without a 507, and the token skips the rest",
     },
-    ## A second object with a UID already in the calendar is refused with 412
-    ## CALDAV:no-uid-conflict (testNoOverwriteSameUidOtherUrl, 2026-10-19).
-    "save.no-uid-conflict": {"support": "full"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save.no-uid-conflict": {"support": "quirk", "status": 412, "precondition": True, "behaviour": "refused with 412 and the precondition"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
     ## Probed 2026-10-21 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
@@ -1573,9 +1631,9 @@ radicale = {
         "support": "unsupported",
         "behaviour": "If-Match: * is compared as a literal etag: an overwrite of an existing object is refused with 412",
     },
-    ## A second object with a UID already in the calendar is refused with 409
-    ## CALDAV:no-uid-conflict (testNoOverwriteSameUidOtherUrl on 3.8.3, 2026-10-19).
+    ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
     "search.recurrences.includes-implicit.todo.pending": {"support": "fragile", "behaviour": "inconsistent results between runs"},
     "search.recurrences.expanded.todo": {"support": "unsupported"},
     "search.recurrences.expanded.exception": {"support": "full"},
@@ -1847,8 +1905,10 @@ bedework_3_10_3 = {
     "create-calendar.with-supported-component-types.multiple": {"support": "broken", "behaviour": "asked for VEVENT and VTODO, the calendar reports one concatenated name, ['VEVENTVTODO']"},
     ## Probed 2026-10-26 by caldav-server-tester
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
-    ## Measured with caldav-server-tester, 2026-10-19.
-    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save.no-uid-conflict": {"support": "full"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
+    "save.no-uid-conflict.if-none-match": {"support": "quirk", "status": 412, "precondition": False},
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.calendar-user-address-set': {'support': 'full'},
@@ -1920,8 +1980,10 @@ bedework_3_10_3 = {
 bedework_5_0_0 = {
     ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
     "search.text.uid": {"support": "full"},
-    ## Measured with caldav-server-tester, 2026-10-19.
-    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with a bare 412 when the PUT carries If-None-Match: *"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save.no-uid-conflict": {"support": "full"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
+    "save.no-uid-conflict.if-none-match": {"support": "quirk", "status": 412, "precondition": False},
     ## Writes are asynchronous: a read-back issued immediately after a PUT may
     ## 404 or hand back the pre-write copy.  However, in some cases the
     ## delay is small and varies, sometimes the caldav-server-tester tool will
@@ -2165,6 +2227,8 @@ cyrus = {
 ## The 401 offers 'X-MobileMe-AuthToken realm="MMCalDav", Basic realm="MMCalDav"'
 ## - Basic, with an app-specific password, is what works.
 icloud = {
+    ## Measured with caldav-server-tester, 2026-10-28; a plain PUT was not probed.
+    "save.no-uid-conflict.if-none-match": {"support": "quirk", "status": 412, "precondition": False},
     'auto-connect.url': {
         'scheme': 'https',
         'domain': 'caldav.icloud.com',
@@ -2277,8 +2341,8 @@ synology = davical | {
 }
 
 sogo = {
-    ## Measured with caldav-server-tester, 2026-10-19.
-    "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with 409, without the CALDAV:no-uid-conflict precondition"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save.no-uid-conflict": {"support": "quirk", "status": 409, "precondition": False, "behaviour": "refused with a bare 409"},
     "scheduling.schedule-tag": False,
     "scheduling.mailbox.inbox-delivery": False,
     ## SOGo rejects calendar-color set as a colour name, but takes a hex
@@ -2551,8 +2615,9 @@ ccs = {
     ## Probed 2026-10-26 by caldav-server-tester
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
     "save-load.icalendar.vtimezone": {"support": "unsupported", "behaviour": "the event comes back with TZID=Europe/Berlin but no VTIMEZONE for it"},
-    ## Measured with caldav-server-tester, 2026-10-19.
+    ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
     ## Probed 2026-10-13: DAV:limit is refused with a 507 and
     ## number-of-matches-within-limits ("Report limit not supported"), as
     ## RFC 6578 section 3.7 says
@@ -2618,8 +2683,8 @@ stalwart = {
     ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
     ## storing a component type outside the set an error.
     "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
-    ## Measured with caldav-server-tester, 2026-10-19.
-    "save.no-uid-conflict": {"support": "full"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save.no-uid-conflict": {"support": "quirk", "status": 412, "precondition": True, "behaviour": "refused with 412 and the precondition"},
     ## Probed 2026-10-11.  calendaring-sync found that it also answers a token
     ## whose history is gone with a partial report and no error.
     "sync-token.invalid-token": {"support": "broken", "behaviour": "'http://example.invalid/never-issued': 207, no error; '0000000000000000000000000000000000000000': 207, no error"},
@@ -2873,8 +2938,9 @@ ox = {
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.todo.attendee": {"support": "broken", "behaviour": "the task is accepted, then gone (404)"},
     "save-load.todo.completed-without-status": {"support": "unsupported", "behaviour": "COMPLETED is dropped"},
-    ## Measured with caldav-server-tester, 2026-10-19.
+    ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
+    "save.no-uid-conflict.href-given": {"support": "unsupported"},
     ## Probed 2026-10-11
     "sync-token.invalid-token": {"support": "broken", "behaviour": "'0000000000000000000000000000000000000000': 207, no error"},
     ## Renaming a calendar after creation via PROPPATCH is not supported, but
