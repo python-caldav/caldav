@@ -2823,10 +2823,10 @@ END:VCALENDAR"""
             nonlocal saved
             saved = True
 
-        todo._async_put = fake_async_put
+        todo._async_send_put = fake_async_put
         asyncio.run(todo.uncomplete())
 
-        assert saved, "uncomplete() did not call _async_put for async client"
+        assert saved, "uncomplete() did not PUT for async client"
         assert todo.icalendar_component.get("STATUS") == "NEEDS-ACTION"
         assert "COMPLETED" not in todo.icalendar_component
 
@@ -8024,7 +8024,14 @@ class _SaveRequests:
         return AsyncDAVClient
 
     def _client(
-        self, base, put_status=201, put_body=b"", features=None, exc=None, report=EMPTY_MULTISTATUS
+        self,
+        base,
+        put_status=201,
+        put_body=b"",
+        features=None,
+        exc=None,
+        report=EMPTY_MULTISTATUS,
+        get_status=None,
     ):
         sent = []
         client = base(url="http://cal.example.com/dav/", features=features)
@@ -8036,6 +8043,8 @@ class _SaveRequests:
                 if exc is not None:
                     raise exc
                 status, body = put_status, put_body
+            elif method == "GET" and get_status is not None:
+                status, body = get_status, b""
             else:
                 status, body = 207, report
             resp = mock.MagicMock()
@@ -8212,6 +8221,16 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
         assert [m for m, _ in sent] == ["PUT"]
         assert sent[-1][1]["if-none-match"] == "*"
 
+    @pytest.mark.parametrize("support", ["unsupported", "broken", "ungraceful"])
+    def test_uid_lookup_kept_where_uid_search_fails(self, base, support) -> None:
+        """If-None-Match only guards the URL: without no-uid-conflict a
+        UID under another filename must still be looked for, by GET and
+        a scan where the UID search itself fails."""
+        client, sent = self._client(base, features={"search.text.uid": {"support": support}})
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["GET", "REPORT", "PUT"]
+        assert sent[-1][1]["if-none-match"] == "*"
+
     def test_plain_save_sends_no_if_none_match(self, base) -> None:
         client, sent = self._client(base, features=self.NO_UID_CONFLICT)
         self._run(self._event(client).save())
@@ -8285,15 +8304,121 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
 
     def test_server_ignoring_if_none_match_keeps_search(self, base) -> None:
         """Where If-None-Match: * is known to overwrite (Zimbra, SOGo) the
-        old search-then-PUT is kept, and the header is not sent."""
+        header is not sent.  Where the server may also take a duplicate
+        UID, the old search-then-PUT is kept."""
         features = {
             "save.if-none-match": {"support": "unsupported"},
-            "save.no-uid-conflict": {"support": "full"},
+            "save.no-uid-conflict": {"support": "unsupported"},
         }
         client, sent = self._client(base, features=features)
         self._run(self._event(client).save(no_overwrite=True))
         assert [m for m, _ in sent] == ["REPORT", "PUT"]
         assert "if-none-match" not in sent[-1][1]
+
+    IGNORES_IF_NONE_MATCH = {"save.if-none-match": {"support": "unsupported"}}
+
+    @pytest.mark.parametrize("support", ["full", "quirk", "ungraceful"])
+    def test_server_ignoring_if_none_match_gets_url(self, base, support) -> None:
+        """Where the server refuses a duplicate UID, only the URL needs
+        guarding, and a GET of it does that instead of the search."""
+        features = self.IGNORES_IF_NONE_MATCH | {"save.no-uid-conflict": {"support": support}}
+        client, sent = self._client(base, features=features, get_status=404)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["GET", "PUT"]
+        assert "if-none-match" not in sent[-1][1]
+
+    def test_server_ignoring_if_none_match_url_taken(self, base) -> None:
+        features = self.IGNORES_IF_NONE_MATCH | self.NO_UID_CONFLICT
+        client, sent = self._client(base, features=features, get_status=200)
+        with pytest.raises(error.ConsistencyError) as exc_info:
+            self._run(self._event(client).save(no_overwrite=True))
+        assert not isinstance(exc_info.value, error.UidConflictError)
+        assert [m for m, _ in sent] == ["GET"]
+
+    def test_server_ignoring_if_none_match_unstable_url_keeps_search(self, base) -> None:
+        """Zimbra: a GET of a constructed URL may 404 on an existing object."""
+        features = (
+            self.IGNORES_IF_NONE_MATCH
+            | self.NO_UID_CONFLICT
+            | {"save-load.stable-url": {"support": "unsupported"}}
+        )
+        client, sent = self._client(base, features=features)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+
+    @pytest.mark.parametrize("get_status", [403, 500])
+    def test_server_ignoring_if_none_match_get_fails(self, base, get_status) -> None:
+        """A GET that does not find the object does not stop the save."""
+        features = self.IGNORES_IF_NONE_MATCH | self.NO_UID_CONFLICT
+        client, sent = self._client(base, features=features, get_status=get_status)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["GET", "PUT"]
+
+    def test_server_ignoring_if_none_match_recurrence_instance_searches(self, base) -> None:
+        features = self.IGNORES_IF_NONE_MATCH | self.NO_UID_CONFLICT
+        client, sent = self._client(base, features=features, get_status=404)
+        instance = ev1.replace("DTSTART", "RECURRENCE-ID:20060714T170000Z\nDTSTART", 1)
+        self._run(
+            self._event(client, data=instance).save(no_overwrite=True, only_this_recurrence=None)
+        )
+        assert [m for m, _ in sent][0] == "REPORT"
+        assert "GET" not in [m for m, _ in sent]
+
+    def test_no_create_etag_uid_conflict_stays_etag_mismatch(self, base) -> None:
+        """Issue https://github.com/python-caldav/caldav/issues/756: a 412
+        no-uid-conflict to If-Match is still an ETagMismatchError."""
+        client, sent = self._client(
+            base,
+            put_status=412,
+            put_body=NO_UID_CONFLICT_BODY,
+            features=self.NO_UID_CONFLICT,
+            report=EV1_MULTISTATUS,
+        )
+        event = self._event(client, etag='"etag-a"')
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(event.save(no_create=True))
+        assert isinstance(exc_info.value, error.ETagMismatchError)
+
+    def test_search_missing_a_duplicate_server_refusal_is_consistency_error(self, base) -> None:
+        """Zimbra: no wildcard and an unstable URL, so the search runs.
+        A duplicate it misses (a race, a lazy index) is refused by the
+        server, and that is still the ConsistencyError no_overwrite gives."""
+        features = (
+            self.IGNORES_IF_NONE_MATCH
+            | self.NO_UID_CONFLICT
+            | {"save-load.stable-url": {"support": "unsupported"}}
+        )
+        client, sent = self._client(
+            base, put_status=409, put_body=NO_UID_CONFLICT_BODY, features=features
+        )
+        with pytest.raises(error.UidConflictConsistencyError):
+            self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+
+    def test_no_create_search_path_uid_conflict_is_consistency_error(self, base) -> None:
+        """save(no_create=True) where If-Match: * cannot be used searches;
+        the server's refusal of the UID is a ConsistencyError there too."""
+        features = {"save-load.mutable.if-match-wildcard": {"support": "unsupported"}}
+        client, sent = self._client(
+            base,
+            put_status=409,
+            put_body=NO_UID_CONFLICT_BODY,
+            features=features,
+            report=EV1_MULTISTATUS,
+        )
+        with pytest.raises(error.UidConflictConsistencyError):
+            self._run(self._event(client).save(no_create=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+
+    def test_server_ignoring_if_none_match_uid_conflict_is_consistency_error(self, base) -> None:
+        """No wildcard goes out, but no_overwrite was asked for: the
+        server's refusal is still the ConsistencyError the search gave."""
+        features = self.IGNORES_IF_NONE_MATCH | self.NO_UID_CONFLICT
+        client, sent = self._client(
+            base, put_status=409, put_body=NO_UID_CONFLICT_BODY, features=features, get_status=404
+        )
+        with pytest.raises(error.UidConflictConsistencyError):
+            self._run(self._event(client).save(no_overwrite=True))
 
     def test_recurrence_instance_keeps_search(self, base) -> None:
         """A recurrence instance is merged into its master, which the PUT
@@ -8359,6 +8484,186 @@ EV1_MULTISTATUS = (
     + "</C:calendar-data></D:prop><D:status>HTTP/1.1 200 OK</D:status>"
     "</D:propstat></D:response></D:multistatus>"
 ).encode()
+
+
+class TestUidConflictBareStatus(_SaveRequests):
+    """A server refusing a duplicate UID without the CALDAV:no-uid-conflict
+    precondition (RFC 4791 section 5.3.2.1), but with a status the tester
+    has confirmed (save.no-uid-conflict 'quirk', extra keys 'status' and
+    'precondition').  Such a status alone is no proof, so the library
+    reads it as a UID conflict only when a GET finds nothing at the URL."""
+
+    ## Bedework: 403 CALDAV:no-uid-conflict to a plain PUT, a bare 412
+    ## when it carries If-None-Match: *
+    BEDEWORK = {
+        "save.no-uid-conflict": {"support": "full"},
+        "save.no-uid-conflict.if-none-match": {
+            "support": "quirk",
+            "status": 412,
+            "precondition": False,
+        },
+    }
+    BARE_409 = {"save.no-uid-conflict": {"support": "quirk", "status": 409, "precondition": False}}
+
+    def test_search_skipped(self, base) -> None:
+        client, sent = self._client(base, features=self.BEDEWORK)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+        assert sent[-1][1]["if-none-match"] == "*"
+
+    def test_search_skipped_where_ungraceful(self, base) -> None:
+        """The server refuses the duplicate, if not recognisably: no
+        duplicate can be stored, so the search adds nothing."""
+        features = {"save.no-uid-conflict": {"support": "ungraceful"}}
+        client, sent = self._client(base, features=features)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_bare_412_and_no_object_at_url_is_uid_conflict(self, base) -> None:
+        client, sent = self._client(base, put_status=412, features=self.BEDEWORK, get_status=404)
+        with pytest.raises(error.UidConflictConsistencyError) as exc_info:
+            self._run(self._event(client).save(no_overwrite=True))
+        assert exc_info.value.status == 412
+        assert [m for m, _ in sent] == ["PUT", "GET"]
+
+    def test_bare_412_and_object_at_url_is_url_taken(self, base) -> None:
+        client, sent = self._client(base, put_status=412, features=self.BEDEWORK, get_status=200)
+        with pytest.raises(error.ConsistencyError) as exc_info:
+            self._run(self._event(client).save(no_overwrite=True))
+        assert not isinstance(exc_info.value, error.UidConflictError)
+
+    def test_plain_save_bare_409_is_uid_conflict(self, base) -> None:
+        client, sent = self._client(base, put_status=409, features=self.BARE_409, get_status=404)
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.ConsistencyError)
+        assert exc_info.value.status == 409
+        ## No retry with cleaned-up data: that cannot free the UID
+        assert [m for m, _ in sent] == ["PUT", "GET"]
+
+    def test_plain_save_bare_409_and_object_at_url_one_get(self, base) -> None:
+        client, sent = self._client(base, put_status=409, features=self.BARE_409, get_status=200)
+        with pytest.raises(error.PutError):
+            self._run(self._event(client).save())
+        assert [m for m, _ in sent] == ["PUT", "GET"]
+
+    def test_raw_data_bare_409_is_uid_conflict(self, base) -> None:
+        client, sent = self._client(base, put_status=409, features=self.BARE_409, get_status=404)
+        event = self._event(client)
+        with pytest.raises(error.UidConflictError):
+            self._run(event.save(raw_data=ev1.encode()))
+        assert [m for m, _ in sent] == ["PUT", "GET"]
+
+    def test_icloud_profile_skips_search(self, base) -> None:
+        """Only the .if-none-match child is known for iCloud."""
+        from caldav import compatibility_hints
+
+        client, sent = self._client(base, features=compatibility_hints.icloud)
+        self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["PUT"]
+
+    def test_icloud_profile_plain_save_bare_412_is_uid_conflict(self, base) -> None:
+        """iCloud refuses a plain PUT of a taken UID with a bare 412 too
+        (measured by caldav-server-tester, PR 826)."""
+        from caldav import compatibility_hints
+
+        client, sent = self._client(
+            base, put_status=412, features=compatibility_hints.icloud, get_status=404
+        )
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.ConsistencyError)
+        assert [m for m, _ in sent] == ["PUT", "GET"]
+
+    def test_bare_412_message_does_not_claim_the_url(self, base) -> None:
+        """Where the server refuses duplicates unrecognisably, a 412 to
+        If-None-Match: * may be about the UID: the message says either."""
+        features = {"save.no-uid-conflict": {"support": "ungraceful"}}
+        client, sent = self._client(base, put_status=412, features=features)
+        with pytest.raises(error.ConsistencyError) as exc_info:
+            self._run(self._event(client).save(no_overwrite=True))
+        assert "UID" in str(exc_info.value)
+
+    def test_plain_save_bare_409_and_object_at_url_is_put_error(self, base) -> None:
+        client, sent = self._client(base, put_status=409, features=self.BARE_409, get_status=200)
+        with pytest.raises(error.PutError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.UidConflictError)
+
+    def test_no_uid_conflict_where_a_missing_object_is_no_404(self, base) -> None:
+        """The GET proves nothing where the server does not answer 404 for
+        a missing object (non-existing-raises-not-found.object)."""
+        features = self.BARE_409 | {
+            "non-existing-raises-not-found.object": {"support": "unsupported"}
+        }
+        client, sent = self._client(base, put_status=409, features=features, get_status=404)
+        with pytest.raises(error.PutError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.UidConflictError)
+        assert "GET" not in [m for m, _ in sent]
+
+    def test_conditional_save_is_not_read_as_uid_conflict(self, base) -> None:
+        """A refused If-Match is about the object at the URL: one deleted
+        meanwhile also leaves nothing there for the GET to find."""
+        client, sent = self._client(base, put_status=409, features=self.BARE_409, get_status=404)
+        with pytest.raises(error.PutError) as exc_info:
+            self._run(self._event(client, etag='"etag-a"').save())
+        assert not isinstance(exc_info.value, error.UidConflictError)
+        assert "GET" not in [m for m, _ in sent]
+
+    def test_other_status_is_not_read_as_uid_conflict(self, base) -> None:
+        client, sent = self._client(base, put_status=412, features=self.BARE_409, get_status=404)
+        with pytest.raises(error.PutError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.UidConflictError)
+        assert "GET" not in [m for m, _ in sent]
+
+    @pytest.mark.parametrize(
+        "node",
+        [
+            {"support": "ungraceful"},
+            {"support": "quirk", "status": 403, "precondition": False},
+        ],
+    )
+    def test_bare_403_is_not_read_as_uid_conflict(self, base, node) -> None:
+        """403 is also what a read-only calendar answers: it may be anything."""
+        exc = error.AuthorizationError(
+            url=self.URL + "ev1.ics", reason="Forbidden", status=403, body=b""
+        )
+        client, sent = self._client(
+            base, features={"save.no-uid-conflict": node}, exc=exc, get_status=404
+        )
+        with pytest.raises(error.AuthorizationError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.UidConflictError)
+        assert "GET" not in [m for m, _ in sent]
+
+    def test_if_none_match_variant_inherits_parent(self) -> None:
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet(self.BARE_409)
+        node = fs.is_supported("save.no-uid-conflict.if-none-match", return_type=dict)
+        assert node["status"] == 409
+
+    @pytest.mark.parametrize("server", ["sogo", "purelymail"])
+    def test_href_given_not_inherited_where_unprobed(self, server) -> None:
+        """A refusal without the precondition has no href to read: the
+        child must not take the parent's level."""
+        from caldav import compatibility_hints
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet(getattr(compatibility_hints, server))
+        assert fs.is_supported("save.no-uid-conflict.href-given", return_type=str) == "unknown"
+
+    @pytest.mark.parametrize("server", ["bedework_3_10_3", "bedework_5_0_0"])
+    def test_hints_of_bedework(self, server) -> None:
+        from caldav import compatibility_hints
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet(getattr(compatibility_hints, server))
+        assert fs.is_supported("save.no-uid-conflict", return_type=str) == "full"
+        node = fs.is_supported("save.no-uid-conflict.if-none-match", return_type=dict)
+        assert (node["support"], node["status"], node["precondition"]) == ("quirk", 412, False)
 
 
 class TestNoCreateIfMatch(_SaveRequests):

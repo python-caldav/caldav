@@ -2403,20 +2403,26 @@ END:VCALENDAR"""
         """
         save(no_overwrite=True) refuses an object whose UID is already in
         the calendar under another resource name, not only one at the
-        same URL.  Where save.no-uid-conflict is full the library leaves
-        that to the server (CALDAV:no-uid-conflict, RFC 4791 section
-        5.3.2.1) and skips its own UID search.
+        same URL.  Where the server is known to refuse a duplicate UID
+        (save.no-uid-conflict, RFC 4791 section 5.3.2.1), the library
+        leaves that to the server and skips its own UID search; either
+        way it raises UidConflictConsistencyError - unless the server's
+        refusal is 'ungraceful', when it is whatever the refusal gives.
         """
         self.skip_unless_support("save-load.event")
         c = self._fixCalendar()
         ev1_now = near_now_ics(ev1)
         c.add_event(ev1_now)
         other = Event(client=self.caldav, parent=c, data=ev1_now, url=c.url.join("other-name.ics"))
-        with pytest.raises(error.ConsistencyError) as exc_info:
+        ## The server's refusal to the PUT save(no_overwrite=True) sends -
+        ## also where the search runs, since it may miss the duplicate
+        if self.is_supported("save.if-none-match"):
+            level = self.is_supported("save.no-uid-conflict.if-none-match", str)
+        else:
+            level = self.is_supported("save.no-uid-conflict", str)
+        expected = error.DAVError if level == "ungraceful" else error.UidConflictConsistencyError
+        with pytest.raises(expected):
             other.save(no_overwrite=True)
-        if self.is_supported("save.no-uid-conflict") and self.is_supported("save.if-none-match"):
-            ## refused by the server, not by the library's UID search
-            assert isinstance(exc_info.value, error.UidConflictError)
         assert len(c.get_events()) == 1
 
     def testRawDataRoundTrip(self):

@@ -15,6 +15,7 @@ import logging
 import re
 import uuid
 import warnings
+from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import date as _date
 from datetime import datetime, timezone
@@ -40,6 +41,7 @@ from .calendarobjectresource import (
     FreeBusy,
     Journal,
     Todo,
+    _quote_uid,
 )
 from .compatibility_hints import (
     at_literal_is_refused,
@@ -2147,11 +2149,65 @@ class Calendar(DAVObject):
          comp_class: filter by component type (Event, Todo, Journal)
          comp_filter: for backward compatibility.  Don't use!
 
+        Unless the ``search.text.uid`` feature says the server handles
+        UID searches, a failing search (iCloud answers 412, issue #783)
+        makes this fetch the object as ``<uid>.ics``, the name ``save()``
+        gives it.  If the server is known not to handle UID searches
+        (``search.text.uid`` unsupported, broken or ungraceful), the search is
+        skipped.  Should the object not be found that way, and the
+        search failed with 412 or is known to fail, the object is found
+        among all objects of the type - a download of the whole calendar
+        for every missing UID - unless the server is known to name every
+        object ``<uid>.ics`` (``forces_uid_ics`` on ``save-load.stable-url``).
+
         Returns:
          CalendarObjectResource (Event, Todo, or Journal)
         """
+        gen = self._uid_lookup(uid, comp_filter, comp_class)
         if self.is_async_client:
-            return self._async_get_object_by_uid(uid, comp_filter, comp_class)
+            return self._async_run_uid_lookup(gen)
+        try:
+            step = next(gen)
+            while True:
+                try:
+                    result = self._uid_lookup_step(*step)
+                except error.DAVError as e:
+                    step = gen.throw(e)
+                else:
+                    step = gen.send(result)
+        except StopIteration as done:
+            return done.value
+
+    async def _async_run_uid_lookup(self, gen: Generator) -> "CalendarObjectResource":
+        """Async driver for _uid_lookup(), see get_object_by_uid()."""
+        try:
+            step = next(gen)
+            while True:
+                try:
+                    result = await self._uid_lookup_step(*step)
+                except error.DAVError as e:
+                    step = gen.throw(e)
+                else:
+                    step = gen.send(result)
+        except StopIteration as done:
+            return done.value
+
+    def _uid_lookup_step(self, action: str, arg: Any) -> Any:
+        """Execute one step of _uid_lookup().  Returns a coroutine with
+        an async client."""
+        if action == "search":
+            return self.search(**arg)
+        return self.client.request(str(arg))
+
+    def _uid_lookup(
+        self,
+        uid: str,
+        comp_filter: cdav.CompFilter | None,
+        comp_class: Optional["CalendarObjectResource"],
+    ) -> Generator:
+        """The logic of get_object_by_uid(), as a generator yielding
+        ``("search", kwargs)`` and ``("request", url)`` for the driver to
+        execute, and getting the results (or the DAVError) back."""
         ## Use self.search() rather than CalDAVSearcher directly, so that any
         ## monkey-patching of Calendar.search (e.g. the search-cache delay that
         ## tests/test_caldav.py wraps it with for servers with lazy search
@@ -2161,38 +2217,116 @@ class Calendar(DAVObject):
         ## search(uid=...) does substring matching on the server side, so we
         ## apply an exact match filter afterwards to preserve the semantics of
         ## this method (see testObjectByUID).
-        items_found = self.search(
-            uid=uid,
-            comp_class=comp_class,
-            xml=comp_filter,
-            post_filter=True,
-            _hacks="insist",
-            include_completed=True,
+        ##
+        ## No return_defaults: an unconfigured server is not known to be fine.
+        uid_search = self.client.features.is_supported(
+            "search.text.uid", return_type=str, return_defaults=False
         )
-        items_found = [o for o in items_found if o.id == uid]
+        known_to_fail = uid_search in ("unsupported", "broken", "ungraceful")
+        ## The deprecated comp_filter has no fallback.
+        fallback = comp_filter is None and uid_search not in ("full", "quirk")
+        scan = False
+        absent = False
+        search_error = None
+        if not (fallback and known_to_fail):
+            try:
+                items_found = yield (
+                    "search",
+                    dict(
+                        uid=uid,
+                        comp_class=comp_class,
+                        xml=comp_filter,
+                        post_filter=True,
+                        _hacks="insist",
+                        include_completed=True,
+                    ),
+                )
+                return self._uid_match(items_found, uid)
+            except (error.NotFoundError, error.RateLimitError, error.AuthorizationError):
+                ## the fallback won't help with these
+                raise
+            except error.DAVError as e:
+                if not fallback:
+                    raise
+                scan = e.status == 412
+                search_error = e
+                log.debug(f"Search by UID failed ({e}), trying GET {uid}.ics")
+        else:
+            scan = True
+        url = self._uid_fallback_url(uid)
+        if url is not None:
+            try:
+                response = yield ("request", url)
+                found = self._uid_fallback_object(url, response, uid, comp_class)
+                if (
+                    found is None
+                    and response.status in (404, 410)
+                    and self.client.features.is_supported(
+                        "save-load.stable-url", return_type=dict
+                    ).get("forces_uid_ics")
+                ):
+                    ## the server names every object <uid>.ics: nothing to scan for
+                    scan = False
+                    absent = True
+            except error.RateLimitError:
+                raise
+            except error.DAVError:
+                found = None
+            if found is not None:
+                return found
+        items_found = []
+        if search_error is not None and not (scan or absent):
+            ## the search failed and nothing says the object is not there:
+            ## a NotFoundError would be a false answer
+            raise search_error
+        if scan:
+            try:
+                items_found = yield (
+                    "search",
+                    dict(comp_class=comp_class, include_completed=True),
+                )
+            except error.DAVError as e:
+                if search_error is None:
+                    raise
+                raise e from search_error
+        return self._uid_match(items_found, uid)
 
-        if not items_found:
-            raise error.NotFoundError("%s not found on server" % uid)
-        error.assert_(len(items_found) == 1)
-        return items_found[0]
+    def _uid_fallback_url(self, uid: str) -> "URL | None":
+        """Return the URL save() would use for this UID, or None if GET
+        by URL is unsupported."""
+        if not self.client.features.is_supported("save-load.get-by-url"):
+            return None
+        return self.url.join(_quote_uid(uid, self.client.features) + ".ics")
 
-    async def _async_get_object_by_uid(
+    def _uid_fallback_object(
         self,
+        url: "URL",
+        response: Any,
         uid: str,
-        comp_filter: cdav.CompFilter | None = None,
-        comp_class: Optional["CalendarObjectResource"] = None,
-    ) -> "Event":
-        """Async helper for get_object_by_uid()."""
-        items_found = await self.search(
-            uid=uid,
-            comp_class=comp_class,
-            xml=comp_filter,
-            post_filter=True,
-            _hacks="insist",
-            include_completed=True,
-        )
-        items_found = [o for o in items_found if o.id == uid]
+        comp_class: Optional["CalendarObjectResource"],
+    ) -> "CalendarObjectResource | None":
+        """Return the object in a GET response if it has this UID and
+        type, else None."""
+        if not 200 <= response.status < 300:
+            return None
+        found_class = self._calendar_comp_class_by_data(response.raw)
+        if found_class is CalendarObjectResource:  ## not calendar data
+            return None
+        if comp_class is not None and found_class is not comp_class:
+            return None
+        obj = found_class(self.client, url=url, data=response.raw, parent=self)
+        try:
+            if obj.id != uid:
+                return None
+        except ValueError:  ## unparsable data
+            return None
+        obj._keep_raw_data(getattr(response, "_raw_body", None))
+        obj._update_tag_props(response)
+        return obj
 
+    def _uid_match(self, items_found: list, uid: str) -> "CalendarObjectResource":
+        """Return the single object in items_found with exactly this UID."""
+        items_found = [o for o in items_found if o.id == uid]
         if not items_found:
             raise error.NotFoundError("%s not found on server" % uid)
         error.assert_(len(items_found) == 1)
