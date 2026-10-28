@@ -77,8 +77,9 @@ class TestNothingDeclaredChangesNothing:
 
     @pytest.mark.parametrize("fs", [None, FeatureSet()])
     def test_a_path_is_quoted_as_it_always_was(self, fs) -> None:
+        """The href is fed in as ``_normalize_href`` hands it over."""
         for path in ("/cal/u@e.email/x.ics", "/cal/u%40e.email/x.ics", "/cal/a b/u@e/"):
-            url = "http://dav.example.com" + path
+            url = "http://dav.example.com" + _normalize_href(path)
             assert _quote_url_path(url, fs) == "http://dav.example.com" + quote(
                 unquote(path), safe="/@"
             )
@@ -428,6 +429,26 @@ class TestASlashInTheName:
         obj = cal._post_multiget([(decoded, EVENT, {})])[0]
         assert obj.url == cal.url.join(cal._href_to_url(decoded))
         assert obj.url.canonical() == cal.url.join(href).canonical()
+
+    @pytest.mark.parametrize("fs", [FeatureSet(), CONFORMANT])
+    @pytest.mark.parametrize("href", [URL_UID, SLASH_UID])
+    def test_a_batch_load_finds_the_object(self, fs, href) -> None:
+        """The multiget reply is matched to the object search listed."""
+        from caldav.calendarobjectresource import Event
+
+        cal = self._calendar(fs)
+        decoded = _normalize_href(href, preserve_at=fs is CONFORMANT)
+        obj = Event(cal.client, url=cal.url.join(cal._href_to_url(decoded)), parent=cal)
+        cal._assign_multiget_data([obj], [(decoded, EVENT, {})])
+        assert obj.is_loaded()
+
+    @pytest.mark.parametrize("fs", [FeatureSet(), CONFORMANT])
+    def test_a_calendar_href_is_decoded_once(self, fs) -> None:
+        """A calendar named with a ``/`` is listed the same way."""
+        href = "/cal/home/work%252Fprivate/"
+        decoded = _normalize_href(href, preserve_at=fs is CONFORMANT)
+        url = URL(_quote_url_path("http://dav.example.com" + decoded, fs))
+        assert url.canonical() == URL("http://dav.example.com" + href).canonical()
 
 
 class TestLiteralIsPerAxis:

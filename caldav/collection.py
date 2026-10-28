@@ -128,17 +128,18 @@ def _quote_url_path(url: str, features: Any = None) -> str:
     Servers do hand out hrefs containing raw spaces (Zimbra), and
     ``DAVObject.__init__`` refuses a URL with a space in it, so the path has to
     be run through ``quote`` before anything can be built from it - returning
-    it untouched is not an option.  The round-trip through ``unquote`` first is
-    what stops an already-encoded path being encoded twice.
+    it untouched is not an option.  The href has been decoded by
+    ``_normalize_href`` already, so this only quotes: decoding it again would
+    turn the ``%2F`` of a name holding a ``/`` into a ``/``.
 
-    That round-trip also normalises ``%40`` down to a literal ``@``, which is
-    the historic behaviour and stays the default: where the two spellings name
+    ``_normalize_href`` also decoded ``%40`` to a literal ``@``, which is the
+    historic behaviour and stays the default: where the two spellings name
     one resource it makes no difference which one is sent.  Only a server whose
     ``url.encode-at.identity`` says otherwise gets both spellings left alone.
     The netloc is never touched, so credentials embedded in the URL survive.
     """
     parsed = urlparse(url)
-    path = normalise_path(parsed.path, safe="/@", preserve_at=at_spelling_is_significant(features))
+    path = quote_href(parsed.path, safe="/@", preserve_at=at_spelling_is_significant(features))
     return urlunparse(parsed._replace(path=path))
 
 
@@ -1597,10 +1598,14 @@ class Calendar(DAVObject):
         went through `quote()` with the default `safe="/"` -- so a UID of the
         conventional `<something>@<domain>` form ends up as `%40` on one side
         and `@` on the other.  Comparing the unquoted forms makes the two
-        spellings equal instead of silently dropping the object.
+        spellings equal instead of silently dropping the object.  The href
+        arrives decoded already, so it is quoted without a second decode,
+        which would turn the ``%2F`` of a UID holding a ``/`` into a ``/``.
         """
         url_to_data = {
-            unquote(str(self.url.join(quote(unquote(str(href)), safe="/:@")))): (data, tags)
+            unquote(
+                str(self.url.join(quote_href(str(href), safe="/:@", preserve_at=self._preserve_at)))
+            ): (data, tags)
             for href, data, tags in results
         }
         for obj in unloaded:

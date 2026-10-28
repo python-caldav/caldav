@@ -21,6 +21,7 @@ from caldav.davclient import DAVClient
 from caldav.elements import cdav, dav
 from caldav.lib import error
 from caldav.lib.url import URL
+from caldav.response import _normalize_href
 from caldav.search import CalDAVSearcher
 
 # Example icalendar data for testing
@@ -1734,13 +1735,16 @@ class TestBatchLoadObjects:
         `safe="/"` (percent-encoded "%40"), so nothing matched, nothing was
         assigned, and the objects were then silently dropped by the
         `has_component()` filter -- `search()` returned [] with no exception
-        and no log line."""
+        and no log line.
+
+        The href is fed in as ``_normalize_href`` hands it over, which by
+        default has already decoded the ``%40``."""
         cal = self._make_calendar()
         href = "/cal/" + quote("20200516T060000Z-123401@example.com.ics")
         assert "%40" in href
         ev = Event(client=cal.client, url=cal.url.join(href))
 
-        cal._multiget = mock.Mock(return_value=iter([(href, SIMPLE_EVENT, {})]))
+        cal._multiget = mock.Mock(return_value=iter([(_normalize_href(href), SIMPLE_EVENT, {})]))
 
         cal._batch_load_objects([ev])
 
