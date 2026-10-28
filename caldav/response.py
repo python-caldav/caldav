@@ -85,11 +85,13 @@ def _normalize_href(text: str, preserve_at: bool = False) -> str:
     if "%2540" in text:
         text = text.replace("%2540", "%40")
     decode = unquote_preserving_at if preserve_at else unquote
-    href = decode(text)
     # Ref https://github.com/python-caldav/caldav/issues/435
-    if ":" in href:
-        href = decode(URL(href).path)
-    return href
+    # Decide on the text as sent (RFC 4918 section 8.3: an href is an absolute
+    # URI or a path): once decoded, a ":" may come from the name itself.
+    url = URL(text)
+    if url.hostname is not None:
+        text = url.path
+    return decode(text)
 
 
 def _validate_status(status: str | None) -> None:

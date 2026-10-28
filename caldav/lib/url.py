@@ -55,6 +55,21 @@ def normalise_path(path: str, safe: str = "/", preserve_at: bool = False) -> str
     return quote(unquote(path), safe=safe)
 
 
+def quote_href(href: str, safe: str = "/", preserve_at: bool = False) -> str:
+    """Quote an href that ``_normalize_href`` has already decoded.
+
+    :func:`normalise_path` decodes before it quotes, which on a decoded href
+    is a second decode: ``%252F`` - the name a UID holding a ``/`` gets - would
+    come back as ``/``.  This only quotes.  ``preserve_at`` keeps both
+    spellings of an ``@`` as they are, as :func:`requote_path` does.
+    """
+    if not preserve_at:
+        return quote(href, safe=safe)
+    safe = safe.replace("@", "")
+    parts = re.split("(%40|@)", href)
+    return "".join(part if part in ("%40", "@") else quote(part, safe=safe) for part in parts)
+
+
 def unquote_preserving_at(text: str) -> str:
     """``unquote(text)``, except that ``%40`` is left as it stands.
 

@@ -52,7 +52,7 @@ from .elements import cdav, dav
 from .lib import error, vcal
 from .lib.error import errmsg
 from .lib.python_utilities import to_wire
-from .lib.url import URL, normalise_path, requote_path
+from .lib.url import URL, normalise_path, quote_href
 from .response import _status_to_code
 
 _CC = TypeVar("_CC", bound="CalendarObjectResource")
@@ -1549,9 +1549,7 @@ class Calendar(DAVObject):
             self._calendar_comp_class_by_data(data)(
                 self.client,
                 # Quote path to handle servers returning unencoded spaces (e.g., Zimbra)
-                url=self.url.join(
-                    normalise_path(str(url), safe="/:@", preserve_at=self._preserve_at)
-                ),
+                url=self.url.join(quote_href(str(url), safe="/:@", preserve_at=self._preserve_at)),
                 data=data,
                 parent=self,
                 props=dict(tags) or None,
@@ -1794,7 +1792,7 @@ class Calendar(DAVObject):
         url = URL(href)
         if url.hostname is None:
             # Quote when result is not a full URL
-            return requote_path(href) if self._preserve_at else quote(href)
+            return quote_href(href, preserve_at=self._preserve_at)
         return url
 
     def _request_report_build_resultlist(

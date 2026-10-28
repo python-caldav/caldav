@@ -363,8 +363,11 @@ class TestObjectUrlsFromTheServer:
 
     @pytest.mark.parametrize("href", [HREF, HREF_ENCODED])
     def test_multiget_normalises_as_it_always_did(self, href) -> None:
-        """``safe="/:@"`` since forever, so both spellings arrive as ``@``."""
-        obj = self._calendar(FeatureSet())._post_multiget([(href, EVENT, {})])[0]
+        """``safe="/:@"`` since forever, so both spellings arrive as ``@``.
+
+        The href is fed in as ``_normalize_href`` hands it over, which by
+        default has already decoded the ``%40``."""
+        obj = self._calendar(FeatureSet())._post_multiget([(_normalize_href(href), EVENT, {})])[0]
         assert str(obj.url).endswith(self.HREF)
 
     @pytest.mark.parametrize("href", [HREF, HREF_ENCODED])
@@ -378,6 +381,53 @@ class TestObjectUrlsFromTheServer:
         encoded = cal._post_multiget([(self.HREF_ENCODED, EVENT, {})])[0]
         assert str(literal.url) != str(encoded.url)
         assert literal.url != encoded.url
+
+
+class TestASlashInTheName:
+    """A UID holding a ``/`` is stored as ``%2F`` and percent-encoded on top -
+    the name ``_quote_uid`` mints too - so the server lists it with ``%252F``.
+    An href is decoded once; a second decode turns the ``%2F`` into a ``/``
+    and names a resource that does not exist."""
+
+    URL_UID = "/cal/home/https%3A%252F%252Fwww.example.com%252Fappointments%252Fabc%252F%3Ftoken%3Dxyz.ics"
+    SLASH_UID = "/cal/home/A7CzVJ5v%252FbTJo0Ebqoj2LQ%3D%3D%40mychart.example.org.ics"
+
+    def _calendar(self, fs):
+        from caldav.collection import Calendar
+
+        client = Mock()
+        client.features = fs
+        client.url = URL("http://dav.example.com/", alias_at=at_spellings_are_aliased(fs))
+        return Calendar(client, url="http://dav.example.com/cal/home/", parent=None)
+
+    @pytest.mark.parametrize("href", [URL_UID, SLASH_UID])
+    def test_an_href_is_decoded_once(self, href) -> None:
+        assert _normalize_href(href) == unquote(href)
+
+    def test_an_absolute_href_is_decoded_once(self) -> None:
+        """Ref https://github.com/python-caldav/caldav/issues/435"""
+        assert _normalize_href("http://dav.example.com/cal/a%252Fb.ics") == "/cal/a%2Fb.ics"
+        assert (
+            _normalize_href("http://dav.example.com/cal/a%252Fb%40c.ics", preserve_at=True)
+            == "/cal/a%2Fb%40c.ics"
+        )
+
+    @pytest.mark.parametrize("fs", [FeatureSet(), CONFORMANT])
+    @pytest.mark.parametrize("href", [URL_UID, SLASH_UID])
+    def test_the_url_is_the_one_the_server_listed(self, fs, href) -> None:
+        cal = self._calendar(fs)
+        decoded = _normalize_href(href, preserve_at=fs is CONFORMANT)
+        url = cal.url.join(cal._href_to_url(decoded))
+        assert url.canonical() == cal.url.join(href).canonical()
+
+    @pytest.mark.parametrize("fs", [FeatureSet(), CONFORMANT])
+    @pytest.mark.parametrize("href", [URL_UID, SLASH_UID])
+    def test_multiget_gives_the_url_search_gives(self, fs, href) -> None:
+        cal = self._calendar(fs)
+        decoded = _normalize_href(href, preserve_at=fs is CONFORMANT)
+        obj = cal._post_multiget([(decoded, EVENT, {})])[0]
+        assert obj.url == cal.url.join(cal._href_to_url(decoded))
+        assert obj.url.canonical() == cal.url.join(href).canonical()
 
 
 class TestLiteralIsPerAxis:
