@@ -309,7 +309,7 @@ change notifications.  Requested by the proposal authors themselves.
 
 **Tasks:**
 - [x] Robust ETag-based collision detection — **done in v3.2.0**: the ETag from PUT/GET responses is cached in `self.props` and `ETagMismatchError` is raised on 412
-- [x] Proper `If-Match` / `If-None-Match` header usage — `If-Match` is sent when an ETag is cached (and `If-Schedule-Tag-Match` takes precedence when a Schedule-Tag is) on save, and on delete with `delete(if_match=True)` (https://github.com/python-caldav/caldav/issues/740); `save(no_overwrite=True)` sends `If-None-Match: *` (not on servers where `save.if-none-match` is unsupported), and leaves out its UID search where `save.no-uid-conflict` is full.  `save(no_create=True)` sends `If-Match: *` instead of searching, where `save-load.mutable.if-match-wildcard` is full and no ETag or Schedule-Tag is cached
+- [x] Proper `If-Match` / `If-None-Match` header usage — `If-Match` is sent when an ETag is cached (and `If-Schedule-Tag-Match` takes precedence when a Schedule-Tag is) on save, and on delete with `delete(if_match=True)` (https://github.com/python-caldav/caldav/issues/740); `save(no_overwrite=True)` sends `If-None-Match: *` (not on servers where `save.if-none-match` is unsupported), and leaves out its UID search where the server refuses a duplicate UID (`save.no-uid-conflict`, and its `.if-none-match` child, full, quirk or ungraceful) - with a GET of the URL in place of the header where `save.if-none-match` is unsupported.  `save(no_create=True)` sends `If-Match: *` instead of searching, where `save-load.mutable.if-match-wildcard` is full and no ETag or Schedule-Tag is cached
 - [ ] Handle UID vs path name mismatches
 - [ ] Race condition mitigation
 - [ ] Clear error messages for conflicts
