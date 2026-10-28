@@ -1411,11 +1411,13 @@ class CalendarObjectResource(DAVObject):
     def _raise_uid_conflict_as_consistency(
         cls, e: error.UidConflictError, check: "SaveCheck | None"
     ) -> None:
-        """Where ``_save_plan`` planned a GET for no_overwrite, no wildcard
-        went out, yet a UID conflict is the ConsistencyError the search
-        would have raised.  An If-Match refusal keeps its mismatch class
+        """Where ``_save_plan`` planned a check (a search, or a GET for
+        no_overwrite), a UID conflict the server still refuses is the
+        ConsistencyError the search raises, also where no wildcard went
+        out: the search missed it (a race, a lazy index), or a GET only
+        guarded the URL.  An If-Match refusal keeps its mismatch class
         (issue #756)."""
-        if check == "get" and not isinstance(
+        if check is not None and not isinstance(
             e, (error.ConsistencyError, error.ETagMismatchError, error.ScheduleTagMismatchError)
         ):
             raise cls._as_uid_conflict(e, True) from e

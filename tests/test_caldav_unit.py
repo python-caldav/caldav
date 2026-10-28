@@ -8361,6 +8361,37 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
             self._run(event.save(no_create=True))
         assert isinstance(exc_info.value, error.ETagMismatchError)
 
+    def test_search_missing_a_duplicate_server_refusal_is_consistency_error(self, base) -> None:
+        """Zimbra: no wildcard and an unstable URL, so the search runs.
+        A duplicate it misses (a race, a lazy index) is refused by the
+        server, and that is still the ConsistencyError no_overwrite gives."""
+        features = (
+            self.IGNORES_IF_NONE_MATCH
+            | self.NO_UID_CONFLICT
+            | {"save-load.stable-url": {"support": "unsupported"}}
+        )
+        client, sent = self._client(
+            base, put_status=409, put_body=NO_UID_CONFLICT_BODY, features=features
+        )
+        with pytest.raises(error.UidConflictConsistencyError):
+            self._run(self._event(client).save(no_overwrite=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+
+    def test_no_create_search_path_uid_conflict_is_consistency_error(self, base) -> None:
+        """save(no_create=True) where If-Match: * cannot be used searches;
+        the server's refusal of the UID is a ConsistencyError there too."""
+        features = {"save-load.mutable.if-match-wildcard": {"support": "unsupported"}}
+        client, sent = self._client(
+            base,
+            put_status=409,
+            put_body=NO_UID_CONFLICT_BODY,
+            features=features,
+            report=EV1_MULTISTATUS,
+        )
+        with pytest.raises(error.UidConflictConsistencyError):
+            self._run(self._event(client).save(no_create=True))
+        assert [m for m, _ in sent] == ["REPORT", "PUT"]
+
     def test_server_ignoring_if_none_match_uid_conflict_is_consistency_error(self, base) -> None:
         """No wildcard goes out, but no_overwrite was asked for: the
         server's refusal is still the ConsistencyError the search gave."""
