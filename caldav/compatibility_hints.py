@@ -2230,8 +2230,10 @@ cyrus = {
 ## The 401 offers 'X-MobileMe-AuthToken realm="MMCalDav", Basic realm="MMCalDav"'
 ## - Basic, with an app-specific password, is what works.
 icloud = {
-    ## Measured with caldav-server-tester, 2026-10-28; a plain PUT was not probed.
-    "save.no-uid-conflict.if-none-match": {"support": "quirk", "status": 412, "precondition": False},
+    ## Measured with caldav-server-tester, 2026-10-28 (by Rusich90, PR 826): a plain
+    ## PUT and one carrying If-None-Match: * both get a bare 412.
+    "save.no-uid-conflict": {"support": "quirk", "status": 412, "precondition": False, "behaviour": "refused with a bare 412"},
+    "save.no-uid-conflict.href-given": {"support": "unknown"},
     'auto-connect.url': {
         'scheme': 'https',
         'domain': 'caldav.icloud.com',

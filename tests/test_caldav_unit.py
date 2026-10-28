@@ -8544,6 +8544,19 @@ class TestUidConflictBareStatus(_SaveRequests):
         self._run(self._event(client).save(no_overwrite=True))
         assert [m for m, _ in sent] == ["PUT"]
 
+    def test_icloud_profile_plain_save_bare_412_is_uid_conflict(self, base) -> None:
+        """iCloud refuses a plain PUT of a taken UID with a bare 412 too
+        (measured by caldav-server-tester, PR 826)."""
+        from caldav import compatibility_hints
+
+        client, sent = self._client(
+            base, put_status=412, features=compatibility_hints.icloud, get_status=404
+        )
+        with pytest.raises(error.UidConflictError) as exc_info:
+            self._run(self._event(client).save())
+        assert not isinstance(exc_info.value, error.ConsistencyError)
+        assert [m for m, _ in sent] == ["PUT", "GET"]
+
     def test_bare_412_message_does_not_claim_the_url(self, base) -> None:
         """Where the server refuses duplicates unrecognisably, a 412 to
         If-None-Match: * may be about the UID: the message says either."""
