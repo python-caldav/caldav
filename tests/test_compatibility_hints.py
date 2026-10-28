@@ -1072,7 +1072,7 @@ class TestComponentSetFeatures:
             ("yahoo", {CREATE: "unknown"}),
             ("ccs", {CREATE: "full", MULTIPLE: "unsupported"}),
             ("robur", {EXISTS: "unsupported", HONOURED: "broken"}),
-            ("purelymail", {EXISTS: "unsupported", HONOURED: "full"}),
+            ("purelymail", {EXISTS: "unsupported", HONOURED: "broken"}),
         ],
     )
     def test_profiles(self, profile: str, expected: dict[str, str]) -> None:

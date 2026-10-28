@@ -2806,6 +2806,8 @@ purelymail = {
     ## Measured with caldav-server-tester, 2026-10-19.
     "save.no-uid-conflict": {"support": "ungraceful", "behaviour": "refused with 403, with no-uid-conflict in the CardDAV namespace"},
     "save.no-uid-conflict.href-given": {"support": "unknown"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT or a VJOURNAL can be saved to it"},
     ## Purelymail claims that the search indexes are "lazily" populated,
     ## so search works some minutes after the event was created/edited.
     ## A plain listing reflects a new, edited, completed or deleted object at
