@@ -315,10 +315,12 @@ class TestScheduleTagUnit:
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_302_on_put_updates_url(self, mocked):
-        """A 302 in response to a PUT must follow the Location header."""
-        mocked.return_value = _make_put_response(
-            302, {"location": "http://cal.example.com/cal/moved.ics"}
-        )
+        """A 302 in response to a PUT must follow the Location header: the
+        PUT is repeated there (Zimbra stores nothing at the first URL)."""
+        mocked.side_effect = [
+            _make_put_response(302, {"location": "http://cal.example.com/cal/moved.ics"}),
+            _make_put_response(201),
+        ]
 
         event = _make_event_with_tag(None)
         event.save()

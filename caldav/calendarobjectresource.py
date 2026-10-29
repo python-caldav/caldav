@@ -19,7 +19,7 @@ import warnings
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any, ClassVar, Optional
-from urllib.parse import ParseResult, SplitResult, quote, unquote
+from urllib.parse import ParseResult, SplitResult, quote, unquote, urljoin
 
 import icalendar
 from dateutil.rrule import rrulestr
@@ -1542,14 +1542,22 @@ class CalendarObjectResource(DAVObject):
             if headers:
                 self._raise_precondition_failed(r, headers)
             raise error.error_from_response(error.PutError, r)
-        elif r.status == 302:
-            self.url = URL.objectify(r.headers.get("location"))
+        elif r.status == 303 and r.headers.get("Location"):
+            ## Stored, and the Location names the result (RFC 9110 section
+            ## 15.4.4) - presumably the object, under a name of the server's
+            self.url = self.url.relocate(urljoin(str(self.url), r.headers["Location"]))
         elif r.status not in (200, 201, 204):
             ## No retry with a wildcard: an object this very PUT may have
             ## stored (a 5xx after writing) would refuse If-None-Match: *,
             ## and the failure is reported as it was for If-Match: * too.
             ## Nor where it may be a taken UID: cleaning up the data does not free it.
-            if wildcard or self._bare_uid_conflict(r.status, precondition, wildcard):
+            ## Nor a redirect the client did not follow (another host or
+            ## port): nothing was stored, and another PUT is redirected too.
+            if (
+                wildcard
+                or 300 <= r.status < 400
+                or self._bare_uid_conflict(r.status, precondition, wildcard)
+            ):
                 retry_on_failure = False
             if retry_on_failure:
                 try:
@@ -1563,6 +1571,9 @@ class CalendarObjectResource(DAVObject):
                 return self._put(False, precondition, wildcard)
             else:
                 raise error.error_from_response(error.PutError, r)
+        if isinstance(getattr(r, "redirected_to", None), URL):
+            ## Stored at the Location of a redirect (Zimbra: <uid>.ics)
+            self.url = self.url.relocate(r.redirected_to)
         self._update_tag_props(r)
         ## The server has new data now; raw_data is only what was read
         self._raw_data = None

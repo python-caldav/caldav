@@ -13,7 +13,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, NoReturn
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 from lxml import etree
 
@@ -319,6 +319,62 @@ class BaseDAVClient(ABC):
             f"headers={combined_headers}\nbody:\n{to_normal_str(body)}"
         )
         return url_obj, combined_headers
+
+    ## How often a request is repeated at the Location of a redirect
+    MAX_REDIRECTS = 5
+
+    @staticmethod
+    def _follows_redirects(method: str) -> bool:
+        """Whether the HTTP library may follow redirects of ``method``.
+
+        niquests and requests follow a 302 (and 303) by sending a GET
+        without the body, and httpx follows nothing.  Only a GET or HEAD
+        is safe with that; other requests go through
+        ``_redirect_target()``.
+        """
+        return method.upper() in ("GET", "HEAD")
+
+    def _redirect_target(
+        self, method: str, url_obj: URL, status_code: int, headers: Any
+    ) -> URL | None:
+        """Where to repeat a redirected request other than GET or HEAD.
+
+        RFC 9110 section 15.4 only lets a POST become a GET, so the request
+        is repeated with its method and body.  Zimbra, say, answers a PUT
+        under a name other than ``<uid>.ics`` with a 302 to ``<uid>.ics`` and
+        stores nothing; followed as a GET the data was lost without an
+        error.  Only on the same scheme, host and port, as the credentials
+        go along.  ``None`` leaves the 3xx to the caller - its docker image
+        redirects to an internal port.
+        """
+        if self._follows_redirects(method) or status_code not in (301, 302, 307, 308):
+            return None
+        location = headers.get("Location")
+        if not location:
+            return None
+        target = URL.objectify(urljoin(str(url_obj), location))
+        if not self._same_origin(url_obj, target):
+            log.warning(
+                "%s %s was redirected to %s, on another host or port - not following",
+                method,
+                url_obj,
+                target,
+            )
+            return None
+        return target
+
+    @staticmethod
+    def _same_origin(url_obj: URL, target: URL) -> bool:
+        """Whether credentials for ``url_obj`` may go along to ``target``.
+
+        The same host (or one of its ``host_aliases``), port and scheme - or
+        the upgrade from http to https on the default ports.
+        """
+        origin, dest = url_obj.canonical(), target.canonical()
+        if dest.hostname != origin.hostname and dest.hostname not in url_obj.host_aliases:
+            return False
+        door = (origin.scheme, origin.port, dest.scheme, dest.port)
+        return door[:2] == door[2:] or door == ("http", 80, "https", 443)
 
     def _should_negotiate_auth(self, status_code: int, headers: Any) -> bool:
         """Return True when a 401 response warrants auth negotiation.
