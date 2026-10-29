@@ -1,1 +1,0 @@
-The deprecated config keys `testing_allowed` and `priority` now give a FutureWarning instead of a DeprecationWarning, which Python hides by default, so whoever edits the config file actually gets to see it.

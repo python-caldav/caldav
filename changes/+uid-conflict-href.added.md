@@ -1,1 +1,0 @@
-`UidConflictError.href` is the object that holds the UID, where the server names it in the refusal (`CALDAV:no-uid-conflict`, RFC 4791 section 5.3.2.1), so callers need not parse the response body for it.  It is `None` where the server names none.  https://github.com/python-caldav/caldav/issues/756

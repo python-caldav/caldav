@@ -26,11 +26,13 @@ I have no clue on the proper procedures for doing releases, and I keep on doing 
 * TODO - document needs to be updated - as the test runs on github now takes significant amounts of time, it's important to push the code first and wait for quite a while before tagging and pushing the tag.
 * Set the variable `VERSION=2.2.0`
 * Collect the changelog fragments: `towncrier build --yes --version ${VERSION}` (`pip install towncrier`; without `--yes` it asks before removing the fragments).  It writes a `## [${VERSION}] - <date>` section into `CHANGELOG.md` at the `<!-- towncrier release notes start -->` marker and `git rm`s the fragments.  The date is the day of the build - fix it if the tag comes later.  The result is plain markdown - now edit it by hand: towncrier sorts the entries by issue number, so reorder them by importance, add the summary on top, and add the `[${VERSION}]: https://github.com/python-caldav/caldav/compare/vPREVIOUS...v${VERSION}` link at the bottom of the file.
+* The new compare link 404s until the tag is pushed, and the code is pushed first, so the pre-push link check (lychee) refuses the push.  Add (or re-point) the compare-link entry in `.lycheeignore` ("The CHANGELOG compare link for the release being prepared"), naming `v${VERSION}` in its comment.  The entry is a regular expression, so escape the dots: `https://github\.com/python-caldav/caldav/compare/vPREVIOUS\.\.\.v${VERSION}`.  Commit it with the CHANGELOG.
 * Commit the changes (typically `CHANGELOG.md` and the removed fragments, perhaps documentation): `git commit -am "docs: preparing for v${VERSION}"`
 * Create a tag: `git tag -as v${VERSION}` - use the release notes in the tag message.  Don't push it yet.
 * Make a clone: `cd ~ ; rm -rf caldav-release ; git clone caldav/ caldav-release ; cd caldav-release ; git checkout v${VERSION}`
 * Run tests: `pytest --pdb ; tox -e style`.
 * Push the code to github: `cd ~/caldav ; git push ; git push --tags`
+* Once the tag is on GitHub, delete that `.lycheeignore` entry again, or the link check never notices if the compare link breaks.
 * The most important part - push to pypi.
   ```
   python3 -m venv ~/caldav-release-venv

@@ -1,1 +1,0 @@
-The extra key `forces_uid_ics` on the `save-load.stable-url` feature tells that a server names every object `<uid>.ics` whatever name it was PUT to.  `get_object_by_uid()` then treats a missing `<uid>.ics` as conclusive and skips the full scan.
