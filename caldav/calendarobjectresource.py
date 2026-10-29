@@ -1545,7 +1545,7 @@ class CalendarObjectResource(DAVObject):
         elif r.status == 303 and r.headers.get("Location"):
             ## Stored, and the Location names the result (RFC 9110 section
             ## 15.4.4) - presumably the object, under a name of the server's
-            self.url = URL.objectify(urljoin(str(self.url), r.headers["Location"]))
+            self.url = self.url.relocate(urljoin(str(self.url), r.headers["Location"]))
         elif r.status not in (200, 201, 204):
             ## No retry with a wildcard: an object this very PUT may have
             ## stored (a 5xx after writing) would refuse If-None-Match: *,
@@ -1573,7 +1573,7 @@ class CalendarObjectResource(DAVObject):
                 raise error.error_from_response(error.PutError, r)
         if isinstance(getattr(r, "redirected_to", None), URL):
             ## Stored at the Location of a redirect (Zimbra: <uid>.ics)
-            self.url = r.redirected_to
+            self.url = self.url.relocate(r.redirected_to)
         self._update_tag_props(r)
         ## The server has new data now; raw_data is only what was read
         self._raw_data = None

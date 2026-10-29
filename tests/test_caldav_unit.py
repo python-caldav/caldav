@@ -4146,9 +4146,29 @@ class TestRedirectedRequests:
 
         mocked.side_effect = request
         client = DAVClient(url=base)
+        client.url = client.url.with_alias_at(False)
         cal = Calendar(client, url=None, parent=Calendar(client, url=base))
         cal._create(id="new")
         assert str(cal.url) == base + "moved/"
+        assert cal.url.alias_at is False
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_followed_url_keeps_the_url_settings(self, mocked):
+        """The URL an object moves to inherits ``alias_at`` and
+        ``host_aliases``, as every URL derived from its old one does."""
+        base = "https://cal.example.com/cal/"
+        for status in (302, 303):
+            mocked.side_effect, calls = self._routes(
+                {base + "other-name.ics": (status, base + "redirect-uid.ics")}
+            )
+            client = DAVClient(url=base)
+            client.url = client.url.with_alias_at(False).with_host_alias("p01.example.com")
+            cal = Calendar(client, url=base)
+            event = Event(client, url=base + "other-name.ics", data=self.ICAL, parent=cal)
+            event.save()
+            assert str(event.url) == base + "redirect-uid.ics"
+            assert event.url.alias_at is False
+            assert event.url.host_aliases == frozenset({"p01.example.com"})
 
 
 class TestAuthorizationErrorPreconditions:

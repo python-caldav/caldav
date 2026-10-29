@@ -524,6 +524,28 @@ class TestAsyncDAVClient:
         assert str(event.url) == base + "uid.ics"
 
     @pytest.mark.asyncio
+    async def test_mkcalendar_adopts_the_location(self) -> None:
+        from caldav import Calendar
+
+        base = "https://caldav.example.com/dav/"
+
+        async def request(**kwargs):
+            if kwargs["method"] == "MKCALENDAR" and kwargs["url"] == base + "new/":
+                return create_mock_response(status_code=307, headers={"Location": base + "moved/"})
+            if kwargs["method"] == "MKCALENDAR":
+                return create_mock_response(status_code=201)
+            return create_mock_response(status_code=404)
+
+        client = AsyncDAVClient(url=base)
+        client.url = client.url.with_alias_at(False).with_host_alias("p01.example.com")
+        client.session.request = AsyncMock(side_effect=request)
+        cal = Calendar(client, url=None, parent=Calendar(client, url=base))
+        await cal._create(id="new")
+        assert str(cal.url) == base + "moved/"
+        assert cal.url.alias_at is False
+        assert cal.url.host_aliases == frozenset({"p01.example.com"})
+
+    @pytest.mark.asyncio
     async def test_delete_method(self) -> None:
         """Test delete method (requires URL)."""
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")
