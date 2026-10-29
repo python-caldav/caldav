@@ -149,6 +149,9 @@ class TestOnlyOneModuleImportsTheHTTPLibrary:
         root = pathlib.Path(__file__).parent.parent
         found: dict[str, set[str]] = {}
         for path in sorted((root / "caldav").rglob("*.py")):
+            ## Not a module: e.g. Emacs' .#foo.py lock, a dangling symlink.
+            if path.name.startswith("."):
+                continue
             rel = path.relative_to(root).as_posix()
             tree = ast.parse(path.read_text(), filename=rel)
             for node in ast.walk(tree):
