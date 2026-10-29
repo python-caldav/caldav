@@ -383,7 +383,9 @@ class TestMeasuredProfiles:
         assert cal.get_event_by_uid(UID).id == UID
         assert methods(cal) == ["GET", "REPORT"]
 
-    @pytest.mark.parametrize("profile", ["zimbra", "bedework_3_10_3", "bedework_5_0_0"])
+    @pytest.mark.parametrize(
+        "profile", ["zimbra_8_8", "zimbra_10_1", "bedework_3_10_3", "bedework_5_0_0"]
+    )
     def test_profiles_with_a_working_uid_search_keep_it(self, profile):
         from caldav import compatibility_hints
 

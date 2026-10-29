@@ -11,6 +11,7 @@ import warnings
 
 import pytest
 
+from caldav import compatibility_hints as ch
 from caldav.compatibility_hints import VALID_SUPPORT_LEVELS, FeatureSet, write_delay
 from caldav.config import resolve_features as _resolve_features
 
@@ -549,16 +550,12 @@ class TestResolveFeatures:
         assert _resolve_features(None) is None
 
     def test_string_resolves_profile(self) -> None:
-        import caldav.compatibility_hints as ch
-
         result = _resolve_features("synology")
         assert result == ch.synology
         # deepcopy ensures the caller cannot mutate the shared profile
         assert result is not ch.synology
 
     def test_string_with_prefix(self) -> None:
-        import caldav.compatibility_hints as ch
-
         result = _resolve_features("compatibility_hints.synology")
         assert result == ch.synology
         assert result is not ch.synology
@@ -569,8 +566,6 @@ class TestResolveFeatures:
         assert result is features
 
     def test_base_with_overrides(self) -> None:
-        import caldav.compatibility_hints as ch
-
         original_sync_token = ch.synology.get("sync-token")
         features = {
             "base": "synology",
@@ -614,8 +609,6 @@ class TestRenamedProfiles:
     """
 
     def test_bedework_profile_was_version_stamped(self) -> None:
-        import caldav.compatibility_hints as ch
-
         assert hasattr(ch, "bedework_3_10_3")
         assert not hasattr(ch, "bedework")
 
@@ -638,11 +631,39 @@ class TestRenamedProfiles:
         assert "bedework_3_10_3" in str(exc_info.value)
 
     def test_new_name_resolves(self) -> None:
-        import caldav.compatibility_hints as ch
-
         result = _resolve_features("bedework_3_10_3")
         assert result == ch.bedework_3_10_3
         assert result is not ch.bedework_3_10_3
+
+    def test_zimbra_profile_was_version_stamped(self) -> None:
+        assert hasattr(ch, "zimbra_8_8")
+        assert hasattr(ch, "zimbra_10_1")
+        assert "zimbra" not in vars(ch)
+
+    def test_deprecated_zimbra_name_still_resolves(self) -> None:
+        """A config naming the old profile gets a FutureWarning: a
+        DeprecationWarning raised inside caldav.config is hidden by Python's
+        default filters, so the user would never be told to update it."""
+        for name in ("zimbra", "compatibility_hints.zimbra"):
+            with pytest.warns(FutureWarning, match="zimbra_10_1"):
+                assert _resolve_features(name) == ch.zimbra_8_8
+        with pytest.warns(FutureWarning, match="zimbra_8_8"):
+            result = _resolve_features({"base": "zimbra", "sync-token": "full"})
+        assert result["sync-token"] == "full"
+
+    def test_deprecated_zimbra_attribute_still_resolves(self) -> None:
+        with pytest.warns(DeprecationWarning, match="zimbra_8_8"):
+            assert ch.zimbra is ch.zimbra_8_8
+        with pytest.warns(DeprecationWarning, match="zimbra_8_8"):
+            from caldav.compatibility_hints import zimbra
+        assert zimbra is ch.zimbra_8_8
+        with pytest.raises(AttributeError):
+            ch.no_such_profile  # noqa: B018
+
+    def test_zimbra_10_1_refuses_a_taken_uid_with_412(self) -> None:
+        assert ch.zimbra_10_1["save.no-uid-conflict"]["status"] == 412
+        assert ch.zimbra_8_8["save.no-uid-conflict"] == {"support": "full"}
+        assert ch.zimbra_10_1["save-load.stable-url"] == ch.zimbra_8_8["save-load.stable-url"]
 
     def test_unknown_profile_names_the_offender(self) -> None:
         with pytest.raises(ValueError) as exc_info:

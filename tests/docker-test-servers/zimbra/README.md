@@ -5,6 +5,7 @@ Zimbra Collaboration Suite running in Docker for the caldav library test suite.
 ## Overview
 
 - **Image**: `zimbra/zcs-foss:latest` (Zimbra 8.8.3 pre-installed)
+- **Compatibility profile**: `zimbra_8_8`.  `zimbra_10_1` describes Zimbra 10.1, which has no docker image.
 - **Port**: 8808 (mapped to container's 443/HTTPS)
 - **Users**: testuser@zimbra.io / testpass, testuser2@zimbra.io / testpass
 - **Protocol**: HTTPS with self-signed certificate (`ssl_verify_cert=False`)

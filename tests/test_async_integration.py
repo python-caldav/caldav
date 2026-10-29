@@ -21,6 +21,7 @@ import pytest_asyncio
 
 from caldav import Event, FreeBusy, Todo
 from caldav.compatibility_hints import FeatureSet, write_delay
+from caldav.config import resolve_features
 from caldav.lib import error
 
 from .search_cache_delay import SearchCacheDelay
@@ -175,14 +176,7 @@ class AsyncFunctionalTestsBaseClass:
     def _features(self):
         """Cached FeatureSet from server config."""
         if not hasattr(self.__class__, "_feature_set_cache"):
-            features = self.server.features
-            if isinstance(features, str):
-                import caldav.compatibility_hints
-
-                name = features
-                if name.startswith("compatibility_hints."):
-                    name = name[len("compatibility_hints.") :]
-                features = getattr(caldav.compatibility_hints, name)
+            features = resolve_features(self.server.features)
             self.__class__._feature_set_cache = FeatureSet(features)
         return self.__class__._feature_set_cache
 

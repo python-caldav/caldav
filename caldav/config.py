@@ -85,6 +85,19 @@ RENAMED_FEATURE_PROFILES = {
     ),
 }
 
+## Profiles that have been renamed, but whose old name still resolves to the
+## profile it always described.  Named in a config, it gives a FutureWarning -
+## a DeprecationWarning raised here would be hidden by Python's default
+## filters, so the user would never learn to update the config.  Accessed as
+## an attribute of compatibility_hints, it gives a DeprecationWarning.
+DEPRECATED_FEATURE_PROFILES = {
+    "zimbra": (
+        "zimbra_8_8",
+        "the profile was measured against a Zimbra 8.8 docker image; use "
+        "zimbra_10_1 for a current Zimbra",
+    ),
+}
+
 
 def _lookup_feature_profile(name):
     """Look up a named profile in compatibility_hints.
@@ -102,6 +115,15 @@ def _lookup_feature_profile(name):
             f"The compatibility profile '{name}' has been renamed to "
             f"'{new_name}' - {reason}.  Update your configuration."
         )
+    if name in DEPRECATED_FEATURE_PROFILES:
+        new_name, reason = DEPRECATED_FEATURE_PROFILES[name]
+        warnings.warn(
+            f"The compatibility profile '{name}' has been renamed to "
+            f"'{new_name}' - {reason}.  Update your configuration.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        name = new_name
     try:
         return copy.deepcopy(getattr(caldav.compatibility_hints, name))
     except AttributeError:
@@ -175,7 +197,9 @@ def get_test_setting(section_data: dict[str, Any], key: str, default: Any = None
     if old_key and old_key in section_data:
         warnings.warn(
             f"The config key '{old_key}' is deprecated, use '{key}' instead",
-            DeprecationWarning,
+            ## Not DeprecationWarning: that would be hidden by default, and
+            ## the one to act on it is whoever edits the config file
+            FutureWarning,
             stacklevel=2,
         )
         return section_data[old_key]

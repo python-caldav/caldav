@@ -438,7 +438,7 @@ class ZimbraTestServer(DockerTestServer):
         config.setdefault("password", os.environ.get("ZIMBRA_PASSWORD", "testpass"))
         config.setdefault("ssl_verify_cert", False)
         if "features" not in config:
-            config["features"] = compatibility_hints.zimbra.copy()
+            config["features"] = compatibility_hints.zimbra_8_8.copy()
         # testuser/testuser2/testuser3 are created by start.sh for scheduling tests
         if "scheduling_users" not in config:
             domain = os.environ.get("ZIMBRA_DOMAIN", "zimbra.io")

@@ -1771,8 +1771,10 @@ ecloud = nextcloud | {
     },
 }
 
-## Zimbra is not very good at it's caldav support
-zimbra = {
+## Zimbra is not very good at it's caldav support.  Measured against the
+## zimbra/zcs-foss:latest docker image (Zimbra 8.8, built 2017); upgrades
+## have been known to bring regressions, hence the version-stamped name.
+zimbra_8_8 = {
     ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
     'search.text.uid': {'support': 'full'},
     ## Measured with caldav-server-tester, 2026-10-19.
@@ -1898,6 +1900,29 @@ zimbra = {
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
     "scheduling.auto-schedule": {"support": "unsupported"},
 }
+
+## Zimbra 10.1.21, measured with caldav-server-tester 2026-10-29 against an
+## external server; there is no docker image of Zimbra 10.  Only the differences found
+## so far - everything else is assumed to be as in 8.8.
+zimbra_10_1 = zimbra_8_8 | {
+    "save.no-uid-conflict": {"support": "quirk", "status": 412, "precondition": True, "behaviour": "refused with 412 and the precondition"},
+    "save.no-uid-conflict.href-given": {"support": "full"},
+}
+
+def __getattr__(name: str) -> Any:
+    """Resolve a renamed profile, such as ``zimbra``, with a DeprecationWarning."""
+    from caldav.config import DEPRECATED_FEATURE_PROFILES
+
+    if name in DEPRECATED_FEATURE_PROFILES:
+        new_name, reason = DEPRECATED_FEATURE_PROFILES[name]
+        warnings.warn(
+            f"compatibility_hints.{name} has been renamed to {new_name} - {reason}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return globals()[new_name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 ## Measured against the `ioggstream/bedework:latest` docker image, which is
 ## a quickstart-3.10.3 tree on openjdk-8 and was built 2018-11-05 - the image

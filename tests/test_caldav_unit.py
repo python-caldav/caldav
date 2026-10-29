@@ -4974,8 +4974,17 @@ class TestTestKeyPrefix:
         from caldav.config import get_all_test_servers
 
         config_file = self._write(tmp_path, {"testing_allowed": True})
-        with pytest.warns(DeprecationWarning, match="test_allowed"):
+        with pytest.warns(FutureWarning, match="test_allowed"):
             assert "srv" in get_all_test_servers(config_file)
+
+    def test_deprecated_key_does_not_break_the_test_run(self, tmp_path):
+        """pyproject.toml's filterwarnings must let the warning through
+        rather than turn the developer's own config into a test error."""
+        from caldav.config import get_all_test_servers, resolve_features
+
+        config_file = self._write(tmp_path, {"testing_allowed": True})
+        assert "srv" in get_all_test_servers(config_file)
+        resolve_features("zimbra")
 
     def test_test_priority(self, tmp_path):
         from caldav.config import _ConfiguredServer, get_all_test_servers
@@ -4989,7 +4998,7 @@ class TestTestKeyPrefix:
         from caldav.config import _ConfiguredServer, get_all_test_servers
 
         config_file = self._write(tmp_path, {"test_allowed": True, "priority": 5})
-        with pytest.warns(DeprecationWarning, match="test_priority"):
+        with pytest.warns(FutureWarning, match="test_priority"):
             params = get_all_test_servers(config_file)["srv"]
             assert _ConfiguredServer("srv", params).priority == 5
 
@@ -4997,7 +5006,7 @@ class TestTestKeyPrefix:
         from caldav.testing import RadicaleServer
 
         assert RadicaleServer({"test_priority": 3}).priority == 3
-        with pytest.warns(DeprecationWarning, match="test_priority"):
+        with pytest.warns(FutureWarning, match="test_priority"):
             assert RadicaleServer({"priority": 4}).priority == 4
 
 
@@ -8630,7 +8639,7 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
         assert [m for m, _ in sent][0] == "REPORT"
         assert sent[-1][1]["if-none-match"] == "*"
 
-    @pytest.mark.parametrize("server", ["zimbra", "sogo"])
+    @pytest.mark.parametrize("server", ["zimbra_8_8", "zimbra_10_1", "sogo"])
     def test_hints_of_servers_overwriting(self, server) -> None:
         from caldav import compatibility_hints
         from caldav.compatibility_hints import FeatureSet
@@ -8975,7 +8984,9 @@ class TestNoCreateIfMatch(_SaveRequests):
             )
         assert [m for m, _ in sent] == ["REPORT"]
 
-    @pytest.mark.parametrize("server", ["radicale", "zimbra", "bedework_5_0_0", "sogo"])
+    @pytest.mark.parametrize(
+        "server", ["radicale", "zimbra_8_8", "zimbra_10_1", "bedework_5_0_0", "sogo"]
+    )
     def test_hints_of_servers_mishandling_if_match_star(self, server) -> None:
         from caldav import compatibility_hints
         from caldav.compatibility_hints import FeatureSet
