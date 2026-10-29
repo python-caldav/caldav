@@ -4020,6 +4020,7 @@ class TestRedirectedRequests:
         )
         event.save()
         assert str(event.url) == "https://cal.example.com/cal/redirect-uid.ics"
+        assert len(calls) == 2
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_save_raises_on_unfollowed_redirect(self, mocked):
@@ -4033,6 +4034,7 @@ class TestRedirectedRequests:
         )
         with pytest.raises(error.PutError):
             event.save()
+        assert len(calls) == 1
 
     def _routes(self, routes, default_put=201):
         """A server answering ``routes[url]`` = (status, Location or None)."""
@@ -4100,6 +4102,7 @@ class TestRedirectedRequests:
         response = client.put(base + "a.ics", self.ICAL)
         assert response.status == 201
         assert str(response.redirected_to) == base + "c.ics"
+        assert len(calls) == 3
 
     @mock.patch("caldav.davclient.requests.Session.request")
     def test_redirect_loop_is_bounded(self, mocked):
