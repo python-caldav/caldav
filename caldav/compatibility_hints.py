@@ -469,7 +469,7 @@ hence, "fragile".
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
-        "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: Ox answers the PUT with 201 and the GET with 404, while the same task without the ATTENDEE is kept.", "default": {"support": "full"}},
+        "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: the PUT is answered with 201 and the GET with 404, while the same task without the ATTENDEE is kept.  'ungraceful' when it is refused (Ox, with 409).", "default": {"support": "full"}},
         "save-load.todo.completed-without-status": {"description": "A task with a COMPLETED date-time but no STATUS (RFC 5545 makes neither require the other) is stored with its COMPLETED.  'unsupported' when COMPLETED is dropped (Ox).  A server adding STATUS:COMPLETED is fine.", "default": {"support": "full"}},
         "save-load.journal": {
             "description": "The server will even accept journals",
@@ -1652,6 +1652,8 @@ radicale = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists deleted members with a 404"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT or a VJOURNAL can be saved to it"},
 }
 
 ## Nextcloud can be configured a lot.  What particularly affects the compatibility
@@ -1862,9 +1864,10 @@ zimbra = {
     'search.comp-type.optional': {'support': 'full'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': "unsupported",
-    ## Zimbra implements server-side automatic scheduling: invitations are
-    ## auto-processed into the attendee's calendar; no iTIP notification appears in the inbox.
-    ## TODO: auto-scheduling did not work in the last test?  Check more around it
+    ## Zimbra was thought to auto-process invitations into the attendee's
+    ## calendar, without any iTIP notification in the inbox.  The server
+    ## tester's cross-user probe measured scheduling.auto-schedule as
+    ## unsupported on 2026-10-28.
     #"scheduling.mailbox.inbox-delivery": False,
     "scheduling.schedule-tag": False,
     'save-load.icalendar.related-to': {'support': 'unsupported'},
@@ -1889,6 +1892,11 @@ zimbra = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with STATUS, CLASS, TRANSP, LAST-MODIFIED and SEQUENCE added, yet the PUT answered with a strong ETag"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save-load.event.floating": {"support": "unsupported", "behaviour": "a floating time is stored with TZID=\"UTC\""},
+    "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
+    "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
+    "scheduling.auto-schedule": {"support": "unsupported"},
 }
 
 ## Measured against the `ioggstream/bedework:latest` docker image, which is
@@ -2948,7 +2956,7 @@ ox = {
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
     "save-load.icalendar.x-property": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER is dropped, in a task"},
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
-    "save-load.todo.attendee": {"support": "broken", "behaviour": "the task is accepted, then gone (404)"},
+    "save-load.todo.attendee": {"support": "ungraceful", "behaviour": "a task with an ATTENDEE is refused (409)"},
     "save-load.todo.completed-without-status": {"support": "unsupported", "behaviour": "COMPLETED is dropped"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
@@ -3083,10 +3091,14 @@ ox = {
     },
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
-    "calendar-color.name": {"support": "unsupported", "behaviour": "colour names are accepted but ignored: set 'blue' or 'green', '#CEE7FFFF' comes back"},
+    "calendar-color.name": {"support": "fragile", "behaviour": "colour names are never stored, but what is read back depends on the preceding writes: an earlier colour, then the default '#CEE7FFFF'"},
     "calendar-order": {"support": "unsupported"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    ## Measured with caldav-server-tester, 2026-10-28.
+    "save-load.icalendar.attendee-params": {"support": "unsupported", "behaviour": "an EMAIL parameter is added to every ATTENDEE"},
+    "create-calendar.with-supported-component-types.multiple": {"support": "broken", "behaviour": "asked for ['VEVENT', 'VTODO'], the calendar reports ['VTODO']"},
+    "search.text.uid": {"support": "unsupported", "behaviour": "objects not matching the UID come back"},
 }
 
 ## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served
