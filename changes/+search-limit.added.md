@@ -1,1 +1,0 @@
-Compatibility feature `search.limit`: a calendar-query answers every object it matches.  Stalwart answers at most its maxResults, with a 507 for the collection, as it does for a multiget or a Depth: 1 PROPFIND.  Probed by caldav-server-tester (https://github.com/python-caldav/caldav-server-tester/issues/41).
