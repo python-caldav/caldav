@@ -106,3 +106,4 @@ This is most likely not complete, but should explain some of the "silly" steps a
 * "Playing ball" with Claude on the CHANGELOG and committing the changes directly to master before a release, not going through the regular QA - and suddenly the master branch has 6-7 commits with various irrelevant prompts attached.
 * `git push --tags` pushes every local tag, backup tags and experiments included - push release tags by name.
 * Creating a GitHub release for an older version without `--latest=false`, so that it becomes the "Latest" release.
+* Uploading a niquests-less `X.Y.Za0` that still depends on niquests (3.6.0a0 went to PyPI that way, hence 3.6.0a1) - check the wheel's `Requires-Dist` before uploading, see "Releases without niquests" above.
