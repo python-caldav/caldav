@@ -9,6 +9,8 @@ using the same dynamic class generation pattern as the sync tests.
 
 import asyncio
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from typing import Any
@@ -355,11 +357,14 @@ class AsyncFunctionalTestsBaseClass:
         ):
             yield calendar
 
-    async def _make_async_client_with_params(self, **overrides: Any) -> Any:
-        """Build a fresh async client from this server's config with kwargs overridden.
+    @asynccontextmanager
+    async def _async_client_with_params(self, **overrides: Any) -> AsyncIterator[Any]:
+        """A fresh async client from this server's config with kwargs overridden.
 
         Used by auth-error tests (wrong password, wrong auth type) that need a
-        client that is expected to fail to connect.
+        client that is expected to fail to connect.  The client is closed on
+        exit: left open, its connection outlives the test's event loop and
+        surfaces later as a ResourceWarning in some unrelated test.
         """
         from caldav.aio import get_async_davclient
 
@@ -373,7 +378,8 @@ class AsyncFunctionalTestsBaseClass:
         if "ssl_verify_cert" in self.server.config:
             kwargs["ssl_verify_cert"] = self.server.config["ssl_verify_cert"]
         kwargs.update(overrides)
-        return await get_async_davclient(**kwargs)
+        async with await get_async_davclient(**kwargs) as client:
+            yield client
 
     # ==================== Test Methods ====================
 
@@ -2221,8 +2227,8 @@ END:VCALENDAR"""
         raised = False
         for auth_type in ("digest", "bearer"):
             try:
-                c = await self._make_async_client_with_params(auth_type=auth_type)
-                await c.principal()
+                async with self._async_client_with_params(auth_type=auth_type) as c:
+                    await c.principal()
             except error.AuthorizationError:
                 raised = True
                 break
@@ -2240,10 +2246,10 @@ END:VCALENDAR"""
             pytest.skip("Server does not require a password")
 
         with pytest.raises(error.AuthorizationError):
-            bad = await self._make_async_client_with_params(
+            async with self._async_client_with_params(
                 password=codecs.encode(self.server.password, "rot13") + "!"
-            )
-            await bad.principal()
+            ) as bad:
+                await bad.principal()
 
     @pytest.mark.asyncio
     async def test_create_child_parent(self, async_calendar: Any) -> None:
@@ -2305,10 +2311,10 @@ END:VCALENDAR"""
         principal = await async_client.principal()
         urls = [principal.url, async_calendar.url]
         for url in urls:
-            conn = await self._make_async_client_with_params(url=url)
-            p = await conn.principal()
-            calendars = await p.get_calendars()
-            assert calendars is not None
+            async with self._async_client_with_params(url=url) as conn:
+                p = await conn.principal()
+                calendars = await p.get_calendars()
+                assert calendars is not None
 
     @pytest.mark.asyncio
     async def test_utf8_event(self, async_client: Any) -> None:
