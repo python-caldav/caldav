@@ -387,6 +387,7 @@ class AsyncDAVClient(BaseDAVClient):
         method: str = "GET",
         body: str = "",
         headers: Mapping[str, str] | None = None,
+        redirects: int = 0,
     ) -> DAVResponse:
         """
         Async HTTP request implementation with auth negotiation.
@@ -421,6 +422,7 @@ class AsyncDAVClient(BaseDAVClient):
                 "proxies": proxies,
                 "verify": self.ssl_verify_cert,
                 "cert": self.ssl_cert,
+                "allow_redirects": self._follows_redirects(method),
             }
 
         try:
@@ -540,6 +542,13 @@ class AsyncDAVClient(BaseDAVClient):
         # Raise AuthorizationError for 401/403 responses
         if r.status_code in (401, 403):
             self._raise_authorization_error(str(url_obj), r)
+
+        target = self._redirect_target(method, url_obj, r.status_code, r.headers)
+        if target is not None and redirects < self.MAX_REDIRECTS:
+            followed = await self._async_request(str(target), method, body, headers, redirects + 1)
+            if followed.redirected_to is None:
+                followed.redirected_to = target
+            return followed
 
         ## Only a 401/403 leaves response unset, and that has raised above
         assert response is not None

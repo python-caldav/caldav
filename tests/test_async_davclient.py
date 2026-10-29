@@ -462,6 +462,68 @@ class TestAsyncDAVClient:
         assert call_args.kwargs["method"] == "PUT"
 
     @pytest.mark.asyncio
+    async def test_put_repeated_at_location(self) -> None:
+        """A redirected PUT is repeated with its body (Zimbra redirects to
+        <uid>.ics); a redirect to another port is left to the caller."""
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.session.request = AsyncMock(
+            side_effect=[
+                create_mock_response(
+                    status_code=302,
+                    headers={"Location": "/dav/calendar/uid.ics"},
+                ),
+                create_mock_response(status_code=201, reason="Created"),
+            ]
+        )
+        response = await client.put(
+            url="https://caldav.example.com/dav/calendar/other.ics",
+            body="BEGIN:VCALENDAR...",
+        )
+        assert response.status == 201
+        assert str(response.redirected_to) == "https://caldav.example.com/dav/calendar/uid.ics"
+        second = client.session.request.call_args_list[1].kwargs
+        assert second["method"] == "PUT"
+        assert second["url"] == "https://caldav.example.com/dav/calendar/uid.ics"
+
+        client.session.request = AsyncMock(
+            return_value=create_mock_response(
+                status_code=302,
+                headers={"Location": "https://caldav.example.com:8443/dav/calendar/uid.ics"},
+            )
+        )
+        response = await client.put(
+            url="https://caldav.example.com/dav/calendar/other.ics",
+            body="BEGIN:VCALENDAR...",
+        )
+        assert response.status == 302
+        assert client.session.request.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_save_follows_a_redirected_put(self) -> None:
+        from caldav import Calendar, Event
+
+        base = "https://caldav.example.com/dav/cal/"
+
+        async def request(**kwargs):
+            if kwargs["url"].endswith("other.ics"):
+                return create_mock_response(status_code=302, headers={"Location": base + "uid.ics"})
+            if kwargs["method"] == "PUT":
+                return create_mock_response(status_code=201)
+            return create_mock_response(status_code=404)
+
+        client = AsyncDAVClient(url=base)
+        client.session.request = AsyncMock(side_effect=request)
+        cal = Calendar(client, url=base)
+        event = Event(
+            client,
+            url=base + "other.ics",
+            data="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//y//EN\r\nBEGIN:VEVENT\r\nUID:uid\r\nDTSTAMP:20260119T120000Z\r\nDTSTART:20260119T120000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+            parent=cal,
+        )
+        await event.save()
+        assert str(event.url) == base + "uid.ics"
+
+    @pytest.mark.asyncio
     async def test_delete_method(self) -> None:
         """Test delete method (requires URL)."""
         client = AsyncDAVClient(url="https://caldav.example.com/dav/")

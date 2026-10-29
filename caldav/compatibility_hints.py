@@ -520,7 +520,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.stable-url": {
-            "description": "The server reports a calendar object resource under the same URL the client used to store it, so that a client may compare a searched object's URL with one it constructed as '<collection>/<uid>.ics'.  When 'unsupported' it may not, and has to read the URL off the response.  Two different things make it 'unsupported'.  The server may assign the resource a name of its own choosing.  Or the *collection* may not stay at the address it was created at, in which case a constructed object URL is only usable from the address the server reports objects under - and a client is handed either address depending on how it got the Calendar: make_calendar adopts the canonical URL, a calendar listing reports it, while the cal_id shortcut is pure URL arithmetic and never round-trips.  That comes in two flavours.  OX App Suite exposes a calendar both at the requested cal_id and at an opaque internal 'cal://0/NNN' path, a direct GET on either working, so a constructed URL resolves but is not the URL the server reports.  Zimbra instead relocates the collection to a display-name-derived path and leaves an alias at the cal_id that answers PROPFIND but 404s on child objects, so a constructed URL under the cal_id does not resolve at all.  That second case is 'create-calendar.stable-url' seen from the object end, and it is read from there rather than measured again here - measuring it made this feature's verdict depend on which address the probe run happened to be holding.",
+            "description": "The server reports a calendar object resource under the same URL the client used to store it, so that a client may compare a searched object's URL with one it constructed as '<collection>/<uid>.ics'.  When 'unsupported' it may not, and has to read the URL off the response.  Two different things make it 'unsupported'.  The server may assign the resource a name of its own choosing - Zimbra, for one, redirects a PUT under any name but '<uid>.ics' to '<uid>.ics' (see forces_uid_ics).  Or the *collection* may not stay at the address it was created at, in which case a constructed object URL is only usable from the address the server reports objects under - and a client is handed either address depending on how it got the Calendar: make_calendar adopts the canonical URL, a calendar listing reports it, while the cal_id shortcut is pure URL arithmetic and never round-trips.  That comes in two flavours.  OX App Suite exposes a calendar both at the requested cal_id and at an opaque internal 'cal://0/NNN' path, a direct GET on either working, so a constructed URL resolves but is not the URL the server reports.  Zimbra instead relocates the collection to a display-name-derived path and leaves an alias at the cal_id that answers PROPFIND but 404s on child objects, so a constructed URL under the cal_id does not resolve at all.  That second case is 'create-calendar.stable-url' seen from the object end, and it is read from there rather than measured again here - measuring it made this feature's verdict depend on which address the probe run happened to be holding.",
             "extra_keys": {
                 "forces_uid_ics": "True when the server names every object <uid>.ics whatever name it was PUT to, so a GET of <uid>.ics that misses means the object is not there.  get_object_by_uid() then does not scan the calendar after a failed UID search.",
             },
@@ -1834,16 +1834,16 @@ zimbra = {
     ##     "404 most of the time but sometimes 200" observation.)
     'create-calendar.set-displayname': {'support': 'full'},
     'create-calendar.stable-url': {'support': 'unsupported', 'behaviour': 'a display name set at creation relocates the collection to a display-name-derived canonical URL; a collection alias lingers at the requested cal_id but child object GETs under it 404'},
-    ## The object end of the same relocation.  Zimbra keeps the name the object
-    ## was stored under, so this is not a rename - but the collection moved, and
-    ## the alias left behind at the requested cal_id does not serve child
-    ## objects, so a URL a client constructed as '<cal_id>/<uid>.ics' 404s.  Only
-    ## a client holding the canonical collection URL can construct an object URL
-    ## at all, and the library hands out either address depending on how the
-    ## Calendar was obtained.  See the OX profile for the other flavour of this:
-    ## there both collection addresses work, so the constructed URL resolves but
-    ## may not be the one the server reports.
-    'save-load.stable-url': {'support': 'unsupported', 'behaviour': "the object keeps the name it was stored under, but the collection moved to its display-name-derived canonical URL and the cal_id alias 404s on child objects, so an object URL constructed under the requested cal_id does not resolve"},
+    ## Zimbra names every object <uid>.ics: a PUT under another name is
+    ## answered with a 302 to <uid>.ics, storing nothing until the client
+    ## repeats the PUT there (the docker image redirects to its internal port
+    ## 8443, so the client cannot).  The collection relocation above is the
+    ## other reason a constructed object URL fails here; it is graded under
+    ## create-calendar.stable-url.  forces_uid_ics makes a 404 on <uid>.ics
+    ## conclusive in get_object_by_uid(), which is wrong under the cal_id
+    ## alias - unreachable while search.text.uid is full, as the UID search
+    ## then answers first.
+    'save-load.stable-url': {'support': 'unsupported', 'forces_uid_ics': True, 'behaviour': "an object PUT under another name is redirected (302) to <uid>.ics"},
     'save-load.todo.mixed-calendar': {'support': 'unsupported'},
     ## Measured 2026-10-27: a set naming VTODO as well as VEVENT yields an events-only calendar.
     'create-calendar.with-supported-component-types.multiple': {'support': 'broken', 'behaviour': "asked for VEVENT and VTODO, the calendar reports ['VEVENT', 'VFREEBUSY']"},

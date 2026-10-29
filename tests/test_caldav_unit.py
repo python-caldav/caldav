@@ -3936,6 +3936,218 @@ VALID_SYNC_TOKEN_BODY = (
 )
 
 
+class TestRedirectedRequests:
+    """Zimbra answers a PUT under a name other than ``<uid>.ics`` with a
+    302 to ``<uid>.ics`` and stores nothing.  niquests/requests follow a
+    302 as a GET without the body, which answers 404 - and the data was
+    lost without an error.  A redirected request other than GET/HEAD is
+    repeated with its method and body, on the same host only.
+    """
+
+    ICAL = (
+        "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//y//EN\r\n"
+        "BEGIN:VEVENT\r\nUID:redirect-uid\r\nDTSTAMP:20260119T120000Z\r\n"
+        "DTSTART:20260119T120000Z\r\nSUMMARY:x\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+    )
+
+    def _make_response(self, status_code, headers=None):
+        r = mock.MagicMock()
+        r.status_code = status_code
+        r.headers = headers or {}
+        r.reason = "x"
+        r.content = b""
+        r.text = ""
+        return r
+
+    def _server(self, location):
+        """A server redirecting PUTs of other-name.ics to ``location``."""
+        calls = []
+
+        def request(method, url, **kwargs):
+            calls.append((method, url, kwargs))
+            if url.endswith("other-name.ics"):
+                return self._make_response(302, {"Location": location})
+            if method == "PUT":
+                return self._make_response(201)
+            return self._make_response(404)
+
+        return request, calls
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_put_repeated_at_location(self, mocked):
+        mocked.side_effect, calls = self._server("https://cal.example.com/cal/redirect-uid.ics")
+        client = DAVClient(url="https://cal.example.com/cal/")
+        response = client.put("https://cal.example.com/cal/other-name.ics", self.ICAL)
+        assert response.status == 201
+        assert [(m, u) for m, u, _ in calls] == [
+            ("PUT", "https://cal.example.com/cal/other-name.ics"),
+            ("PUT", "https://cal.example.com/cal/redirect-uid.ics"),
+        ]
+        assert calls[0][2]["allow_redirects"] is False
+        assert calls[1][2]["data"] == calls[0][2]["data"]
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_relative_location(self, mocked):
+        mocked.side_effect, calls = self._server("/cal/redirect-uid.ics")
+        client = DAVClient(url="https://cal.example.com/cal/")
+        assert client.put("https://cal.example.com/cal/other-name.ics", self.ICAL).status == 201
+        assert calls[1][1] == "https://cal.example.com/cal/redirect-uid.ics"
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_other_port_not_followed(self, mocked):
+        """The Zimbra docker image redirects to its internal port 8443."""
+        mocked.side_effect, calls = self._server(
+            "https://cal.example.com:8443/cal/redirect-uid.ics"
+        )
+        client = DAVClient(url="https://cal.example.com/cal/")
+        response = client.put("https://cal.example.com/cal/other-name.ics", self.ICAL)
+        assert response.status == 302
+        assert len(calls) == 1
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_get_left_to_the_http_library(self, mocked):
+        mocked.return_value = self._make_response(200)
+        DAVClient(url="https://cal.example.com/cal/").request("/cal/x.ics")
+        assert mocked.call_args.kwargs.get("allow_redirects", True) is True
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_save_follows_the_object(self, mocked):
+        mocked.side_effect, calls = self._server("https://cal.example.com/cal/redirect-uid.ics")
+        client = DAVClient(url="https://cal.example.com/cal/")
+        cal = Calendar(client, url="https://cal.example.com/cal/")
+        event = Event(
+            client, url="https://cal.example.com/cal/other-name.ics", data=self.ICAL, parent=cal
+        )
+        event.save()
+        assert str(event.url) == "https://cal.example.com/cal/redirect-uid.ics"
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_save_raises_on_unfollowed_redirect(self, mocked):
+        mocked.side_effect, calls = self._server(
+            "https://cal.example.com:8443/cal/redirect-uid.ics"
+        )
+        client = DAVClient(url="https://cal.example.com/cal/")
+        cal = Calendar(client, url="https://cal.example.com/cal/")
+        event = Event(
+            client, url="https://cal.example.com/cal/other-name.ics", data=self.ICAL, parent=cal
+        )
+        with pytest.raises(error.PutError):
+            event.save()
+
+    def _routes(self, routes, default_put=201):
+        """A server answering ``routes[url]`` = (status, Location or None)."""
+        calls = []
+
+        def request(method, url, **kwargs):
+            calls.append((method, url, kwargs))
+            if url in routes:
+                status, location = routes[url]
+                return self._make_response(status, {"Location": location} if location else {})
+            if method == "PUT":
+                return self._make_response(default_put)
+            return self._make_response(404)
+
+        return request, calls
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_http_to_https_upgrade_followed(self, mocked):
+        """A non-GET method lost the library's redirect following; the
+        upgrade to https on the same host must still work."""
+        mocked.side_effect, calls = self._routes(
+            {"http://cal.example.com/cal/": (308, "https://cal.example.com/cal/")}
+        )
+        client = DAVClient(url="http://cal.example.com/cal/")
+        client.request("http://cal.example.com/cal/", "PROPFIND", "<x/>")
+        assert [(m, u) for m, u, _ in calls] == [
+            ("PROPFIND", "http://cal.example.com/cal/"),
+            ("PROPFIND", "https://cal.example.com/cal/"),
+        ]
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_https_to_http_not_followed(self, mocked):
+        mocked.side_effect, calls = self._routes(
+            {"https://cal.example.com/cal/": (308, "http://cal.example.com/cal/")}
+        )
+        client = DAVClient(url="https://cal.example.com/cal/")
+        assert client.request("https://cal.example.com/cal/", "PROPFIND", "<x/>").status == 308
+        assert len(calls) == 1
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_other_host_not_followed(self, mocked):
+        mocked.side_effect, calls = self._routes(
+            {"https://cal.example.com/cal/x.ics": (307, "https://evil.example.com/cal/x.ics")}
+        )
+        client = DAVClient(url="https://cal.example.com/cal/")
+        assert client.put("https://cal.example.com/cal/x.ics", self.ICAL).status == 307
+        assert len(calls) == 1
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_host_compared_case_insensitively(self, mocked):
+        mocked.side_effect, calls = self._routes(
+            {"https://cal.example.com/cal/x.ics": (307, "https://CAL.Example.com/cal/y.ics")}
+        )
+        client = DAVClient(url="https://cal.example.com/cal/")
+        assert client.put("https://cal.example.com/cal/x.ics", self.ICAL).status == 201
+        assert len(calls) == 2
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_chain_ends_at_the_last_hop(self, mocked):
+        base = "https://cal.example.com/cal/"
+        mocked.side_effect, calls = self._routes(
+            {base + "a.ics": (307, base + "b.ics"), base + "b.ics": (308, base + "c.ics")}
+        )
+        client = DAVClient(url=base)
+        response = client.put(base + "a.ics", self.ICAL)
+        assert response.status == 201
+        assert str(response.redirected_to) == base + "c.ics"
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_redirect_loop_is_bounded(self, mocked):
+        base = "https://cal.example.com/cal/"
+        mocked.side_effect, calls = self._routes({base + "a.ics": (302, base + "a.ics")})
+        client = DAVClient(url=base)
+        cal = Calendar(client, url=base)
+        event = Event(client, url=base + "a.ics", data=self.ICAL, parent=cal)
+        with pytest.raises(error.PutError):
+            event.save()
+        puts = [c for c in calls if c[0] == "PUT"]
+        assert len(puts) == DAVClient.MAX_REDIRECTS + 1
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_303_to_a_put_is_success_at_the_location(self, mocked):
+        """RFC 9110 section 15.4.4: the PUT succeeded, and the Location
+        names the resource - presumably the object, renamed."""
+        base = "https://cal.example.com/cal/"
+        mocked.side_effect, calls = self._routes(
+            {base + "other-name.ics": (303, base + "server-named.ics")}
+        )
+        client = DAVClient(url=base)
+        cal = Calendar(client, url=base)
+        event = Event(client, url=base + "other-name.ics", data=self.ICAL, parent=cal)
+        event.save()
+        assert str(event.url) == base + "server-named.ics"
+        assert [m for m, _, _ in calls].count("PUT") == 1
+
+    @mock.patch("caldav.davclient.requests.Session.request")
+    def test_mkcalendar_adopts_the_location(self, mocked):
+        base = "https://cal.example.com/cal/"
+        calls = []
+
+        def request(method, url, **kwargs):
+            calls.append((method, url))
+            if method == "MKCALENDAR" and url == base + "new/":
+                return self._make_response(307, {"Location": base + "moved/"})
+            if method == "MKCALENDAR":
+                return self._make_response(201)
+            return self._make_response(404)
+
+        mocked.side_effect = request
+        client = DAVClient(url=base)
+        cal = Calendar(client, url=None, parent=Calendar(client, url=base))
+        cal._create(id="new")
+        assert str(cal.url) == base + "moved/"
+
+
 class TestAuthorizationErrorPreconditions:
     """Issue https://github.com/python-caldav/caldav/issues/738: a 403 may carry
     its reason as a precondition in a DAV:error body (RFC 4918 section 16).
@@ -5937,42 +6149,6 @@ class TestAsyncDAVClientCredentialPairing:
         )
         assert client.username == "bob"
         assert client.password == "s3cret"
-
-
-class TestPostPutRedirect:
-    """302 response to PUT must update event.url from Location header.
-
-    Bug: `[x[1] for x in r.headers if x[0] == "location"]` iterates the
-    headers dict yielding key *strings*, so x[0] is the first character of
-    each header name — never "location".  The list is always empty and any
-    302 raises IndexError.
-    """
-
-    @mock.patch("caldav.davclient.requests.Session.request")
-    def test_302_put_updates_url_from_location_header(self, mocked):
-        try:
-            from niquests.structures import CaseInsensitiveDict
-        except ImportError:
-            from requests.structures import CaseInsensitiveDict
-
-        new_url = "http://cal.example.com/cal/new-location.ics"
-        resp = mock.MagicMock()
-        resp.status_code = 302
-        resp.headers = CaseInsensitiveDict({"Location": new_url})
-        resp.reason = "Found"
-        resp.content = b""
-        mocked.return_value = resp
-
-        client = DAVClient(url="http://cal.example.com/")
-        cal = Calendar(client=client, url="http://cal.example.com/cal/")
-        event = Event(
-            client=client,
-            url="http://cal.example.com/cal/event.ics",
-            data=ev1,
-            parent=cal,
-        )
-        event.save()
-        assert str(event.url) == new_url
 
 
 class TestWarnUnreadableDisplayName:
