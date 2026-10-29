@@ -12,6 +12,10 @@
 
 For servers where calendars cannot be created, the test will take the first available calendar it finds and wipe it.  That is not acceptable without the user explicitly configuring that this is OK.
 
+## Async scheduling fixture leaks clients when setup fails
+
+`scheduling_setup` in `tests/test_async_integration.py` closes a client only on its `continue` branches.  If `check_scheduling_support()`, `principal()`, `aget_or_create_test_calendar()` or `cleanup_calendar_objects()` raises, the fixture exits before `yield`, and that client plus every one already set up stays open.  Their connections outlive the test's event loop and surface later as `ResourceWarning: loop is closed` in an unrelated test.  Fix: an `AsyncExitStack` around the setup and the `yield`.
+
 ## Nextcloud UNIQUE Constraint Violations
 
 **Status**: Known issue, needs upstream investigation
