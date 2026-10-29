@@ -1866,10 +1866,14 @@ zimbra_8_8 = {
     'search.comp-type.optional': {'support': 'full'},
     'search.time-range.alarm': {'support': 'unsupported'},
     'principal-search': "unsupported",
-    ## Zimbra was thought to auto-process invitations into the attendee's
-    ## calendar, without any iTIP notification in the inbox.  The server
-    ## tester's cross-user probe measured scheduling.auto-schedule as
-    ## unsupported on 2026-10-28.
+    ## Zimbra auto-processes invitations into the attendee's calendar,
+    ## without any iTIP notification in the inbox.  The server tester's
+    ## cross-user probe found the invitation missing once (2026-10-28), and
+    ## in place in three runs on 2026-10-29.  Zimbra is known to need a
+    ## pause before an invitation lands, and the probe looks at the
+    ## attendee's calendar only once, so the miss may have been a delay.
+    ## If it is observed missing again, regrade scheduling.auto-schedule
+    ## (below) as fragile.
     #"scheduling.mailbox.inbox-delivery": False,
     "scheduling.schedule-tag": False,
     'save-load.icalendar.related-to': {'support': 'unsupported'},
@@ -1898,7 +1902,7 @@ zimbra_8_8 = {
     "save-load.event.floating": {"support": "unsupported", "behaviour": "a floating time is stored with TZID=\"UTC\""},
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
-    "scheduling.auto-schedule": {"support": "unsupported"},
+    "scheduling.auto-schedule": {"support": "full"},
 }
 
 ## Zimbra 10.1.21, measured with caldav-server-tester 2026-10-29 against an
