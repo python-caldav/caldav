@@ -15,8 +15,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from caldav.collection import Calendar
-
-from .search_cache_delay import SearchCacheDelay
+from caldav.testing.search_cache_delay import SearchCacheDelay
 
 START = datetime(2027, 3, 1, tzinfo=timezone.utc)
 
@@ -24,7 +23,9 @@ START = datetime(2027, 3, 1, tzinfo=timezone.utc)
 @pytest.fixture
 def clock():
     """A frozen clock: no time passes unless a test moves it."""
-    with patch("tests.search_cache_delay.time.monotonic", return_value=1000.0) as monotonic:
+    with patch(
+        "caldav.testing.search_cache_delay.time.monotonic", return_value=1000.0
+    ) as monotonic:
         yield monotonic
 
 
@@ -72,6 +73,15 @@ def test_owes_only_the_rest_since_the_last_write(clock) -> None:
     assert owed(state, event=True, start=START) == 0
 
 
+def test_a_listing_owes_the_rest_even_where_only_filtered_searches_wait(clock) -> None:
+    state = SearchCacheDelay(180, filtered_only=True)
+    state.note_request("PUT")
+    clock.return_value = 1100.0
+    assert state.remaining() == 80
+    clock.return_value = 1300.0
+    assert state.remaining() == 0
+
+
 def test_a_read_does_not_restart_the_clock(clock) -> None:
     state = SearchCacheDelay(180)
     clock.return_value = 1500.0
@@ -82,7 +92,7 @@ def test_a_read_does_not_restart_the_clock(clock) -> None:
     assert owed(state, event=True, start=START) == 180
 
 
-@patch("tests.search_cache_delay.time.sleep")
+@patch("caldav.testing.search_cache_delay.time.sleep")
 def test_wrapped_search_sleeps_for_index_search_only(mock_sleep, clock) -> None:
     state = SearchCacheDelay(180, filtered_only=True)
     original = Mock(return_value=["found"])
@@ -95,7 +105,7 @@ def test_wrapped_search_sleeps_for_index_search_only(mock_sleep, clock) -> None:
     original.assert_called_with(cal, event=True, summary="meeting")
 
 
-@patch("tests.search_cache_delay.time.sleep")
+@patch("caldav.testing.search_cache_delay.time.sleep")
 def test_wrapped_request_moves_the_clock(mock_sleep, clock) -> None:
     state = SearchCacheDelay(180)
     request = state.wrap_request(Mock(return_value="response"))
@@ -105,7 +115,7 @@ def test_wrapped_request_moves_the_clock(mock_sleep, clock) -> None:
     assert owed(state, event=True, start=START) == 80
 
 
-@patch("tests.search_cache_delay.asyncio.sleep")
+@patch("caldav.testing.search_cache_delay.asyncio.sleep")
 def test_async_wrappers(mock_sleep, clock) -> None:
     state = SearchCacheDelay(180, filtered_only=True)
 

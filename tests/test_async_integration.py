@@ -23,8 +23,8 @@ from caldav import Event, FreeBusy, Todo
 from caldav.compatibility_hints import FeatureSet, write_delay
 from caldav.config import resolve_features
 from caldav.lib import error
+from caldav.testing.search_cache_delay import SearchCacheDelay
 
-from .search_cache_delay import SearchCacheDelay
 from .test_caldav import (
     ev1 as ev1_static,  # old-date (2006); distinct from ev1() near-future generator
 )

@@ -1,0 +1,1 @@
+* New `caldav.testing.search_cache_delay.SearchCacheDelay`, for the integration tests of libraries built on caldav: after a write, a search waits for what is left of the server's search-cache delay (Bedework 3, Purelymail), as caldav's own integration tests do.  It used to live in caldav's `tests/`.

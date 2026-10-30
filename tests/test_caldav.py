@@ -28,8 +28,8 @@ import vobject
 from proxy.http.proxy import HttpProxyBasePlugin
 
 from caldav import get_davclient
+from caldav.testing.search_cache_delay import SearchCacheDelay
 
-from .search_cache_delay import SearchCacheDelay
 from .test_servers import get_registry
 from .test_servers.config_loader import load_test_server_config
 
