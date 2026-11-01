@@ -94,6 +94,15 @@ def _normalize_href(text: str, preserve_at: bool = False) -> str:
     return decode(text)
 
 
+def _only_xml_declaration(raw: bytes | str) -> bool:
+    """Is ``raw`` an XML declaration followed by nothing but whitespace?"""
+    if len(raw) > 256:  # a declaration is short; spare a large body the decoding
+        return False
+    text = raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw
+    text = text.strip().lstrip("\ufeff")
+    return text.startswith("<?xml") and text.endswith("?>") and text.count("<") == 1
+
+
 def _validate_status(status: str | None) -> None:
     """Validate a status string like "HTTP/1.1 404 Not Found".
 
@@ -387,7 +396,9 @@ class DAVResponse:
             content_length = int(self.headers["Content-Length"])
         except (KeyError, ValueError, TypeError):
             content_length = -1
-        if content_length == 0 or not self._raw:
+        ## Zimbra answers some requests with an XML declaration and no
+        ## document; that is no content, not a malformed document
+        if content_length == 0 or not self._raw or _only_xml_declaration(self._raw):
             self._raw = ""
             self.tree = None
             log.debug("No content delivered")
@@ -475,7 +486,11 @@ class DAVResponse:
 
         (The equivalent of this method could probably be found with a
         simple XPath query, but I'm not much into XPath)
+
+        A response without content has no responses.
         """
+        if self.tree is None:
+            return []
         return _strip_to_multistatus(self.tree)
 
     def validate_status(self, status: str) -> None:
