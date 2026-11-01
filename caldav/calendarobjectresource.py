@@ -1342,6 +1342,13 @@ class CalendarObjectResource(DAVObject):
         ``if_match=True`` with neither tag cached, or an empty string,
         raises ``ValueError`` rather than deleting unconditionally;
         so does a cached ETag that is weak, as it can never match.
+        Where the server deletes on a stale ``If-Match`` anyway
+        (``delete.if-match`` broken), the ETag is read first and a
+        changed object refused with ``ETagMismatchError`` before the
+        DELETE; that leaves a window between the two requests.  If that
+        read fails, nothing is deleted; if it gives no ETag, the DELETE
+        goes ahead unchecked.  A Schedule-Tag precondition is sent as it
+        is, with no read first.
 
         ``precondition`` works as in ``save()``: ``"etag"`` makes
         ``if_match=True`` prefer ``If-Match`` over a cached Schedule-Tag.
@@ -1371,7 +1378,58 @@ class CalendarObjectResource(DAVObject):
                 )
         else:
             headers = {"if-match": if_match}
+        if self._ignores_delete_if_match(headers):
+            if self.is_async_client:
+                return self._async_delete_unless_changed(headers)
+            cached = self.etag
+            try:
+                current = self.get_property(dav.GetEtag())
+            finally:
+                self._restore_etag(cached)
+            self._refuse_changed(current, headers["if-match"])
         return self._delete(headers)
+
+    def _ignores_delete_if_match(self, headers: dict[str, str]) -> bool:
+        """Does the server delete on a stale If-Match (``delete.if-match`` broken)?
+
+        Then the ETag is read first, and a stale one refused here: a
+        window between the read and the DELETE, where the server's own
+        check has none.  ``*`` needs no check, a DELETE of a missing
+        object fails anyway (``delete.missing``).
+        """
+        etag = headers.get("if-match")
+        if etag is None or etag == "*":
+            return False
+        features = self.client.features if self.client is not None else None
+        return features is not None and features.is_supported("delete.if-match", str) == "broken"
+
+    async def _async_delete_unless_changed(self, headers: dict[str, str]) -> None:
+        cached = self.etag
+        try:
+            current = await self.get_property(dav.GetEtag())
+        finally:
+            self._restore_etag(cached)
+        self._refuse_changed(current, headers["if-match"])
+        await self._delete(headers)
+
+    def _restore_etag(self, cached: str | None) -> None:
+        """Put back the ETag the object was read with: the check reads the
+        server's into ``props``, and a refused delete must not leave a newer
+        ETag behind for a retry, or a save(), to pass on."""
+        if cached is None:
+            self.props.pop(dav.GetEtag.tag, None)
+        else:
+            self.props[dav.GetEtag.tag] = cached
+
+    def _refuse_changed(self, current: str | None, expected: str) -> None:
+        """ETagMismatchError unless ``current`` is ``expected``, compared weakly
+        (RFC 9110 section 8.8.3.2): the opaque tag is what tells a version.
+        No ``current`` passes: the server gave nothing to compare."""
+        if current is not None and current.removeprefix("W/") != expected.removeprefix("W/"):
+            raise error.ETagMismatchError(
+                str(self.url),
+                f"the object has ETag {current}, not {expected}: it changed since it was read",
+            )
 
     def cancel(self, **kwargs: Any) -> "Self | Coroutine[Any, Any, Self]":
         """Mark the object as cancelled (``STATUS:CANCELLED``) and save it.

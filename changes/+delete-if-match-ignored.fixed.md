@@ -1,0 +1,1 @@
+`delete(if_match=...)` deleted a changed object on servers that ignore `If-Match` on DELETE (SOGo, Zimbra, Bedework, Posteo: `delete.if-match` broken).  There it now reads the ETag first and raises `ETagMismatchError` if the object changed; a window remains between the read and the DELETE.
