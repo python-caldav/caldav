@@ -2848,7 +2848,8 @@ class Todo(CalendarObjectResource):
         ``None`` when the task is not (or no longer) recurring, in which
         case the caller should fall back to a plain completion.  The
         caller is responsible for saving both ``self`` and the returned
-        copy (one PUT each).
+        copy (one PUT each), and for deleting the copy if the server
+        refuses ``self`` (issue #765).
         """
         ## If count is one, then it is not really recurring
         count = self.icalendar_component["RRULE"].get("COUNT")
@@ -2878,14 +2879,32 @@ class Todo(CalendarObjectResource):
         marked as completed, and modify the existing recurring task.
         It is probably the most safe way to handle the completion of a
         recurrence of a recurring task, though the link between the
-        completed task and the original task is lost.
+        completed task and the original task is lost.  If the
+        completed task cannot be saved, or the server refuses the
+        updated recurring task, the recurring task is reset in memory
+        before the error is raised, and in the latter case the
+        completed task is deleted.
         """
+        data = self.data
         completed = self._build_recurring_safe_completed(completion_timestamp)
         if completed is None:
             self.complete(completion_timestamp=completion_timestamp, handle_rrule=False)
             return
-        completed.save()
-        self.save()
+        try:
+            completed.save()
+        except BaseException:
+            self.data = data
+            raise
+        try:
+            self.save()
+        except error.DAVError:
+            ## Not on a transport error: the master may have been stored then
+            self.data = data
+            try:
+                completed.delete()
+            except Exception:
+                log.warning("could not delete the completed copy %s", completed.url, exc_info=True)
+            raise
 
     def _prepare_recurring_thisandfuture(self, completion_timestamp) -> None:
         """Pure (no-I/O) in-memory mutation behind
@@ -3035,11 +3054,24 @@ class Todo(CalendarObjectResource):
 
     async def _async_complete_recurring_safe(self, completion_timestamp: datetime) -> None:
         """Async version of _complete_recurring_safe."""
+        data = self.data
         completed = self._build_recurring_safe_completed(completion_timestamp)
         if completed is None:
             return await self._async_complete(completion_timestamp, handle_rrule=False)
-        await completed.save()
-        await self.save()
+        try:
+            await completed.save()
+        except BaseException:
+            self.data = data
+            raise
+        try:
+            await self.save()
+        except error.DAVError:
+            self.data = data
+            try:
+                await completed.delete()
+            except Exception:
+                log.warning("could not delete the completed copy %s", completed.url, exc_info=True)
+            raise
 
     async def _async_complete_recurring_thisandfuture(self, completion_timestamp: datetime) -> None:
         """Async version of _complete_recurring_thisandfuture."""

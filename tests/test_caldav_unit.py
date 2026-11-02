@@ -6375,6 +6375,147 @@ class TestRecurringCompleteHelpers:
         ## one PUT for the standalone completed copy, one for the advanced master
         assert len(saves) == 2
 
+    @pytest.mark.parametrize("delete_fails", [False, True])
+    def test_safe_completion_refused_master_deletes_copy(
+        self, monkeypatch: Any, delete_fails: bool
+    ) -> None:
+        """A refused master must not leave the completed copy behind, nor
+        the master advanced in memory, and a failing delete must not hide
+        the refusal.  https://github.com/python-caldav/caldav/issues/765
+        """
+        todo = self._make_todo()
+        dtstart = todo.icalendar_component["DTSTART"].dt
+        saves: list[Todo] = []
+        deletes: list[Todo] = []
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            if self is todo:
+                raise error.ScheduleTagMismatchError()
+            return self
+
+        def fake_delete(self: Todo, *a: Any, **k: Any) -> None:
+            deletes.append(self)
+            if delete_fails:
+                raise ConnectionError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", fake_delete)
+        with pytest.raises(error.ScheduleTagMismatchError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert saves[1] is todo
+        assert deletes == [saves[0]]
+        assert todo.icalendar_component["DTSTART"].dt == dtstart
+
+    @pytest.mark.parametrize("delete_fails", [False, True])
+    def test_async_safe_completion_refused_master_deletes_copy(
+        self, monkeypatch: Any, delete_fails: bool
+    ) -> None:
+        """Async twin of test_safe_completion_refused_master_deletes_copy."""
+        import asyncio
+
+        todo = self._make_todo()
+        dtstart = todo.icalendar_component["DTSTART"].dt
+        saves: list[Todo] = []
+        deletes: list[Todo] = []
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            if self is todo:
+                raise error.ETagMismatchError()
+            return self
+
+        async def fake_delete(self: Todo, *a: Any, **k: Any) -> None:
+            deletes.append(self)
+            if delete_fails:
+                raise ConnectionError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", fake_delete)
+        with pytest.raises(error.ETagMismatchError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert saves[1] is todo
+        assert deletes == [saves[0]]
+        assert todo.icalendar_component["DTSTART"].dt == dtstart
+
+    def test_safe_completion_refused_copy_resets_master(self, monkeypatch: Any) -> None:
+        """If the completed copy cannot be saved, the master was not sent
+        yet and is reset in memory."""
+        todo = self._make_todo()
+        dtstart = todo.icalendar_component["DTSTART"].dt
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            raise error.PutError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        with pytest.raises(error.PutError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert todo.icalendar_component["DTSTART"].dt == dtstart
+
+    def test_async_safe_completion_refused_copy_resets_master(self, monkeypatch: Any) -> None:
+        """Async twin of test_safe_completion_refused_copy_resets_master."""
+        import asyncio
+
+        todo = self._make_todo()
+        dtstart = todo.icalendar_component["DTSTART"].dt
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            raise error.PutError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        with pytest.raises(error.PutError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert todo.icalendar_component["DTSTART"].dt == dtstart
+
+    def test_safe_completion_transport_error_keeps_copy(self, monkeypatch: Any) -> None:
+        """A transport error on the master leaves open whether it was
+        stored, so the completed copy is kept and the master stays
+        advanced in memory."""
+        todo = self._make_todo()
+        dtstart = todo.icalendar_component["DTSTART"].dt
+        deletes: list[Todo] = []
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            if self is todo:
+                raise ConnectionError()
+            return self
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", lambda self, *a, **k: deletes.append(self))
+        with pytest.raises(ConnectionError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert deletes == []
+        assert todo.icalendar_component["DTSTART"].dt != dtstart
+
+    def test_async_safe_completion_transport_error_keeps_copy(self, monkeypatch: Any) -> None:
+        """Async twin of test_safe_completion_transport_error_keeps_copy."""
+        import asyncio
+
+        todo = self._make_todo()
+        dtstart = todo.icalendar_component["DTSTART"].dt
+        deletes: list[Todo] = []
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            if self is todo:
+                raise ConnectionError()
+            return self
+
+        async def fake_delete(self: Todo, *a: Any, **k: Any) -> None:
+            deletes.append(self)
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", fake_delete)
+        with pytest.raises(ConnectionError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert deletes == []
+        assert todo.icalendar_component["DTSTART"].dt != dtstart
+
     def test_safe_completion_count_one_keeps_timestamp(self, monkeypatch: Any) -> None:
         """When the "safe" mode falls back to a plain completion (COUNT=1),
         the caller's completion_timestamp must be kept, not replaced by now."""
