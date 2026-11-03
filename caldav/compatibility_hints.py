@@ -251,6 +251,12 @@ class FeatureSet:
             ## default whatever they say.  Do not hint it - the ancestor walk
             ## would hand the hint to both children.
         },
+        "supported-task-modes": {
+            "description": "The server advertises the CALDAV:supported-task-mode-set property (RFC 10051 section 13.1) on the calendar home or a calendar, which is how it says it supports RFC 10051.  Without it a client must assume the server does not.  'unsupported' when neither has it (Ox, Zimbra); the extra key values lists the TASK-MODE values advertised.  'unknown' by default: few servers advertise it, but one not probed is not known to lack it.",
+            "default": {"support": "unknown"},
+            "extra_keys": {"values": "The TASK-MODE values the property lists."},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc10051#section-13.1"],
+        },
         "supported-components.property-exists": {
             "description": "Server returns the supported-calendar-component-set property (RFC 4791 section 5.2.3) on a calendar.  The property is optional: when absent the RFC mandates that all component types are accepted, so 'unsupported' here is not a protocol violation, but the client cannot determine the actual supported set without trying.  Up to caldav 3.6.0 this was 'get-supported-components'.",
             "default": {"support": "full"},
@@ -417,6 +423,10 @@ hence, "fragile".
             "description": "A calendar-multiget naming an href that does not exist answers it with a 404 entry in the multistatus.  RFC 4791 section 7.9 and the multistatus of RFC 4918 section 13 give every requested href a response.  When 'unsupported', the href is left out (Baikal), so a client cannot tell a missing object from one the server forgot to answer for.",
             "default": {"support": "full"},
         },
+        "multiget.deleted": {
+            "description": "A calendar-multiget naming an object that was deleted answers it as missing, as a GET does.  'broken' when it still returns the object's data after the DELETE succeeded and a GET answers 404, so a client fetching by multiget sees deleted objects.",
+            "default": {"support": "full"},
+        },
         "multiget.limit": {
             "description": "A calendar-multiget answers every href it names, however many.  When 'unsupported', the server answers at most a number of its own and a 507 for the collection, even when the request asked for no more (Stalwart, at its WebDav.maxResults setting, 2000 by default); a client should then fetch in batches.  As for propfind.limit, the probe only sees a limit below CALDAV_SERVER_TESTER_LIMIT_OBJECTS.",
             "default": {"support": "full"},
@@ -470,6 +480,36 @@ hence, "fragile".
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
         "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: the PUT is answered with 201 and the GET with 404, while the same task without the ATTENDEE is kept.  'ungraceful' when it is refused (Ox, with 409).", "default": {"support": "full"}},
+        "save-load.todo.status": {
+            "description": "Each STATUS RFC 5545 section 3.8.1.11 gives a task (NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED) is stored as sent.  'unsupported' when one is dropped or stored as another, 'ungraceful' when a task with one is refused, the worse of the two where both apply; the extra keys say which.  Zimbra refuses CANCELLED.  The statuses RFC 10051 adds are save-load.todo.status.rfc10051.",
+            "default": {"support": "full"},
+            "extra_keys": {
+                "values": "The statuses stored as sent.",
+                "map": "A status, to the one stored instead.",
+                "refused": "The statuses a task is refused with.",
+            },
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.11"],
+        },
+        "save-load.todo.status.rfc10051": {
+            "description": "The statuses RFC 10051 adds for a task, PENDING and FAILED, are stored as sent.  Graded and keyed as save-load.todo.status.  A profile stating save-load.todo.status states this one too: without it, this feature would answer with the parent's node, values and all.  A server not advertising RFC 10051 (supported-task-modes) need not keep them, and the behaviour says so: Ox drops both, Zimbra stores both as NEEDS-ACTION, and neither advertises it.  'unknown' by default, as for supported-task-modes: an optional extension is not assumed on a server not probed.",
+            "default": {"support": "unknown"},
+            "extra_keys": {
+                "values": "The statuses stored as sent.",
+                "map": "A status, to the one stored instead.",
+                "refused": "The statuses a task is refused with.",
+            },
+            "links": ["https://datatracker.ietf.org/doc/html/rfc10051"],
+        },
+        "save-load.todo.priority": {
+            "description": "Each PRIORITY from 0 to 9 (RFC 5545 section 3.8.1.9) is stored as sent.  PRIORITY:0 means no priority given, so a server dropping it changes nothing.  'unsupported' when one is dropped or stored as another, 'ungraceful' when a task with one is refused, the worse of the two where both apply; the extra keys say which, with the priorities as integers.  Ox keeps 1, 5 and 9 only: it stores 2 as 1, 0 and 3 to 6 as 5, and 7 and 8 as 9.",
+            "default": {"support": "full"},
+            "extra_keys": {
+                "values": "The priorities stored as sent.",
+                "map": "A priority, to the one stored instead.",
+                "refused": "The priorities a task is refused with.",
+            },
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.1.9"],
+        },
         "save-load.todo.completed-without-status": {"description": "A task with a COMPLETED date-time but no STATUS (RFC 5545 makes neither require the other) is stored with its COMPLETED.  'unsupported' when COMPLETED is dropped (Ox).  A server adding STATUS:COMPLETED is fine.", "default": {"support": "full"}},
         "save-load.journal": {
             "description": "The server will even accept journals",
@@ -523,6 +563,7 @@ hence, "fragile".
             "description": "The server reports a calendar object resource under the same URL the client used to store it, so that a client may compare a searched object's URL with one it constructed as '<collection>/<uid>.ics'.  When 'unsupported' it may not, and has to read the URL off the response.  Two different things make it 'unsupported'.  The server may assign the resource a name of its own choosing - Zimbra, for one, redirects a PUT under any name but '<uid>.ics' to '<uid>.ics' (see forces_uid_ics).  Or the *collection* may not stay at the address it was created at, in which case a constructed object URL is only usable from the address the server reports objects under - and a client is handed either address depending on how it got the Calendar: make_calendar adopts the canonical URL, a calendar listing reports it, while the cal_id shortcut is pure URL arithmetic and never round-trips.  That comes in two flavours.  OX App Suite exposes a calendar both at the requested cal_id and at an opaque internal 'cal://0/NNN' path, a direct GET on either working, so a constructed URL resolves but is not the URL the server reports.  Zimbra instead relocates the collection to a display-name-derived path and leaves an alias at the cal_id that answers PROPFIND but 404s on child objects, so a constructed URL under the cal_id does not resolve at all.  That second case is 'create-calendar.stable-url' seen from the object end, and it is read from there rather than measured again here - measuring it made this feature's verdict depend on which address the probe run happened to be holding.",
             "extra_keys": {
                 "forces_uid_ics": "True when the server names every object <uid>.ics whatever name it was PUT to, so a GET of <uid>.ics that misses means the object is not there.  get_object_by_uid() then does not scan the calendar after a failed UID search.",
+                "uid_ics_components": "The components the server names <uid>.ics whatever name they were PUT to, where it does so for some only: Ox keeps the name of an event and names a task <uid>.ics, answering the PUT with 201 and no Location.  forces_uid_ics is not set then, since an event may still be under another name.",
             },
             "default": {"support": "full"},
         },
@@ -563,8 +604,13 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.2"],
         },
+        "save-load.icalendar.x-parameter": {
+            "description": "An X- parameter (RFC 5545 section 3.2) on a standard property is stored with it, in an event and in a task.  'unsupported' when it is dropped (Ox and Zimbra drop SUMMARY's); the behaviour names the first component it was dropped from.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.2"],
+        },
         "save-load.icalendar.unknown-property": {
-            "description": "A property whose name RFC 5545 does not define, but which is not an X- one either (iana-token syntax, RFC 5545 section 3.8.8.1), is stored with the object.  The probe sends ESTIMATED-DURATION, from a draft task extension, on a task.  'unsupported' when it is dropped (Ox).",
+            "description": "A property whose name RFC 5545 does not define, but which is not an X- one either (iana-token syntax, RFC 5545 section 3.8.8.1), is stored with the object.  The probe sends ESTIMATED-DURATION, from RFC 10051, on a task.  'unsupported' when it is dropped (Ox).",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.1"],
         },
@@ -1775,6 +1821,12 @@ ecloud = nextcloud | {
 ## zimbra/zcs-foss:latest docker image (Zimbra 8.8, built 2017); upgrades
 ## have been known to bring regressions, hence the version-stamped name.
 zimbra_8_8 = {
+    ## Probed 2026-11-03 by caldav-server-tester, on the docker image
+    "save-load.todo.status": {"support": "ungraceful", "behaviour": "CANCELLED is refused (401/403)", "values": ["NEEDS-ACTION", "IN-PROCESS", "COMPLETED"], "map": {}, "refused": ["CANCELLED"]},
+    "save-load.todo.status.rfc10051": {"support": "unsupported", "behaviour": "PENDING is stored as NEEDS-ACTION; FAILED is stored as NEEDS-ACTION; the server does not advertise RFC 10051", "values": [], "map": {"PENDING": "NEEDS-ACTION", "FAILED": "NEEDS-ACTION"}, "refused": []},
+    "supported-task-modes": {"support": "unsupported", "behaviour": "neither the calendar home nor a calendar has CALDAV:supported-task-mode-set"},
+    "save-load.icalendar.x-parameter": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER on SUMMARY is dropped, in an event"},
+    "multiget.deleted": {"support": "broken", "behaviour": "a deleted object is still returned by a multiget, while a GET answers 404"},
     ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
     'search.text.uid': {'support': 'full'},
     ## Measured with caldav-server-tester, 2026-10-19.
@@ -2987,6 +3039,11 @@ ox = {
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.todo.attendee": {"support": "ungraceful", "behaviour": "a task with an ATTENDEE is refused (409)"},
     "save-load.todo.completed-without-status": {"support": "unsupported", "behaviour": "COMPLETED is dropped"},
+    ## Probed 2026-11-03 by caldav-server-tester
+    "save-load.todo.status.rfc10051": {"support": "unsupported", "behaviour": "PENDING is dropped; FAILED is dropped; the server does not advertise RFC 10051", "values": [], "map": {}, "refused": []},
+    "supported-task-modes": {"support": "unsupported", "behaviour": "neither the calendar home nor a calendar has CALDAV:supported-task-mode-set"},
+    "save-load.todo.priority": {"support": "unsupported", "behaviour": "0 is stored as 5; 2 is stored as 1; 3 is stored as 5; 4 is stored as 5; 6 is stored as 5; 7 is stored as 9; 8 is stored as 9", "values": [1, 5, 9], "map": {0: 5, 2: 1, 3: 5, 4: 5, 6: 5, 7: 9, 8: 9}, "refused": []},
+    "save-load.icalendar.x-parameter": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER on SUMMARY is dropped, in an event"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
     "save.no-uid-conflict.href-given": {"support": "unsupported"},
@@ -3017,11 +3074,12 @@ ox = {
     ## OX exposes the calendar both under the requested cal_id and under an
     ## internal "cal://0/NNN" id, so an object looked up via REPORT comes back
     ## under a different calendar URL than the one used to PUT them (GET on the
-    ## original URL still works via an alias).  The object's own *name* is
-    ## preserved; it is the collection that has two addresses, and a client
-    ## holding the alias therefore cannot compare a searched object's URL with
-    ## one it constructed.  See create-calendar.stable-url for the other half.
-    'save-load.stable-url': {'support': 'unsupported'},
+    ## original URL still works via an alias).  An event keeps its own *name*;
+    ## it is the collection that has two addresses, and a client holding the
+    ## alias therefore cannot compare a searched object's URL with one it
+    ## constructed.  See create-calendar.stable-url for the other half.  A task
+    ## is stored as <uid>.ics whatever name it was PUT to (201, no Location).
+    'save-load.stable-url': {'support': 'unsupported', 'uid_ics_components': ['VTODO']},
     ## OX enforces optimistic concurrency: a no-If-Match overwrite PUT is rejected
     ## with 409 Conflict (etag-conditional save() still works).
     'save-load.mutable.if-match-optional': {'support': 'unsupported'},

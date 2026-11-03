@@ -1197,3 +1197,39 @@ class TestObservationBool:
 
         features = FeatureSet(getattr(compatibility_hints, profile))
         assert features.is_supported(self.HAS_CAL) is False
+
+
+class TestTodoStatusHints:
+    """RFC 5545's statuses and RFC 10051's are hinted apart, so a server keeping
+    the first and not the second (Ox) is full on the parent."""
+
+    STATUS = "save-load.todo.status"
+    RFC10051 = "save-load.todo.status.rfc10051"
+
+    def test_ox_keeps_the_rfc_5545_statuses_only(self) -> None:
+        features = FeatureSet(ch.ox)
+        assert features.is_supported(self.STATUS, str) == "full"
+        assert features.is_supported(self.RFC10051, dict)["values"] == []
+
+    def test_zimbra_refuses_cancelled_and_maps_the_rfc_10051_statuses(self) -> None:
+        features = FeatureSet(ch.zimbra_8_8)
+        assert features.is_supported(self.STATUS, dict)["refused"] == ["CANCELLED"]
+        assert features.is_supported(self.RFC10051, dict)["map"] == {
+            "PENDING": "NEEDS-ACTION",
+            "FAILED": "NEEDS-ACTION",
+        }
+
+    @pytest.mark.parametrize("profile", ["ox", "zimbra_8_8"])
+    def test_a_profile_stating_the_parent_states_the_child(self, profile: str) -> None:
+        """The child would otherwise inherit the parent's node, values and all."""
+        hints = getattr(ch, profile)
+        assert self.STATUS not in hints or self.RFC10051 in hints
+
+    def test_rfc_10051_statuses_unknown_unless_probed(self) -> None:
+        """An optional extension: a server not probed is not known to keep them."""
+        assert FeatureSet({}).is_supported(self.RFC10051, str) == "unknown"
+
+    def test_task_modes_unknown_unless_probed(self) -> None:
+        """RFC 10051: absent means unsupported, but an unprobed server is not known to lack it."""
+        assert FeatureSet({}).is_supported("supported-task-modes", str) == "unknown"
+        assert FeatureSet(ch.ox).is_supported("supported-task-modes", str) == "unsupported"
