@@ -2879,31 +2879,33 @@ class Todo(CalendarObjectResource):
         marked as completed, and modify the existing recurring task.
         It is probably the most safe way to handle the completion of a
         recurrence of a recurring task, though the link between the
-        completed task and the original task is lost.  If the
-        completed task cannot be saved, or the server refuses the
-        updated recurring task, the recurring task is reset in memory
-        before the error is raised, and in the latter case the
-        completed task is deleted.
+        completed task and the original task is lost.  On any failure
+        the recurring task is reset in memory before the error is
+        raised, and if the server refused the updated recurring task,
+        the completed task is deleted.
         """
         data = self.data
-        completed = self._build_recurring_safe_completed(completion_timestamp)
-        if completed is None:
-            self.complete(completion_timestamp=completion_timestamp, handle_rrule=False)
-            return
         try:
+            completed = self._build_recurring_safe_completed(completion_timestamp)
+            if completed is None:
+                self.complete(completion_timestamp=completion_timestamp, handle_rrule=False)
+                return
             completed.save()
+            try:
+                self.save()
+            except error.DAVError as e:
+                ## After a 5xx the master may have been stored, as after a
+                ## transport error, so the completed copy has to stay
+                if isinstance(e, error.RateLimitError) or not (e.status and e.status >= 500):
+                    try:
+                        completed.delete()
+                    except Exception:
+                        log.warning(
+                            "could not delete the completed copy %s", completed.url, exc_info=True
+                        )
+                raise
         except BaseException:
             self.data = data
-            raise
-        try:
-            self.save()
-        except error.DAVError:
-            ## Not on a transport error: the master may have been stored then
-            self.data = data
-            try:
-                completed.delete()
-            except Exception:
-                log.warning("could not delete the completed copy %s", completed.url, exc_info=True)
             raise
 
     def _prepare_recurring_thisandfuture(self, completion_timestamp) -> None:
@@ -3055,22 +3057,26 @@ class Todo(CalendarObjectResource):
     async def _async_complete_recurring_safe(self, completion_timestamp: datetime) -> None:
         """Async version of _complete_recurring_safe."""
         data = self.data
-        completed = self._build_recurring_safe_completed(completion_timestamp)
-        if completed is None:
-            return await self._async_complete(completion_timestamp, handle_rrule=False)
         try:
+            completed = self._build_recurring_safe_completed(completion_timestamp)
+            if completed is None:
+                return await self._async_complete(completion_timestamp, handle_rrule=False)
             await completed.save()
+            try:
+                await self.save()
+            except error.DAVError as e:
+                ## After a 5xx the master may have been stored, as after a
+                ## transport error, so the completed copy has to stay
+                if isinstance(e, error.RateLimitError) or not (e.status and e.status >= 500):
+                    try:
+                        await completed.delete()
+                    except Exception:
+                        log.warning(
+                            "could not delete the completed copy %s", completed.url, exc_info=True
+                        )
+                raise
         except BaseException:
             self.data = data
-            raise
-        try:
-            await self.save()
-        except error.DAVError:
-            self.data = data
-            try:
-                await completed.delete()
-            except Exception:
-                log.warning("could not delete the completed copy %s", completed.url, exc_info=True)
             raise
 
     async def _async_complete_recurring_thisandfuture(self, completion_timestamp: datetime) -> None:
