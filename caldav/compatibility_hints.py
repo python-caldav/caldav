@@ -971,7 +971,7 @@ hence, "fragile".
         },
         "delete": {"description": "Deleting a calendar object resource.  Deleting a whole calendar is delete-calendar."},
         "delete.if-match": {
-            "description": "A DELETE carrying If-Match with an etag the object no longer has is refused with 412 Precondition Failed, and one carrying the current etag goes through.  RFC 9110 section 13.1.1 says the server MUST NOT perform the method when the condition does not hold; delete(if_match=True) relies on it to avoid deleting a version someone else has saved since it was loaded.  When 'broken', the condition is ignored and a stale If-Match deletes the object anyway (SOGo, while it honours a stale If-Match on PUT; Zimbra, Bedework 3 and 5, Posteo).  When 'unsupported', a DELETE with the current etag is refused too.  The default is 'full', as for save-load.mutable.if-match-wildcard: RFC 4791 section 2 requires ETag support as RFC 2616 defines it.",
+            "description": "A DELETE carrying If-Match with an etag the object no longer has is refused with 412 Precondition Failed, and one carrying the current etag goes through.  RFC 9110 section 13.1.1 says the server MUST NOT perform the method when the condition does not hold; delete(if_match=True) relies on it to avoid deleting a version someone else has saved since it was loaded.  When 'broken', the condition is ignored and a stale If-Match deletes the object anyway (SOGo, while it honours a stale If-Match on PUT; Zimbra, Bedework 3 and 5, Posteo); delete(if_match=...) then reads the ETag first and refuses a changed object itself, with a window between the read and the DELETE.  When 'unsupported', a DELETE with the current etag is refused too.  The default is 'full', as for save-load.mutable.if-match-wildcard: RFC 4791 section 2 requires ETag support as RFC 2616 defines it.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1", "https://datatracker.ietf.org/doc/html/rfc4791#section-2"],
         },
@@ -984,7 +984,7 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.2.1"],
         },
-        "save.duplicate-uid": {},
+        "save.duplicate-uid": {}, ## TODO: should consider reorganizing here.  See also `no-uid-conflict`.
         "save.duplicate-uid.cross-calendar": {
             "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored or moved). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown. Behaviour 'moved-instead-of-copied' means the event is moved from the original calendar to the new calendar (Zimbra behavior)"
         },

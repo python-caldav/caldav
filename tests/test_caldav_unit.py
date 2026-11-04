@@ -7599,6 +7599,124 @@ END:VCALENDAR
         assert sent == []
 
 
+class TestDeleteIfMatchIgnored:
+    """Where ``delete.if-match`` is broken, the server deletes on a stale
+    If-Match (SOGo, Zimbra, Bedework, Posteo).  delete(if_match=...) then
+    reads the current ETag first and refuses a stale one itself, as save()
+    stands in for the wildcard preconditions a server gets wrong."""
+
+    URL = "http://cal.example.com/dav/user/mycal/ev1.ics"
+
+    @pytest.fixture(params=["sync", "async"])
+    def base(self, request):
+        if request.param == "sync":
+            return DAVClient
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient
+
+    @staticmethod
+    def _etag_multistatus(etag):
+        return (
+            '<?xml version="1.0" encoding="utf-8"?>\n<D:multistatus xmlns:D="DAV:">'
+            "<D:response><D:href>/dav/user/mycal/ev1.ics</D:href><D:propstat><D:prop>"
+            f"<D:getetag>{etag}</D:getetag></D:prop>"
+            "<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response></D:multistatus>"
+        ).encode()
+
+    def _event(self, base, stored_etag, support="broken", propfind_status=207):
+        sent = []
+        features = {"delete.if-match": {"support": support}}
+        client = base(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body="", headers=None):
+            method = method.upper()
+            sent.append((method, {k.lower(): v for k, v in (headers or {}).items()}))
+            resp = mock.MagicMock()
+            resp.reason = "whatever"
+            if method == "PROPFIND":
+                resp.status_code = propfind_status
+                resp.content = (
+                    self._etag_multistatus(stored_etag) if propfind_status == 207 else b""
+                )
+            else:
+                resp.status_code = 204
+                resp.content = b""
+            resp.headers = {"Content-Type": "application/xml"} if resp.content else {}
+            resp.text = resp.content.decode()
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = request
+        else:
+
+            async def async_request(*args, **kwargs):
+                return request(*args, **kwargs)
+
+            client.request = async_request
+        cal = Calendar(client, url="http://cal.example.com/dav/user/mycal/")
+        event = Event(client, url=self.URL, data=ev1, parent=cal)
+        event.props[dav.GetEtag.tag] = '"etag-a"'
+        return event, sent
+
+    _run = staticmethod(TestConditionalWrite._run)
+
+    def test_stale_etag_is_refused_before_the_delete(self, base) -> None:
+        event, sent = self._event(base, stored_etag='"etag-b"')
+        with pytest.raises(error.ETagMismatchError):
+            self._run(event, if_match=True)
+        assert [m for m, _ in sent] == ["PROPFIND"]
+
+    def test_refusal_keeps_the_etag_the_object_was_read_with(self, base) -> None:
+        """The newer ETag from the check must not let a retry, or a save(), pass."""
+        event, sent = self._event(base, stored_etag='"etag-b"')
+        with pytest.raises(error.ETagMismatchError):
+            self._run(event, if_match=True)
+        assert event.etag == '"etag-a"'
+        with pytest.raises(error.ETagMismatchError):
+            self._run(event, if_match=True)
+        assert [m for m, _ in sent] == ["PROPFIND", "PROPFIND"]
+
+    def test_current_etag_deletes(self, base) -> None:
+        event, sent = self._event(base, stored_etag='"etag-a"')
+        self._run(event, if_match='"etag-a"')
+        assert [m for m, _ in sent] == ["PROPFIND", "DELETE"]
+        assert sent[-1][1]["if-match"] == '"etag-a"'
+
+    def test_weak_form_of_the_same_etag_deletes(self, base) -> None:
+        event, sent = self._event(base, stored_etag='W/"etag-a"')
+        self._run(event, if_match=True)
+        assert [m for m, _ in sent] == ["PROPFIND", "DELETE"]
+
+    def test_missing_object_raises_not_found(self, base) -> None:
+        event, sent = self._event(base, stored_etag=None, propfind_status=404)
+        with pytest.raises(error.NotFoundError):
+            self._run(event, if_match=True)
+        assert [m for m, _ in sent] == ["PROPFIND"]
+
+    def test_wildcard_needs_no_check(self, base) -> None:
+        event, sent = self._event(base, stored_etag='"etag-b"')
+        self._run(event, if_match="*")
+        assert [m for m, _ in sent] == ["DELETE"]
+
+    @pytest.mark.parametrize("support", ["full", "unsupported"])
+    def test_server_honouring_if_match_is_not_asked_first(self, base, support) -> None:
+        """'unsupported' refuses the current etag too: a check first would not help."""
+        event, sent = self._event(base, stored_etag='"etag-b"', support=support)
+        self._run(event, if_match=True)
+        assert [m for m, _ in sent] == ["DELETE"]
+
+    @pytest.mark.parametrize(
+        "server", ["sogo", "zimbra_8_8", "bedework_3_10_3", "bedework_5_0_0", "posteo"]
+    )
+    def test_hints_of_servers_ignoring_if_match_on_delete(self, server) -> None:
+        from caldav import compatibility_hints
+        from caldav.compatibility_hints import FeatureSet
+
+        fs = FeatureSet(getattr(compatibility_hints, server))
+        assert fs.is_supported("delete.if-match", str) == "broken"
+
+
 class TestDelayedPropertyWrite:
     """``synchronous-write.proppatch`` declared unsupported with a ``delay``:
     a PROPPATCH is answered at once but a PROPFIND keeps returning the old

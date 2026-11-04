@@ -103,6 +103,22 @@ class TestDAVResponse:
         assert dav_response.tree is None
         assert dav_response._raw == ""
 
+    @pytest.mark.parametrize("bom", [b"", b"\xef\xbb\xbf"])
+    def test_response_with_only_an_xml_declaration(self, bom: bytes) -> None:
+        """Zimbra answers a calendar-multiget naming an href without .ics
+        with 200 and an XML declaration but no document: no content."""
+        resp = create_mock_response(
+            content=bom + b'<?xml version="1.0" encoding="UTF-8"?>\n\n',
+            status_code=200,
+            headers={"Content-Type": 'text/xml; charset="UTF-8"'},
+        )
+
+        dav_response = DAVResponse(resp)
+
+        assert dav_response.status == 200
+        assert dav_response.tree is None
+        assert dav_response.expand_simple_props([]) == {}
+
     def test_response_with_non_xml_content(self) -> None:
         """Test response with non-XML content."""
         resp = create_mock_response(
