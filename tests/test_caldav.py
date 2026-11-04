@@ -4409,6 +4409,31 @@ END:VCALENDAR"""
         with pytest.raises(error.NotFoundError):
             c.get_event_by_uid("20010712T182145Z-123401@example.com")
 
+    def testDeleteIfMatch(self):
+        """delete(if_match=...) refuses a version someone else has saved over,
+        whether the server checks If-Match or caldav stands in for it
+        (delete.if-match broken)."""
+        self.skip_unless_support("save-load.event")
+        self.skip_unless_support("save-load.mutable")
+        c = self._fixCalendar()
+
+        url = c.add_event(near_now_ics(ev1)).url
+        stale = c.event_by_url(url)
+        if not stale.etag or stale.etag.startswith("W/"):
+            pytest.skip("the server gives no strong ETag to send in If-Match")
+        changed = c.event_by_url(url)
+        changed.icalendar_component["summary"] = "Changed by someone else"
+        changed.save()
+
+        with pytest.raises(error.ETagMismatchError):
+            stale.delete(if_match=True, precondition="etag")
+        current = c.event_by_url(url)
+        assert current.icalendar_component["summary"] == "Changed by someone else"
+
+        current.delete(if_match=True, precondition="etag")
+        with pytest.raises(self._notFound()):
+            c.event_by_url(url)
+
     @pytest.mark.filterwarnings("ignore:use `calendar.search:DeprecationWarning")
     def testDateSearchAndFreeBusy(self):
         """

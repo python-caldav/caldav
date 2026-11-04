@@ -781,6 +781,32 @@ class AsyncFunctionalTestsBaseClass:
             await c.get_event_by_uid("20010712T182145Z-123401@example.com")
 
     @pytest.mark.asyncio
+    async def test_delete_if_match(self, async_calendar: Any) -> None:
+        """delete(if_match=...) refuses a version someone else has saved over,
+        whether the server checks If-Match or caldav stands in for it
+        (delete.if-match broken)."""
+        self.skip_unless_support("save-load.event")
+        self.skip_unless_support("save-load.mutable")
+        c = async_calendar
+
+        url = (await c.add_event(near_now_ics(ev1_static))).url
+        stale = await c.event_by_url(url)
+        if not stale.etag or stale.etag.startswith("W/"):
+            pytest.skip("the server gives no strong ETag to send in If-Match")
+        changed = await c.event_by_url(url)
+        changed.icalendar_component["summary"] = "Changed by someone else"
+        await changed.save()
+
+        with pytest.raises(error.ETagMismatchError):
+            await stale.delete(if_match=True, precondition="etag")
+        current = await c.event_by_url(url)
+        assert current.icalendar_component["summary"] == "Changed by someone else"
+
+        await current.delete(if_match=True, precondition="etag")
+        with pytest.raises(error.NotFoundError):
+            await c.event_by_url(url)
+
+    @pytest.mark.asyncio
     async def test_object_by_uid(self, async_task_list: Any) -> None:
         """Add a TODO with a known UID and retrieve it via get_object_by_uid()."""
         import uuid
