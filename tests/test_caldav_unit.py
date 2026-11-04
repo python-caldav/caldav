@@ -6375,6 +6375,302 @@ class TestRecurringCompleteHelpers:
         ## one PUT for the standalone completed copy, one for the advanced master
         assert len(saves) == 2
 
+    _counted_todo = todo6.replace("RRULE:FREQ=YEARLY", "SEQUENCE:2\nRRULE:FREQ=YEARLY;COUNT=5")
+
+    def _make_counted_todo(self) -> Todo:
+        return self._make_todo(self._counted_todo)
+
+    @staticmethod
+    def _recurrence_state(todo: Todo) -> tuple:
+        """What the "safe" completion advances in the master."""
+        component = todo.icalendar_component
+        return (
+            component["DTSTART"].dt,
+            list(component["RRULE"]["COUNT"]),
+            component.get("SEQUENCE"),
+        )
+
+    @pytest.mark.parametrize("delete_fails", [False, True])
+    def test_safe_completion_refused_master_deletes_copy(
+        self, monkeypatch: Any, delete_fails: bool
+    ) -> None:
+        """A refused master must not leave the completed copy behind, nor
+        the master advanced in memory, and a failing delete must not hide
+        the refusal.  https://github.com/python-caldav/caldav/issues/765
+        """
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        saves: list[Todo] = []
+        deletes: list[Todo] = []
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            if self is todo:
+                raise error.ScheduleTagMismatchError()
+            return self
+
+        def fake_delete(self: Todo, *a: Any, **k: Any) -> None:
+            deletes.append(self)
+            if delete_fails:
+                raise ConnectionError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", fake_delete)
+        with pytest.raises(error.ScheduleTagMismatchError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert saves[1] is todo
+        assert deletes == [saves[0]]
+        assert self._recurrence_state(todo) == state
+
+    @pytest.mark.parametrize("delete_fails", [False, True])
+    def test_async_safe_completion_refused_master_deletes_copy(
+        self, monkeypatch: Any, delete_fails: bool
+    ) -> None:
+        """Async twin of test_safe_completion_refused_master_deletes_copy."""
+        import asyncio
+
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        saves: list[Todo] = []
+        deletes: list[Todo] = []
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            if self is todo:
+                raise error.ETagMismatchError()
+            return self
+
+        async def fake_delete(self: Todo, *a: Any, **k: Any) -> None:
+            deletes.append(self)
+            if delete_fails:
+                raise ConnectionError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", fake_delete)
+        with pytest.raises(error.ETagMismatchError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert saves[1] is todo
+        assert deletes == [saves[0]]
+        assert self._recurrence_state(todo) == state
+
+    def test_safe_completion_refused_copy_resets_master(self, monkeypatch: Any) -> None:
+        """If the completed copy cannot be saved, the master was not sent
+        yet and is reset in memory."""
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            raise error.PutError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        with pytest.raises(error.PutError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert self._recurrence_state(todo) == state
+
+    def test_async_safe_completion_refused_copy_resets_master(self, monkeypatch: Any) -> None:
+        """Async twin of test_safe_completion_refused_copy_resets_master."""
+        import asyncio
+
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            raise error.PutError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        with pytest.raises(error.PutError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert self._recurrence_state(todo) == state
+
+    @pytest.mark.parametrize(
+        "failure,copy_deleted",
+        [
+            ## Refusals: the master was not stored
+            (error.PutError(status=403), True),
+            (error.RateLimitError(status=429), True),
+            (error.RateLimitError(status=503), True),
+            ## The master may have been stored, so the copy is kept
+            (error.PutError(status=500), False),
+            (ConnectionError(), False),
+        ],
+    )
+    def test_safe_completion_master_failure(
+        self, monkeypatch: Any, failure: Exception, copy_deleted: bool
+    ) -> None:
+        """The copy goes only if the server refused the master, while the
+        master is reset whatever the failure, so that a retry on the same
+        object does not skip an occurrence."""
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        saves: list[Todo] = []
+        deletes: list[Todo] = []
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            if self is todo:
+                raise failure
+            return self
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", lambda self, *a, **k: deletes.append(self))
+        with pytest.raises(type(failure)):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert deletes == ([saves[0]] if copy_deleted else [])
+        assert self._recurrence_state(todo) == state
+
+    @pytest.mark.parametrize(
+        "failure,copy_deleted",
+        [
+            (error.PutError(status=403), True),
+            (error.RateLimitError(status=429), True),
+            (error.RateLimitError(status=503), True),
+            (error.PutError(status=500), False),
+            (ConnectionError(), False),
+        ],
+    )
+    def test_async_safe_completion_master_failure(
+        self, monkeypatch: Any, failure: Exception, copy_deleted: bool
+    ) -> None:
+        """Async twin of test_safe_completion_master_failure."""
+        import asyncio
+
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        saves: list[Todo] = []
+        deletes: list[Todo] = []
+
+        async def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            saves.append(self)
+            if self is todo:
+                raise failure
+            return self
+
+        async def fake_delete(self: Todo, *a: Any, **k: Any) -> None:
+            deletes.append(self)
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        monkeypatch.setattr(Todo, "delete", fake_delete)
+        with pytest.raises(type(failure)):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert deletes == ([saves[0]] if copy_deleted else [])
+        assert self._recurrence_state(todo) == state
+
+    @staticmethod
+    def _answer(status: int) -> DAVResponse:
+        resp = mock.MagicMock()
+        resp.status_code = status
+        resp.reason = "whatever"
+        resp.headers = {}
+        resp.content = b""
+        return DAVResponse(resp)
+
+    @pytest.mark.parametrize(
+        "master_answers,copy_deleted",
+        [
+            ([412], True),
+            ([403], True),
+            ## Two, as a 5xx on the PUT may be retried once
+            ([500, 500], False),
+        ],
+    )
+    def test_safe_completion_master_answer(
+        self, master_answers: list[int], copy_deleted: bool
+    ) -> None:
+        """As test_safe_completion_master_failure, but through the real
+        save(), to see the status of the answer reach the decision."""
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        requests: list[tuple[str, str]] = []
+        answers = iter(master_answers)
+
+        def fake_request(url: Any, method: str = "GET", *a: Any, **k: Any) -> DAVResponse:
+            requests.append((method, str(url)))
+            if str(url) == str(todo.url):
+                return self._answer(next(answers, master_answers[-1]))
+            return self._answer(204 if method == "DELETE" else 201)
+
+        todo.client.request = fake_request
+        with pytest.raises(error.DAVError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        copy_url = requests[0][1]
+        assert copy_url != str(todo.url)
+        assert (("DELETE", copy_url) in requests) == copy_deleted
+        assert self._recurrence_state(todo) == state
+        assert state[2] == 2
+
+    def test_async_safe_completion_master_answer(self) -> None:
+        """Async twin of test_safe_completion_master_answer, for the 5xx."""
+        import asyncio
+
+        from caldav.async_davclient import AsyncDAVClient
+
+        client = AsyncDAVClient(url="https://somwhere.in.the.universe.example/some/caldav/root")
+        cal_url = "https://somwhere.in.the.universe.example/some/caldav/root/cal/"
+        todo = Todo(
+            client,
+            data=self._counted_todo,
+            parent=Calendar(client, url=cal_url),
+            url=cal_url + "t.ics",
+        )
+        state = self._recurrence_state(todo)
+        requests: list[str] = []
+
+        async def fake_put(url: Any, *a: Any, **k: Any) -> DAVResponse:
+            requests.append(str(url))
+            return self._answer(500 if str(url) == str(todo.url) else 201)
+
+        async def fake_delete(url: Any, *a: Any, **k: Any) -> DAVResponse:
+            raise AssertionError("the completed copy has to stay after a 5xx")
+
+        client.put = fake_put
+        client.delete = fake_delete
+        with pytest.raises(error.PutError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert str(todo.url) in requests
+        assert self._recurrence_state(todo) == state
+
+    def test_safe_completion_failing_build_resets_master(self, monkeypatch: Any) -> None:
+        """COUNT is lowered before the completed copy is made."""
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        monkeypatch.setattr(Todo, "copy", mock.Mock(side_effect=ValueError()))
+        with pytest.raises(ValueError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert self._recurrence_state(todo) == state
+
+    def test_async_safe_completion_failing_build_resets_master(self, monkeypatch: Any) -> None:
+        """Async twin of test_safe_completion_failing_build_resets_master."""
+        import asyncio
+
+        todo = self._make_counted_todo()
+        state = self._recurrence_state(todo)
+        monkeypatch.setattr(Todo, "copy", mock.Mock(side_effect=ValueError()))
+        with pytest.raises(ValueError):
+            asyncio.run(
+                todo._async_complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+            )
+        assert self._recurrence_state(todo) == state
+
+    def test_safe_completion_failing_fallback_resets_master(self, monkeypatch: Any) -> None:
+        """COUNT=1 falls back to a plain completion, whose save may fail."""
+        todo = self._make_todo(todo6.replace("FREQ=YEARLY", "FREQ=YEARLY;COUNT=1"))
+
+        def fake_save(self: Todo, *a: Any, **k: Any) -> Todo:
+            raise error.PutError()
+
+        monkeypatch.setattr(Todo, "save", fake_save)
+        with pytest.raises(error.PutError):
+            todo._complete_recurring_safe(datetime(2026, 6, 14, tzinfo=timezone.utc))
+        assert todo.icalendar_component.get("STATUS") is None
+
     def test_safe_completion_count_one_keeps_timestamp(self, monkeypatch: Any) -> None:
         """When the "safe" mode falls back to a plain completion (COUNT=1),
         the caller's completion_timestamp must be kept, not replaced by now."""
