@@ -1432,7 +1432,8 @@ hence, "fragile".
         Derive parent feature status from explicitly set subfeatures.
 
         Logic:
-        - Only consider subfeatures WITHOUT explicit defaults (those are independent features)
+        - Only consider subfeatures WITHOUT explicit defaults (subfeatures with a default are
+          independent features and are skipped)
         - If ANY relevant subfeature has a positive status (full/quirk) → derive as that status
           (any support means the parent has some support)
         - If ALL relevant subfeatures are set AND all have the same negative status → use that status
@@ -1442,6 +1443,16 @@ hence, "fragile".
 
         Returns None if no relevant subfeatures are explicitly set or if
         derivation is inconclusive due to partial information.
+
+        An explicit default on a node marks it as an independent feature, one
+        that is probed on its own.  A parent node without one is treated as a
+        grouping node.  A grouping node whose subfeatures all have explicit
+        defaults (``auth``, ``http``) therefore has no verdict of its own:
+        nothing is derived, and unless the node or an ancestor is set in the
+        server's features, is_supported() answers from the type default
+        whatever the subfeatures say.  Ask the subfeatures instead.  A real
+        capability that lacks a default and needs its own answer should get
+        an explicit ``unknown`` default.
         """
         if 'subfeatures' not in feature_info or not feature_info['subfeatures']:
             return None
