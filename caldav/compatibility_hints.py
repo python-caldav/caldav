@@ -599,6 +599,11 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
         },
+        "save-load.icalendar.olson-tzid": {
+            "description": "An object whose TZID names a time zone of the tz database (\"Olson\" names, such as Europe/Berlin) is placed in that time zone without a VTIMEZONE for it.  RFC 5545 section 3.6.5 requires the VTIMEZONE, so the default is 'unsupported', and a client should send one; where 'full', it may leave the VTIMEZONE out and keep the object small.  The probe stores an event with TZID=Asia/Tokyo and no VTIMEZONE and judges the server's reading by time-range searches in UTC.  'unsupported' when the time is read as UTC or another zone, 'ungraceful' when the event is refused.  'fragile' where the reading depends on circumstances: the search path (Xandikos) or the client (Synology's web UI).  A server reading the TZID as floating, in a time zone of its own, is caught unless it runs in Tokyo time (then 'full') or in UTC (then the behaviour says 'read as UTC').  The behaviour notes whether the server adds a VTIMEZONE of its own.  A client of the server may still misread a bare TZID where the server does not: Synology's web UI was reported to read it as UTC (https://github.com/python-caldav/caldav/issues/849).  See also save-load.icalendar.vtimezone, whether a VTIMEZONE sent is kept.",
+            "default": {"support": "unsupported"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5"],
+        },
         "save-load.icalendar.x-property": {
             "description": "An X- property (RFC 5545 section 3.8.8.2) is stored with the object, in an event and in a task.  'unsupported' when it is dropped from either (Ox keeps it in an event and drops it from a task), so a client cannot keep data of its own in one; the behaviour says which.",
             "default": {"support": "full"},
@@ -1660,6 +1665,8 @@ xandikos = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "sync-token.delete.created-and-deleted": {"support": "unsupported", "behaviour": "a member created and deleted between two reports is not reported"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "fragile", "behaviour": "the object is stored intact and time-range searches place it right until the search index takes over a filter (after more than 5 queries with it, by default); match_indexes() then rebuilds DTSTART without the TZID, so the time is read as floating in the server's zone (UTC in the reported run: 21:00Z instead of 12:00Z), VTIMEZONE or not (Xandikos 0.4.10).  See https://github.com/python-caldav/caldav/pull/850"},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -1700,6 +1707,8 @@ radicale = {
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT or a VJOURNAL can be saved to it"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
 ## Nextcloud can be configured a lot.  What particularly affects the compatibility
@@ -1782,6 +1791,8 @@ nextcloud = {
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
     "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
     "sync-token.recreated": {"support": "broken", "behaviour": "a member deleted and re-created is reported as removed only"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 ecloud = nextcloud | {
@@ -1955,6 +1966,8 @@ zimbra_8_8 = {
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
     "scheduling.auto-schedule": {"support": "full"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
 ## Zimbra 10.1.21, measured with caldav-server-tester 2026-10-29 against an
@@ -2060,6 +2073,8 @@ bedework_3_10_3 = {
     "calendar-order": {"support": "unsupported"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
 ## Bedework 5.0.0, measured 2026-09-12 with caldav-server-tester against the
@@ -2222,6 +2237,8 @@ bedework_5_0_0 = {
     "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
     "sync-token.delete.created-and-deleted": {"support": "unsupported", "behaviour": "a member created and deleted between two reports is not reported"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with CREATED and LAST-MODIFIED added, PRODID and DTSTAMP changed, yet the PUT answered with a strong ETag"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
 baikal =  { ## version 0.10.1
@@ -2253,6 +2270,8 @@ baikal =  { ## version 0.10.1
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
     "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 } ## TODO: testPrincipals, testWrongAuthType, testTodoDatesearch fails
 
 ## Some unknown version of baikal has this
@@ -2294,6 +2313,8 @@ cyrus = {
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
     # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
@@ -2405,6 +2426,8 @@ davical = {
     "calendar-order": {"support": "full"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 ## Synology Calendar (the DSM package) embeds a modified DAViCal, hence
@@ -2432,6 +2455,10 @@ synology = davical | {
     'test-calendar': {'cleanup-regime': 'wipe-calendar'},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "sync-token.recreated": {"support": "broken", "behaviour": "a member deleted and re-created is reported as removed only"},
+    ## Set by hand: the probe finds 'full' (2026-11-06), but it cannot see
+    ## the web UI, which needs the VTIMEZONE.  'fragile' keeps the library
+    ## sending one, and the server tester leaves a fragile hint alone.
+    "save-load.icalendar.olson-tzid": {"support": "fragile", "behaviour": "the CalDAV server places it right, but the Synology Calendar web UI (3.0.2 and 3.0.4) shows such an event as if it were UTC; it shows it right with a VTIMEZONE.  See https://github.com/python-caldav/caldav/issues/849"},
 }
 
 sogo = {
@@ -2519,6 +2546,8 @@ sogo = {
 
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with CLASS added, yet the PUT answered with a strong ETag"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 ## Old notes for sogo (todo - incorporate them in the structure above).
 ## The commented-out lists here and below name flags of the old-style
@@ -2608,6 +2637,8 @@ robur = {
     'well-known': {'support': 'full'},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "unsupported", "behaviour": "TZID=Asia/Tokyo without a VTIMEZONE is read as neither Tokyo time nor UTC"},
 }
 
 posteo = {
@@ -2651,6 +2682,8 @@ posteo = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
     "multiget.missing-href": {"support": "ungraceful", "behaviour": "a multiget naming a missing object failed: calendar-multiget answered 404"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 #calendar_mail_ru = [
@@ -2698,6 +2731,8 @@ davis = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
     "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 ## Apple CalendarServer (CCS) - archived 2019, Python 2/Twisted.
@@ -2768,6 +2803,8 @@ ccs = {
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
     "sync-token.initial-sync": {"support": "quirk", "behaviour": "lists the collection itself"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 ## Stalwart - all-in-one mail & collaboration server (CalDAV added 2024/2025)
@@ -2888,6 +2925,8 @@ stalwart = {
         "support": "unsupported",
         "behaviour": "not reported, unless a member it already had changed in the same interval",
     },
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 ## Lots of transient problems with purelymail
@@ -2934,6 +2973,8 @@ purelymail = {
     "supported-components.property-exists": {"support": "unsupported"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
 }
 
 gmx = {
@@ -3027,6 +3068,8 @@ gmx = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     ## save.etag is a quirk (weak on PUT, strong on GET); nothing is rewritten
     "save.etag.matches-stored": {"support": "full"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
 ## https://ox.io/
@@ -3186,6 +3229,8 @@ ox = {
     "save-load.icalendar.attendee-params": {"support": "unsupported", "behaviour": "an EMAIL parameter is added to every ATTENDEE"},
     "create-calendar.with-supported-component-types.multiple": {"support": "broken", "behaviour": "asked for ['VEVENT', 'VTODO'], the calendar reports ['VTODO']"},
     "search.text.uid": {"support": "unsupported", "behaviour": "objects not matching the UID come back"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
 ## Infomaniak (https://www.infomaniak.com/) - kSuite calendar, CalDAV served
@@ -3252,6 +3297,8 @@ infomaniak = {
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
     "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
+    ## Probed 2026-11-06 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "unsupported", "behaviour": "TZID=Asia/Tokyo without a VTIMEZONE is read as neither Tokyo time nor UTC"},
 }
 
 ## Yahoo Calendar (https://caldav.calendar.yahoo.com/), a hosted service.
