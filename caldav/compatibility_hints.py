@@ -600,7 +600,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
         },
         "save-load.icalendar.olson-tzid": {
-            "description": "An object whose TZID names a time zone of the tz database (\"Olson\" names, such as Europe/Berlin) is placed in that time zone without a VTIMEZONE for it.  RFC 5545 section 3.6.5 requires the VTIMEZONE, so the default is 'unsupported', and a client should send one; where 'full', it may leave the VTIMEZONE out and keep the object small.  The probe stores an event with TZID=Asia/Tokyo and no VTIMEZONE and judges the server's reading by time-range searches in UTC.  'unsupported' when the time is read as UTC or another zone, 'ungraceful' when the event is refused.  'fragile' where the reading depends on circumstances: the search path (Xandikos) or the client (Synology's web UI).  A server reading the TZID as floating, in a time zone of its own, is caught unless it runs in Tokyo time (then 'full') or in UTC (then the behaviour says 'read as UTC').  The behaviour notes whether the server adds a VTIMEZONE of its own.  A client of the server may still misread a bare TZID where the server does not: Synology's web UI was reported to read it as UTC (https://github.com/python-caldav/caldav/issues/849).  See also save-load.icalendar.vtimezone, whether a VTIMEZONE sent is kept.",
+            "description": "An object whose TZID names a time zone of the tz database (\"Olson\" names, such as Europe/Berlin) is placed in that time zone without a VTIMEZONE for it.  RFC 5545 section 3.6.5 requires the VTIMEZONE, so the default is 'unsupported', and a client should send one; where 'full', it may leave the VTIMEZONE out and keep the object small.  The probe stores an event with TZID=Asia/Tokyo and no VTIMEZONE, and compares where time-range searches in UTC find it with where they find the same event carrying its VTIMEZONE and one at 12:00 UTC.  'full' when it is placed as the event with the VTIMEZONE is, so the verdict says whether the bare TZID is read as the zoned one; whether a zoned time is placed right is search.time-range.event.tzid.  'unsupported' when it is placed as UTC or elsewhere, 'ungraceful' when the event is refused.  'fragile' where the reading depends on circumstances, such as the client (Synology's web UI).  The behaviour notes whether the server adds a VTIMEZONE of its own.  A client of the server may still misread a bare TZID where the server does not: Synology's web UI was reported to read it as UTC (https://github.com/python-caldav/caldav/issues/849).  See also save-load.icalendar.vtimezone, whether a VTIMEZONE sent is kept.",
             "default": {"support": "unsupported"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5"],
         },
@@ -687,6 +687,11 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
         },
+        "search.time-range.todo.overlap": {
+            "description": "A task with DTSTART and DUE is found by a time-range search overlapping it without containing its DTSTART: a range inside the task, and one straddling its DUE.  RFC 4791 section 9.9 has such a VTODO overlap a range when ((start <= DTSTART OR start < DUE) AND (end > DTSTART OR end >= DUE)).  'unsupported' when only tasks starting inside the range are found.  The task counterpart of search.time-range.event.overlap; journals have no end and are not probed.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.time-range.open": {
             "description": "Open-ended time-range searches (with only one bound) work correctly. RFC4791 section 9.9: the CALDAV:time-range 'start' and 'end' attributes are optional; if absent, assume -infinity and +infinity respectively. At least one attribute must be present.",
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
@@ -707,6 +712,16 @@ hence, "fragile".
         },
         "search.time-range.event": {"description": "basic time range searches for event works", "default": {"support": "full"}},
         "search.time-range.event.old-dates": {"description": "time range searches for events with old dates (e.g. year 2000) work - some servers enforce a min-date-time restriction"},
+        "search.time-range.event.overlap": {
+            "description": "An event is found by a time-range search overlapping it without containing its DTSTART: a range inside the event, and one straddling its DTEND.  RFC 4791 section 9.9 has a VEVENT overlap a range when (start < DTEND AND end > DTSTART).  'unsupported' when only events starting inside the range are found (Robur).  The library widens every time-range search by a day and filters the result client-side by default, which hides this for events shorter than about a day.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
+        "search.time-range.event.tzid": {
+            "description": "An event whose times carry a TZID, with the VTIMEZONE RFC 5545 requires, is found by a time-range search around its time in UTC.  The probe stores one at 12:00 Asia/Tokyo (03:00 UTC).  'unsupported' when it is placed at another time, the behaviour saying where (read as UTC, say); 'broken' when it is found only by a range that also reaches its local time read as UTC (Infomaniak: the search seems to preselect by the time with its TZID dropped, then check it properly).  The library widens every time-range search by a day and filters the result client-side by default, which hides this.  See also save-load.icalendar.olson-tzid, the same without the VTIMEZONE.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.9"],
+        },
         "search.time-range.journal": {"description": "basic time range searches for journal works"},
         "search.time-range.alarm": {
             "description": "Time range searches for alarms work. The server supports searching for events based on when their alarms trigger, as specified in RFC4791 section 9.9",
@@ -1665,8 +1680,9 @@ xandikos = {
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "sync-token.delete.created-and-deleted": {"support": "unsupported", "behaviour": "a member created and deleted between two reports is not reported"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
-    ## Probed 2026-11-06 by caldav-server-tester
-    "save-load.icalendar.olson-tzid": {"support": "fragile", "behaviour": "the object is stored intact and time-range searches place it right until the search index takes over a filter (after more than 5 queries with it, by default); match_indexes() then rebuilds DTSTART without the TZID, so the time is read as floating in the server's zone (UTC in the reported run: 21:00Z instead of 12:00Z), VTIMEZONE or not (Xandikos 0.4.10).  See https://github.com/python-caldav/caldav/pull/850"},
+    ## Probed 2026-11-07 by caldav-server-tester against Xandikos master
+    "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "full with the master branch (2026-11-07), which has https://github.com/jelmer/xandikos/pull/764; Xandikos 0.4.10 and earlier read a time with a TZID as floating once the search index takes over a filter, VTIMEZONE or not"},
+    "search.time-range.event.tzid": {"support": "full", "behaviour": "full with the master branch (2026-11-07), which has https://github.com/jelmer/xandikos/pull/764; Xandikos 0.4.10 and earlier read a time with a TZID as floating once the search index takes over a filter, VTIMEZONE or not"},
 }
 
 ## This seems to work as of version 3.5.4 of Radicale.
@@ -2073,7 +2089,9 @@ bedework_3_10_3 = {
     "calendar-order": {"support": "unsupported"},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.if-match": {"support": "broken", "behaviour": "a DELETE with a stale If-Match deleted the object (204)"},
-    ## Probed 2026-11-06 by caldav-server-tester
+    ## Probed 2026-11-06 by caldav-server-tester, with fixed time windows.  The
+    ## probe comparing with a control (2026-11-07) answers "cannot test" here:
+    ## the search does not place a plain 12:00 UTC event right.
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
 }
 
@@ -2315,6 +2333,8 @@ cyrus = {
     "calendar-order": {"support": "full"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full"},
+    ## Probed 2026-11-07 by caldav-server-tester
+    "search.time-range.todo.overlap": {"support": "unsupported", "behaviour": "only tasks starting inside the range are found"},
     # Cyrus may not properly reject wrong passwords in some configurations.
     # Cyrus implements server-side automatic scheduling: for cross-user invites,
     # the server both auto-processes the invite into the attendee's calendar
@@ -2637,8 +2657,9 @@ robur = {
     'well-known': {'support': 'full'},
     ## Probed 2026-10-24 by caldav-server-tester (sync, multiget and DELETE probes)
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
-    ## Probed 2026-11-06 by caldav-server-tester
-    "save-load.icalendar.olson-tzid": {"support": "unsupported", "behaviour": "TZID=Asia/Tokyo without a VTIMEZONE is read as neither Tokyo time nor UTC"},
+    ## Probed 2026-11-07 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "unsupported", "behaviour": "TZID=Asia/Tokyo without a VTIMEZONE is read as UTC"},
+    "search.time-range.event.overlap": {"support": "unsupported", "behaviour": "only events starting inside the range are found"},
 }
 
 posteo = {
@@ -3070,6 +3091,8 @@ gmx = {
     "save.etag.matches-stored": {"support": "full"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
+    ## Probed 2026-11-07 by caldav-server-tester
+    "search.time-range.todo.overlap": {"support": "unsupported", "behaviour": "only tasks starting inside the range are found"},
 }
 
 ## https://ox.io/
@@ -3297,8 +3320,9 @@ infomaniak = {
     "delete.missing.if-match": {"support": "unsupported", "behaviour": "a DELETE with If-Match on a missing object answered 412"},
     "multiget.missing-href": {"support": "unsupported", "behaviour": "a missing href is left out of the multistatus"},
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with its properties reordered, yet the PUT answered with a strong ETag"},
-    ## Probed 2026-11-06 by caldav-server-tester
-    "save-load.icalendar.olson-tzid": {"support": "unsupported", "behaviour": "TZID=Asia/Tokyo without a VTIMEZONE is read as neither Tokyo time nor UTC"},
+    ## Probed 2026-11-07 by caldav-server-tester
+    "save-load.icalendar.olson-tzid": {"support": "full"},
+    "search.time-range.event.tzid": {"support": "broken", "behaviour": "an event at 12:00 Asia/Tokyo is found only by a range also reaching 12:00 UTC, its local time read as UTC"},
 }
 
 ## Yahoo Calendar (https://caldav.calendar.yahoo.com/), a hosted service.
