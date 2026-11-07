@@ -1328,6 +1328,7 @@ class Calendar(DAVObject):
         return obj
 
     def _use_or_create_ics(self, ical, objtype, **ical_data):
+        add_vtimezones = ical_data.pop("add_vtimezones", None)
         if ical_data or (
             (isinstance(ical, str) or isinstance(ical, bytes))
             and b"BEGIN:VCALENDAR" not in to_wire(ical)
@@ -1335,7 +1336,12 @@ class Calendar(DAVObject):
             ## TODO: the ical_fragment code is not much tested
             if ical and "ical_fragment" not in ical_data:
                 ical_data["ical_fragment"] = ical
-            return vcal.create_ical(objtype=objtype, **ical_data)
+            if add_vtimezones is None:
+                add_vtimezones = not (
+                    self.client
+                    and self.client.features.is_supported("save-load.icalendar.olson-tzid")
+                )
+            return vcal.create_ical(objtype=objtype, add_vtimezones=add_vtimezones, **ical_data)
         return ical
 
     def add_object(

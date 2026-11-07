@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 import re
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from unittest import TestCase
+from zoneinfo import ZoneInfo
 
 import icalendar
 import pytest
@@ -29,6 +30,13 @@ CATEGORIES:ANNIVERSARY,PERSONAL,SPECIAL OCCASION
 RRULE:FREQ=YEARLY
 END:VEVENT
 END:VCALENDAR"""
+
+
+def _vobject_utc(ical: str, tzid: str, local: datetime) -> datetime:
+    ## vobject resolves a TZID through a process-wide registry, so read the VTIMEZONE itself
+    vtimezones = vobject.readOne(ical).vtimezone_list
+    tzinfo = next(tz.gettzinfo() for tz in vtimezones if tz.tzid.value == tzid)
+    return local.replace(tzinfo=tzinfo).astimezone(utc)
 
 
 class TestVcal(TestCase):
@@ -148,6 +156,125 @@ class TestVcal(TestCase):
         end_valarm_pos = raw_bytes.index(b"END:VALARM")
         rrule_pos = raw_bytes.index(b"RRULE:FREQ=DAILY")
         assert rrule_pos > end_valarm_pos, "RRULE must not be inside VALARM"
+
+    def test_create_ical_adds_vtimezone_for_each_tzid(self) -> None:
+        """RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID.
+
+        https://github.com/home-assistant/core/issues/172990
+        """
+        lisbon = ZoneInfo("Europe/Lisbon")
+        chicago = ZoneInfo("America/Chicago")
+        ical = create_ical(
+            summary="tz",
+            dtstart=datetime(2026, 6, 6, 20, tzinfo=lisbon),
+            dtend=datetime(2026, 6, 6, 15, tzinfo=chicago),
+        )
+        cal = icalendar.Calendar.from_ical(ical)
+        assert [c.name for c in cal.subcomponents] == ["VEVENT", "VTIMEZONE", "VTIMEZONE"]
+        assert [str(tz["TZID"]) for tz in cal.walk("VTIMEZONE")] == [
+            "America/Chicago",
+            "Europe/Lisbon",
+        ]
+        assert re.search(r"^DTSTART;TZID=Europe/Lisbon:20260606T200000\r?$", ical, re.M)
+        assert _vobject_utc(ical, "Europe/Lisbon", datetime(2026, 6, 6, 20)) == datetime(
+            2026, 6, 6, 19, tzinfo=utc
+        )
+        assert _vobject_utc(ical, "America/Chicago", datetime(2026, 6, 6, 15)) == datetime(
+            2026, 6, 6, 20, tzinfo=utc
+        )
+
+        todo = create_ical(
+            objtype="VTODO", summary="tz", due=datetime(2026, 1, 15, 9, tzinfo=lisbon)
+        )
+        assert [str(tz["TZID"]) for tz in icalendar.Calendar.from_ical(todo).walk("VTIMEZONE")] == [
+            "Europe/Lisbon"
+        ]
+        assert _vobject_utc(todo, "Europe/Lisbon", datetime(2026, 1, 15, 9)) == datetime(
+            2026, 1, 15, 9, tzinfo=utc
+        )
+
+    def test_create_ical_skips_a_time_zone_without_a_name(self) -> None:
+        ical = create_ical(
+            summary="offset", dtstart=datetime(2026, 6, 6, 20, tzinfo=timezone(timedelta(hours=2)))
+        )
+        assert "VTIMEZONE" not in ical
+
+    def test_create_ical_vtimezone_covers_dates_after_2038(self) -> None:
+        ical = create_ical(
+            summary="far", dtstart=datetime(2060, 7, 6, 9, tzinfo=ZoneInfo("Europe/Berlin"))
+        )
+        assert _vobject_utc(ical, "Europe/Berlin", datetime(2060, 7, 6, 9)) == datetime(
+            2060, 7, 6, 7, tzinfo=utc
+        )
+
+    def test_create_ical_adds_no_vtimezone_without_tzid(self) -> None:
+        for value in (datetime(2026, 6, 6, 20, tzinfo=utc), date(2026, 6, 6)):
+            ical = create_ical(summary="no tz", dtstart=value)
+            assert "VTIMEZONE" not in ical
+            assert "TZID" not in ical
+
+    def test_create_ical_add_vtimezones_false(self) -> None:
+        ical = create_ical(
+            summary="bare",
+            dtstart=datetime(2026, 6, 6, 20, tzinfo=ZoneInfo("Europe/Berlin")),
+            add_vtimezones=False,
+        )
+        assert "VTIMEZONE" not in ical
+        assert re.search(r"^DTSTART;TZID=Europe/Berlin:20260606T200000\r?$", ical, re.M)
+
+    def test_create_ical_keeps_an_unused_vtimezone(self) -> None:
+        fragment = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
+            "BEGIN:VEVENT\nUID:test\nDTSTAMP:20261027T000000Z\n"
+            "DTSTART;VALUE=DATE:20261207\n"
+            "END:VEVENT\n"
+            "BEGIN:VTIMEZONE\nTZID:Europe/Amsterdam\n"
+            "BEGIN:STANDARD\nDTSTART:19701025T030000\n"
+            "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\n"
+            "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+            "END:STANDARD\nEND:VTIMEZONE\nEND:VCALENDAR\n"
+        )
+        cal = icalendar.Calendar.from_ical(create_ical(ical_fragment=fragment, summary="all day"))
+        assert [str(tz["TZID"]) for tz in cal.walk("VTIMEZONE")] == ["Europe/Amsterdam"]
+        assert str(cal.walk("VEVENT")[0]["SUMMARY"]) == "all day"
+
+    def test_create_ical_tolerates_a_vtimezone_without_tzid(self) -> None:
+        fragment = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
+            "BEGIN:VEVENT\nUID:test\nDTSTAMP:20261027T000000Z\n"
+            "DTSTART;TZID=Europe/Berlin:20261207T130000\n"
+            "END:VEVENT\n"
+            "BEGIN:VTIMEZONE\nBEGIN:STANDARD\nDTSTART:19701025T030000\n"
+            "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+            "END:STANDARD\nEND:VTIMEZONE\nEND:VCALENDAR\n"
+        )
+        cal = icalendar.Calendar.from_ical(create_ical(ical_fragment=fragment, summary="no tzid"))
+        assert [tz.get("TZID") for tz in cal.walk("VTIMEZONE")] == [None, "Europe/Berlin"]
+
+    def test_create_ical_keeps_a_vtimezone_it_was_given(self) -> None:
+        vtimezone = (
+            "BEGIN:VTIMEZONE\nTZID:Europe/Amsterdam\n"
+            "BEGIN:STANDARD\nDTSTART:20251026T030000\n"
+            "RDATE:20261025T030000,20271031T030000\n"
+            "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+            "END:STANDARD\nEND:VTIMEZONE\n"
+        )
+        fragment = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
+            "BEGIN:VEVENT\nUID:test\nDTSTAMP:20261027T000000Z\n"
+            "DTSTART;TZID=Europe/Amsterdam:20261207T130000\n"
+            "END:VEVENT\n" + vtimezone + "END:VCALENDAR\n"
+        )
+        cal = icalendar.Calendar.from_ical(
+            create_ical(
+                ical_fragment=fragment,
+                dtend=datetime(2026, 12, 7, 14, tzinfo=ZoneInfo("Europe/Amsterdam")),
+            )
+        )
+        assert [tz.to_ical() for tz in cal.walk("VTIMEZONE")] == [
+            icalendar.Calendar.from_ical(fragment).walk("VTIMEZONE")[0].to_ical()
+        ]
+        assert cal.walk("VEVENT")[0]["DTEND"].params["TZID"] == "Europe/Amsterdam"
 
     def test_vcal_fixups(self):
         """
