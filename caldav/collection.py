@@ -1369,6 +1369,12 @@ class Calendar(DAVObject):
           increase_seqno: bump SEQUENCE if the ical data carries one.  Defaults to
             True; pass False when storing data verbatim (sync, copy, import).
             See :meth:`CalendarObjectResource.save`.
+          add_vtimezones: add a VTIMEZONE for every TZID lacking one that
+            icalendar knows, when the object is built or amended from
+            properties.  Defaults to True unless the server hint
+            ``save-load.icalendar.olson-tzid`` says the server handles a
+            bare TZID.  Ignored when ``ical`` is a complete VCALENDAR (text
+            or object) and no properties are given.
           dtstart: properties to be inserted into the icalendar object
           dtend: properties to be inserted into the icalendar object
           summary: properties to be inserted into the icalendar object
