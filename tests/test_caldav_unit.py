@@ -6241,6 +6241,44 @@ class TestPropstatStatusValidation:
         result = MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
         assert result == {"/dav/calendars/user/broken/": {"{DAV:}displayname": None}}
 
+    def test_a_404_without_a_reason_phrase_is_a_404(self):
+        """Bedework 5 answers a calendar-multiget naming a missing href with a
+        bare "HTTP/1.1 404": no reason phrase, nor the space RFC 9112 section
+        4 keeps before an empty one."""
+        xml = self.XML.replace("500 Internal Server Error", "404")
+        result = MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert result == {"/dav/calendars/user/broken/": {"{DAV:}displayname": None}}
+        gone = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/dav/calendars/user/cal/missing.ics</href>
+    <status>HTTP/1.1 404</status>
+  </response>
+</multistatus>
+"""
+        [result] = MockedDAVResponse(gone).parse_propfind()
+        assert result.status == 404
+
+    def test_a_multiget_of_a_missing_object_answered_without_a_reason_phrase(self):
+        """The Bedework 5 case: multiget(raise_notfound=True) reports it missing."""
+        gone = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/calendar/bedework/missing.ics</href>
+    <status>HTTP/1.1 404</status>
+  </response>
+</multistatus>
+"""
+        calendar = Calendar(MockedDAVClient(gone), url="/calendar/bedework/")
+        with pytest.raises(error.NotFoundError):
+            calendar.multiget([URL("/calendar/bedework/missing.ics")], raise_notfound=True)
+
+    def test_a_failure_without_a_reason_phrase_still_raises(self):
+        xml = self.XML.replace("500 Internal Server Error", "500")
+        with pytest.raises(error.ResponseError) as excinfo:
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert excinfo.value.status == 500
+
     @pytest.mark.parametrize(
         "status", ["500 Internal Server Error", "HTTP/1.1 Internal Server Error"]
     )

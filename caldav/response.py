@@ -106,12 +106,16 @@ def _only_xml_declaration(raw: bytes | str) -> bool:
 def _validate_status(status: str | None) -> None:
     """Validate a status string like "HTTP/1.1 404 Not Found".
 
-    200, 201, 207 and 404 are considered acceptable statuses.
+    200, 201, 207 and 404 are considered acceptable statuses.  Only the code
+    counts: Bedework 5 sends a bare "HTTP/1.1 404", without the reason
+    phrase and without the space RFC 9112 section 4 keeps before an empty
+    one.
     """
     if status is None:
         return
-    if not any(code in status for code in (" 200 ", " 201 ", " 207 ", " 404 ")):
-        raise error.ResponseError(status, status=_parse_status_code(status))
+    code = _parse_status_code(status)
+    if code not in (200, 201, 207, 404):
+        raise error.ResponseError(status, status=code)
 
 
 def _parse_status_code(status: str) -> int | None:
@@ -188,7 +192,7 @@ def _collect_prop_elements(propstats: "list[_Element]") -> "dict[str, _Element]"
         status_elem = propstat.find(dav.Status.tag)
         if status_elem is not None and status_elem.text:
             _validate_status(status_elem.text)
-            if " 404 " in status_elem.text:
+            if _parse_status_code(status_elem.text) == 404:
                 continue
         for prop in propstat.iterfind(dav.Prop.tag):
             for child in prop:
@@ -660,7 +664,7 @@ class DAVResponse:
             ## 404s; flag it in debug mode if a server pairs them with some
             ## other status so we notice and revisit this handling.
             error.assert_("404" in status)
-        if status and " 404 " in status:
+        if status and _parse_status_code(status) == 404:
             ## The resource is gone, so whatever its propstats say is moot.
             ## Infomaniak adds an empty propstat with 418 to a removed member
             ## of a sync-collection reply, which would otherwise raise.
@@ -806,10 +810,8 @@ class DAVResponse:
             for status in response.iter(dav.Status.tag):
                 ## _status_to_code() falls back to 200 for anything it cannot
                 ## parse, which would turn a garbled status into a success
-                parts = (status.text or "").split()
-                if len(parts) < 2 or not parts[1].isdigit():
-                    return False
-                if not 200 <= int(parts[1]) < 300:
+                code = _parse_status_code(status.text or "")
+                if code is None or not 200 <= code < 300:
                     return False
         return True
 
