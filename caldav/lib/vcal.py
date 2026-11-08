@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 import datetime
+import functools
+import importlib.resources
 import logging
+import pathlib
 import re
 import uuid
+import zoneinfo
 from collections.abc import Iterator
 
 import icalendar
@@ -12,6 +16,78 @@ from caldav.lib.python_utilities import to_normal_str
 
 ## Global counter.  We don't want to be too verbose on the users, ref https://github.com/home-assistant/core/issues/86938
 fixup_error_loggings = 0
+
+
+@functools.cache
+def tzdata_links() -> dict[str, str]:
+    """The tz database's link names, each to the zone it points to (Europe/Oslo to Europe/Berlin).
+
+    Read from the ``tzdata`` package's ``tzdata.zi`` where it is installed, else from the
+    system's (``zoneinfo.TZPATH``); empty where neither is found.
+    """
+    sources = []
+    try:
+        sources.append(importlib.resources.files("tzdata").joinpath("zoneinfo", "tzdata.zi"))
+    except ModuleNotFoundError:
+        pass
+    sources += [pathlib.Path(path, "tzdata.zi") for path in zoneinfo.TZPATH]
+    for source in sources:
+        try:
+            text = source.read_text(encoding="utf-8")
+        except (OSError, ValueError):
+            continue
+        return _parse_links(text)
+    return {}
+
+
+def _parse_links(text: str) -> dict[str, str]:
+    """The ``L`` lines of a ``tzdata.zi``, each link to the zone it ends up at."""
+    links = {}
+    for line in text.splitlines():
+        if line.startswith("L "):
+            _, target, link = line.split()
+            links[link] = target
+    for link, target in links.items():  # a link to a link points on to the zone
+        seen = {link}
+        while target in links and target not in seen:
+            seen.add(target)
+            target = links[target]
+        links[link] = target
+    return links
+
+
+def canonical_tzids(data: str) -> str:
+    """``data`` with every TZID that is a tz database link given as the zone it points to.
+
+    A VTIMEZONE for a link is renamed, or dropped where one for the zone is there already.
+    ``data`` comes back as it is where it names no link.
+    """
+    links = tzdata_links()
+    cal = icalendar.Calendar.from_ical(data)
+    changed = False
+    named = {str(tz["TZID"]) for tz in cal.walk("VTIMEZONE")}
+    for component in cal.walk():
+        if component.name == "VTIMEZONE":
+            continue
+        for value in component.values():
+            for prop in value if isinstance(value, list) else [value]:
+                params = getattr(prop, "params", None)
+                if params and params.get("TZID") in links:
+                    params["TZID"] = links[params["TZID"]]
+                    changed = True
+    for tz in list(cal.walk("VTIMEZONE")):
+        target = links.get(str(tz["TZID"]))
+        if target is None:
+            continue
+        changed = True
+        if target in named:
+            cal.subcomponents.remove(tz)
+        else:
+            if str(tz.get("X-LIC-LOCATION")) == str(tz["TZID"]):
+                tz["X-LIC-LOCATION"] = target
+            tz["TZID"] = target
+            named.add(target)
+    return cal.to_ical().decode() if changed else data
 
 
 def parse_ical(data, context: str | None = None) -> icalendar.Calendar:

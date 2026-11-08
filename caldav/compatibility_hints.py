@@ -621,6 +621,11 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
         },
+        "save-load.icalendar.tzid-link": {
+            "description": "An object whose TZID is a link name of the tz database (Europe/Oslo, a link to Europe/Berlin since tzdata 2022b; Asia/Calcutta, to Asia/Kolkata), sent with its VTIMEZONE, is stored with that TZID.  'ungraceful' when it is refused: Bedework 5 answers 403 with valid-calendar-object-resource and unknownTimezone, as its time zone service knows each zone by the TZID inside its definition only, and the definition of a link carries its target's.  save() then sends the zone the link points to instead, which keeps every time since 1970 where it was (before 1970 a link may have had rules of its own); save(raw_data=...) does not.  'quirk' when the TZID is stored as the zone it points to, the behaviour saying so.  'unsupported' when it comes back as another TZID while an event in the zone it points to keeps its own.",
+            "default": {"support": "full"},
+            "links": ["https://data.iana.org/time-zones/tz-link.html"],
+        },
         "save-load.icalendar.olson-tzid": {
             "description": "An object whose TZID names a time zone of the tz database (\"Olson\" names, such as Europe/Berlin) is placed in that time zone without a VTIMEZONE for it.  RFC 5545 section 3.6.5 requires the VTIMEZONE, so the default is 'unsupported', and a client should send one; where 'full', it may leave the VTIMEZONE out and keep the object small.  The probe stores an event with TZID=Asia/Tokyo and no VTIMEZONE, and compares where time-range searches in UTC find it with where they find the same event carrying its VTIMEZONE and one at 12:00 UTC.  'full' when it is placed as the event with the VTIMEZONE is, so the verdict says whether the bare TZID is read as the zoned one; whether a zoned time is placed right is search.time-range.event.tzid.  'unsupported' when it is placed as UTC or elsewhere, 'ungraceful' when the event is refused.  'fragile' where the reading depends on circumstances, such as the client (Synology's web UI).  The behaviour notes whether the server adds a VTIMEZONE of its own.  A client of the server may still misread a bare TZID where the server does not: Synology's web UI was reported to read it as UTC (https://github.com/python-caldav/caldav/issues/849).  See also save-load.icalendar.vtimezone, whether a VTIMEZONE sent is kept.",
             "default": {"support": "unsupported"},
@@ -2317,6 +2322,10 @@ bedework_5_0_0 = {
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with CREATED and LAST-MODIFIED added, PRODID and DTSTAMP changed, yet the PUT answered with a strong ETag"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
+    ## Probed 2026-11-08 by hand: Europe/Oslo, Stockholm, Copenhagen, Amsterdam, Zagreb, Kiev, Belfast,
+    ## Arctic/Longyearbyen, America/Montreal and Asia/Calcutta refused, VTIMEZONE or not; Europe/Berlin,
+    ## Europe/Kyiv and the other canonical zones tried stored.  Bedework 3.10 stores them all.
+    "save-load.icalendar.tzid-link": {"support": "ungraceful", "behaviour": "403 valid-calendar-object-resource: unknownTimezone Europe/Oslo"},
 }
 
 baikal =  { ## version 0.10.1

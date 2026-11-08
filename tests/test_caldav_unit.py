@@ -10260,3 +10260,167 @@ class TestSearchDropsExceptions:
         )
         _, requests = self._search(base, expand=False, search_kwargs={"xml": query})
         assert requests == ["query"]
+
+
+class TestTzidLinkRewritten:
+    """Where ``save-load.icalendar.tzid-link`` is ungraceful, the server refuses
+    a TZID that is a tz database link name (Bedework 5: Europe/Oslo, a link to
+    Europe/Berlin since tzdata 2022b, is "unknownTimezone", VTIMEZONE or not).
+    save() then sends the zone the link points to instead."""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    @staticmethod
+    def _vtimezone(tzid):
+        return (
+            "BEGIN:VTIMEZONE\r\n"
+            f"TZID:{tzid}\r\n"
+            "BEGIN:STANDARD\r\n"
+            "DTSTART:19701025T030000\r\n"
+            "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\n"
+            "TZOFFSETFROM:+0200\r\n"
+            "TZOFFSETTO:+0100\r\n"
+            "END:STANDARD\r\n"
+            "END:VTIMEZONE\r\n"
+        )
+
+    def _ical(self, *tzids, rid=None):
+        events = "".join(
+            "BEGIN:VEVENT\r\n"
+            "UID:tzlink-1\r\n"
+            "DTSTAMP:20261101T000000Z\r\n"
+            f"DTSTART;TZID={tzid}:20261103T100000\r\n"
+            f"DTEND;TZID={tzid}:20261103T110000\r\n"
+            + (
+                f"RECURRENCE-ID;TZID={tzid}:20261103T100000\r\n"
+                if i
+                else f"RRULE:FREQ=DAILY;COUNT=4\r\nEXDATE;TZID={tzid}:20261104T100000,20261105T100000\r\n"
+            )
+            + "SUMMARY:x\r\n"
+            "END:VEVENT\r\n"
+            for i, tzid in enumerate(tzids)
+        )
+        zones = "".join(self._vtimezone(t) for t in dict.fromkeys(tzids))
+        return (
+            f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n{zones}{events}END:VCALENDAR\r\n"
+        )
+
+    def _save(self, data, support="ungraceful", raw=False):
+        sent = []
+        features = {"save-load.icalendar.tzid-link": {"support": support}}
+        client = DAVClient(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body="", headers=None):
+            if method.upper() == "PUT":
+                sent.append(body.decode() if isinstance(body, bytes) else str(body))
+            resp = mock.MagicMock()
+            resp.reason = "whatever"
+            resp.status_code = 201 if method.upper() == "PUT" else 404
+            resp.content = b""
+            resp.headers = {}
+            resp.text = ""
+            return DAVResponse(resp, client)
+
+        client.request = request
+        event = Event(
+            client, url=self.URL + "tzlink-1.ics", data=data, parent=Calendar(client, url=self.URL)
+        )
+        if raw:
+            event.save(raw_data=data.encode(), no_overwrite=False, no_create=False)
+        else:
+            event.save(increase_seqno=False)
+        [body] = sent
+        return event, icalendar.Calendar.from_ical(body), body
+
+    @staticmethod
+    def _tzids(cal):
+        found = {str(c["TZID"]) for c in cal.walk("VTIMEZONE")}
+        for component in cal.walk("VEVENT"):
+            for name in ("DTSTART", "DTEND", "RECURRENCE-ID", "EXDATE"):
+                if name in component:
+                    found.add(component[name].params["TZID"])
+        return found
+
+    def test_a_link_is_sent_as_the_zone_it_points_to(self) -> None:
+        event, sent, _ = self._save(self._ical("Europe/Oslo", "Europe/Oslo"))
+        assert self._tzids(sent) == {"Europe/Berlin"}
+        assert len(sent.walk("VTIMEZONE")) == 1
+        assert "Europe/Oslo" in event.data, "the object as the caller holds it is not rewritten"
+
+    def test_a_link_beside_its_target_leaves_one_vtimezone(self) -> None:
+        _, sent, _ = self._save(self._ical("Europe/Berlin", "Europe/Oslo"))
+        assert self._tzids(sent) == {"Europe/Berlin"}
+        assert len(sent.walk("VTIMEZONE")) == 1
+
+    def test_a_canonical_zone_is_sent_as_it_is(self) -> None:
+        data = self._ical("Europe/Berlin")
+        _, _, body = self._save(data)
+        assert "TZID=Europe/Berlin" in body and "Europe/Oslo" not in body
+
+    def test_nothing_is_rewritten_where_the_server_takes_links(self) -> None:
+        for support in ("full", "unknown"):
+            _, sent, _ = self._save(self._ical("Europe/Oslo"), support=support)
+            assert self._tzids(sent) == {"Europe/Oslo"}
+
+    def test_raw_data_is_sent_unchanged(self) -> None:
+        data = self._ical("Europe/Oslo")
+        _, _, body = self._save(data, raw=True)
+        assert body == data
+
+    def test_the_links_come_from_the_tz_database(self) -> None:
+        from caldav.lib.vcal import tzdata_links
+
+        links = tzdata_links()
+        assert links["Europe/Oslo"] == "Europe/Berlin"
+        assert links["Asia/Calcutta"] == "Asia/Kolkata"
+        assert "Europe/Berlin" not in links
+
+    def test_x_lic_location_follows_the_rename(self) -> None:
+        data = self._ical("Europe/Oslo").replace(
+            "TZID:Europe/Oslo\r\n", "TZID:Europe/Oslo\r\nX-LIC-LOCATION:Europe/Oslo\r\n"
+        )
+        _, sent, _ = self._save(data)
+        [tz] = sent.walk("VTIMEZONE")
+        assert str(tz["X-LIC-LOCATION"]) == "Europe/Berlin"
+
+    def test_due_and_rdate_of_a_task_are_rewritten(self) -> None:
+        from caldav.lib.vcal import canonical_tzids
+
+        data = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n"
+            + self._vtimezone("Europe/Oslo")
+            + "BEGIN:VTODO\r\nUID:tzlink-2\r\nDTSTAMP:20261101T000000Z\r\n"
+            "DTSTART;TZID=Europe/Oslo:20261103T100000\r\n"
+            "DUE;TZID=Europe/Oslo:20261103T110000\r\n"
+            "RDATE;TZID=Europe/Oslo:20261110T100000\r\n"
+            "END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        out = canonical_tzids(data)
+        assert "Europe/Oslo" not in out
+        [todo] = icalendar.Calendar.from_ical(out).walk("VTODO")
+        assert todo["DUE"].params["TZID"] == "Europe/Berlin"
+        assert todo["RDATE"].params["TZID"] == "Europe/Berlin"
+
+    def test_a_link_to_a_link_points_on_to_the_zone(self) -> None:
+        from caldav.lib.vcal import _parse_links
+
+        links = _parse_links(
+            "Z Europe/Berlin 1\nL Europe/Berlin Europe/Oslo\nL Europe/Oslo Arctic/Longyearbyen\n"
+        )
+        assert links == {"Europe/Oslo": "Europe/Berlin", "Arctic/Longyearbyen": "Europe/Berlin"}
+
+    def test_without_a_tz_database_nothing_is_rewritten(self, monkeypatch) -> None:
+        import caldav.lib.vcal as vcal
+
+        def no_package(name):
+            raise ModuleNotFoundError(name)
+
+        monkeypatch.setattr(vcal.importlib.resources, "files", no_package)
+        monkeypatch.setattr(vcal.zoneinfo, "TZPATH", ())
+        vcal.tzdata_links.cache_clear()
+        try:
+            assert vcal.tzdata_links() == {}
+            data = self._ical("Europe/Oslo")
+            assert vcal.canonical_tzids(data) == data
+        finally:
+            vcal.tzdata_links.cache_clear()
