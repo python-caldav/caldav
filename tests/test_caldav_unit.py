@@ -3475,7 +3475,13 @@ class TestOlsonTzidHint:
 
     @pytest.mark.parametrize(
         "support, vtimezone",
-        [(None, True), ("unsupported", True), ("fragile", True), ("full", False)],
+        [
+            (None, True),
+            ("unsupported", True),
+            ("fragile", True),
+            ("quirk", False),
+            ("full", False),
+        ],
     )
     def test_add_event_sends_vtimezone_unless_olson_tzid_is_full(
         self, support: str | None, vtimezone: bool
@@ -3495,7 +3501,15 @@ class TestOlsonTzidHint:
         )
         assert "VTIMEZONE" not in put.data
 
-    def test_add_vtimezones_leaves_a_complete_object_alone(self) -> None:
+    def test_add_vtimezones_true_overrides_the_hint(self) -> None:
+        from caldav.compatibility_hints import FeatureSet
+
+        client = MockedDAVClient("")
+        client.features = FeatureSet({"save-load.icalendar.olson-tzid": {"support": "full"}})
+        put = self._add_event(client, summary="tz", dtstart=self._berlin(), add_vtimezones=True)
+        assert "BEGIN:VTIMEZONE" in put.data
+
+    def test_add_vtimezones_does_not_become_a_property(self) -> None:
         ical = icalendar.Calendar.from_ical(
             "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
             "BEGIN:VTIMEZONE\nTZID:Europe/Berlin\n"
