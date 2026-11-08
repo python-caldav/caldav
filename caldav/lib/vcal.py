@@ -328,10 +328,11 @@ def _add_vtimezones(ical: icalendar.Calendar) -> None:
     if not missing:
         return
     ## vobject keeps the last offset after the last RDATE, icalendar stops at 2038
-    ## and starts at 1970, so stretch the range to every date in the object
+    ## and starts at 1970, so stretch the range to every date in the object.
+    ## Stop after 2200: one RDATE per transition, and 9999 is often used for "no end"
     years = list(_years(ical))
     first_date = datetime.date(min([1970, *years]), 1, 1)
-    last_date = datetime.date(max([2099, *years]) + 1, 1, 1)
+    last_date = datetime.date(min(max([2099, *years]), 2200) + 1, 1, 1)
     for tzid in sorted(missing):
         try:
             vtimezone = icalendar.Timezone.from_tzid(

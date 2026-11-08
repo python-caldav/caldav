@@ -215,6 +215,21 @@ class TestVcal(TestCase):
                 year, 7, 1, 16, tzinfo=utc
             )
 
+    def test_create_ical_vtimezone_stops_at_2200(self) -> None:
+        ## some systems use 9999-12-31 for "no end"
+        berlin = ZoneInfo("Europe/Berlin")
+        ical = create_ical(
+            summary="no end",
+            dtstart=datetime(2026, 7, 1, 12, tzinfo=berlin),
+            dtend=datetime(9999, 12, 31, 13, tzinfo=berlin),
+        )
+        vtimezone = icalendar.Calendar.from_ical(ical).timezones[0]
+        assert len(vtimezone.to_ical()) < 20000
+        assert max(vtimezone.get_transitions()[0]).year == 2200
+        assert _vobject_utc(ical, "Europe/Berlin", datetime(2026, 7, 1, 12)) == datetime(
+            2026, 7, 1, 10, tzinfo=utc
+        )
+
     def test_create_ical_adds_no_vtimezone_without_tzid(self) -> None:
         for value in (datetime(2026, 6, 6, 20, tzinfo=utc), date(2026, 6, 6)):
             ical = create_ical(summary="no tz", dtstart=value)
