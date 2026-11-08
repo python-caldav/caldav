@@ -3,6 +3,7 @@ import datetime
 import logging
 import re
 import uuid
+from collections.abc import Iterator
 
 import icalendar
 
@@ -324,10 +325,18 @@ def create_ical(
 
 def _add_vtimezones(ical: icalendar.Calendar) -> None:
     missing = ical.get_used_tzids() - {"UTC"} - {tz.get("TZID") for tz in ical.timezones}
+    if not missing:
+        return
+    ## vobject keeps the last offset after the last RDATE, icalendar stops at 2038
+    ## and starts at 1970, so stretch the range to every date in the object
+    years = list(_years(ical))
+    first_date = datetime.date(min([1970, *years]), 1, 1)
+    last_date = datetime.date(max([2099, *years]) + 1, 1, 1)
     for tzid in sorted(missing):
         try:
-            ## vobject keeps the last offset after the last RDATE, icalendar stops at 2038
-            vtimezone = icalendar.Timezone.from_tzid(tzid, last_date=datetime.date(2100, 1, 1))
+            vtimezone = icalendar.Timezone.from_tzid(
+                tzid, first_date=first_date, last_date=last_date
+            )
         except (ValueError, OSError):
             continue
         for observance in vtimezone.subcomponents:
@@ -338,6 +347,18 @@ def _add_vtimezones(ical: icalendar.Calendar) -> None:
                     observance.add("RDATE", value.dt)
         ## at the end, so subcomponents[0] stays the event as the docs use it
         ical.add_component(vtimezone)
+
+
+def _years(ical: icalendar.Calendar) -> Iterator[int]:
+    """The year of every date and date-time value in the calendar."""
+    for component in ical.walk():
+        for value in component.values():
+            for item in value if isinstance(value, list) else [value]:
+                ## RDATE and EXDATE hold a list of values in .dts
+                for prop in item.dts if hasattr(item, "dts") else [item]:
+                    dt = getattr(prop, "dt", None)
+                    if isinstance(dt, datetime.date):
+                        yield dt.year
 
 
 def add_alarm(ical, alarm):

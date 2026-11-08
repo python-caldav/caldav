@@ -207,6 +207,14 @@ class TestVcal(TestCase):
             2060, 7, 6, 7, tzinfo=utc
         )
 
+    def test_create_ical_vtimezone_covers_dates_before_1970_and_after_2100(self) -> None:
+        new_york = ZoneInfo("America/New_York")
+        for year in (1960, 2110):
+            ical = create_ical(summary="old", dtstart=datetime(year, 7, 1, 12, tzinfo=new_york))
+            assert _vobject_utc(ical, "America/New_York", datetime(year, 7, 1, 12)) == datetime(
+                year, 7, 1, 16, tzinfo=utc
+            )
+
     def test_create_ical_adds_no_vtimezone_without_tzid(self) -> None:
         for value in (datetime(2026, 6, 6, 20, tzinfo=utc), date(2026, 6, 6)):
             ical = create_ical(summary="no tz", dtstart=value)
