@@ -9746,3 +9746,36 @@ class TestRawData:
         self._run(event.save(raw_data=body))
         kwargs = client.session.request.call_args.kwargs
         assert (kwargs.get("data") or kwargs.get("content")) == body
+
+
+class TestUnquotedGetetag:
+    """Ox reports a getetag without its quotes in a multistatus (1-6058-17941),
+    while a GET answers with the quoted entity-tag (RFC 9110 section 8.8.3).
+    The value is quoted, so an object read either way has the same ETag."""
+
+    XML = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/caldav/Mjk1MA/ev1.ics</href>
+    <propstat>
+      <prop><getetag>{}</getetag></prop>
+      <status>HTTP/1.1 200 OK</status>
+    </propstat>
+  </response>
+</multistatus>
+"""
+
+    @pytest.mark.parametrize(
+        ("sent", "read"),
+        [
+            ("1-6058-1794140565545", '"1-6058-1794140565545"'),
+            ('"abc"', '"abc"'),
+            ('W/"abc"', 'W/"abc"'),
+        ],
+    )
+    def test_a_getetag_is_an_entity_tag(self, sent, read) -> None:
+        response = MockedDAVResponse(self.XML.format(sent))
+        [found] = response.expand_simple_props(props=[dav.GetEtag()]).values()
+        assert found[dav.GetEtag.tag] == read
+        [result] = MockedDAVResponse(self.XML.format(sent)).parse_propfind()
+        assert result.properties[dav.GetEtag.tag] == read

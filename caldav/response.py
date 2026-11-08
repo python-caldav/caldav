@@ -201,6 +201,14 @@ def _extract_properties(propstats: "list[_Element]") -> "dict[str, Any]":
     return {tag: _element_to_value(el) for tag, el in _collect_prop_elements(propstats).items()}
 
 
+def _entity_tag(text: str | None) -> str | None:
+    """A getetag value as an entity-tag (RFC 9110 section 8.8.3): Ox leaves out
+    the quotes in a multistatus, though its GET answers with them."""
+    if not text or not text.strip() or text.startswith(('"', 'W/"')):
+        return text
+    return f'"{text.strip()}"'
+
+
 def _element_to_value(elem: _Element) -> Any:
     """Convert a complex XML element to a Python value.
 
@@ -218,7 +226,7 @@ def _element_to_value(elem: _Element) -> Any:
         ]
 
     if len(elem) == 0:
-        return elem.text
+        return _entity_tag(elem.text) if tag == dav.GetEtag.tag else elem.text
 
     if tag == cdav.SupportedCalendarComponentSet.tag:
         return [child.get("name") for child in elem if child.get("name")]
@@ -907,7 +915,9 @@ class DAVResponse:
                 )
             if not xpath and len(prop_xml) == 0:
                 if prop_xml.text:
-                    values.append(prop_xml.text)
+                    values.append(
+                        _entity_tag(prop_xml.text) if proptag == dav.GetEtag.tag else prop_xml.text
+                    )
             else:
                 _xpath = xpath if xpath else ".//*"
                 leafs = prop_xml.findall(_xpath)
