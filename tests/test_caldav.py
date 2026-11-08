@@ -1577,12 +1577,17 @@ class RepeatedFunctionalTestsBaseClass:
         """
         Should ideally return a new calendar, if that's not possible it
         should see if there exists a test calendar, if that's not
-        possible, give up and return the primary calendar.
+        possible, skip the test.  The user's other calendars are never
+        used, as the tests wipe the calendar they get.
 
         Delegates core create-or-find logic to fixture_helpers.get_or_create_test_calendar,
         handling test-infrastructure concerns (caching, cleanup, cal_id defaults) here.
         """
-        from .fixture_helpers import component_set_unobtainable, get_or_create_test_calendar
+        from .fixture_helpers import (
+            NO_TEST_CALENDAR,
+            component_set_unobtainable,
+            get_or_create_test_calendar,
+        )
 
         reason = component_set_unobtainable(
             self.caldav, kwargs.get("supported_calendar_component_set")
@@ -1593,9 +1598,11 @@ class RepeatedFunctionalTestsBaseClass:
         if not self.is_supported("create-calendar"):
             if not self._default_calendar:
                 self._default_calendar, was_created = get_or_create_test_calendar(
-                    self.caldav, self.principal
+                    self.caldav, self.principal, cal_id=self.testcal_id
                 )
                 self._track_calendar(self._default_calendar, was_created)
+            if self._default_calendar is None:
+                pytest.skip(NO_TEST_CALENDAR)
             return self._default_calendar
 
         # Pre-processing: set up defaults for name and cal_id
@@ -1647,6 +1654,8 @@ class RepeatedFunctionalTestsBaseClass:
         )
 
         self._track_calendar(ret, was_created)
+        if ret is None:
+            pytest.skip(NO_TEST_CALENDAR)
         return ret
 
     def testCheckCompatibility(self, request) -> None:

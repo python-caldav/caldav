@@ -265,6 +265,7 @@ class AsyncFunctionalTestsBaseClass:
         lives in exactly one place - see fixture_helpers.afix_calendar.
         """
         from .fixture_helpers import (
+            NO_TEST_CALENDAR,
             afix_calendar,
             arelease_calendar,
             atry_principal,
@@ -284,7 +285,7 @@ class AsyncFunctionalTestsBaseClass:
             supported_calendar_component_set=supported_calendar_component_set,
         )
         if calendar is None:
-            pytest.skip(f"Could not create or find {what}")
+            pytest.skip(f"Could not create or find {what}: {NO_TEST_CALENDAR}")
 
         yield calendar
 
@@ -2342,7 +2343,12 @@ END:VCALENDAR"""
         self.skip_unless_support("save-load.event")
         self.skip_unless_support("create-calendar")
 
-        from .fixture_helpers import afix_calendar, arelease_calendar, atry_principal
+        from .fixture_helpers import (
+            NO_TEST_CALENDAR,
+            afix_calendar,
+            arelease_calendar,
+            atry_principal,
+        )
 
         principal = await atry_principal(async_client)
         if principal is None:
@@ -2362,7 +2368,7 @@ END:VCALENDAR"""
             keep_name=True,
         )
         if c is None:
-            pytest.skip("Could not create or find a calendar for testing")
+            pytest.skip(NO_TEST_CALENDAR)
         try:
             await c.add_event(
                 near_now_ics(ev1_static).replace("Bastille Day Party", "Bringebærsyltetøyfestival")

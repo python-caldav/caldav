@@ -1058,11 +1058,10 @@ hence, "fragile".
             "description": "Server allows two events with identical content but different UIDs to coexist in the same calendar.  Some servers reject or de-duplicate such an event ('duplicates not allowed even with a different UID'), in which case this is 'unsupported' (silently dropped) or 'ungraceful' (rejected with an error).  The default 'full' is the usual behaviour.",
             "default": {"support": "full"},
         },
-        ## TODO: as for now, the tests will run towards the first calendar it will find, and most of the tests will assume the calendar is empty.  This is bad.
         "test-calendar": {
             "type": "tests-behaviour",
-            "description": "if the server does not allow creating new calendars, then use the calendar with the given name for running tests (NOT SUPPORTED YET!), wipe the calendar between each test run (alternative for calendars not supporting the creation of new calendars is a very expensive delete objects one-by-one by uid)",
-            "extra_keys": { "name": "calendar name", "cleanup-regime": "thorough|pre|post|light|wipe-calendar" }
+            "description": "if the server does not allow creating new calendars, then use the calendar with the given name, cal_id or cal_url for running tests, wipe the calendar between each test run (alternative for calendars not supporting the creation of new calendars is a very expensive delete objects one-by-one by uid).  Without it, only a calendar with 'pythoncaldav-test' in its display name or at the test fixture's cal_id is used, and the tests needing a calendar are skipped if there is none",
+            "extra_keys": { "name": "calendar name", "cal_id": "calendar id", "cal_url": "calendar URL", "cleanup-regime": "thorough|pre|post|light|wipe-calendar" }
         },
         "test-calendar.compatibility-tests": {
             "type": "tests-behaviour",

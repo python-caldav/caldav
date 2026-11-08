@@ -7,7 +7,9 @@ ensuring consistent behavior and safeguards across sync and async tests.
 
 import asyncio
 import inspect
+import logging
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 
 async def _maybe_await(result: Any) -> Any:
@@ -86,20 +88,37 @@ async def _filter_calendars_by_component_set(
     return matching_calendars or None
 
 
-async def _find_test_calendar(calendars: list[Any]) -> Any:
-    """Find a dedicated test calendar by display name, or return first calendar.
+## Skip reason when _find_test_calendar() finds nothing set aside for the tests.
+NO_TEST_CALENDAR = (
+    "no calendar could be created and none is set aside for the tests - give a "
+    "calendar the tests may wipe a display name containing 'pythoncaldav-test' "
+    "or the fixture's cal_id, or name it under 'test-calendar' in the server's features"
+)
+
+
+async def _find_test_calendar(calendars: list[Any], cal_id: str | None = None) -> Any:
+    """Find the calendar set aside for the tests, or None.
+
+    A calendar is set aside when its URL path ends in ``cal_id`` or its display
+    name contains ``pythoncaldav-test``.  Any other calendar is the user's own: the
+    tests wipe the calendar they use, so it must never be picked just because
+    the server lists it first.  A different calendar can be named in the
+    ``test-calendar`` server config.
 
     Works with both sync and async calendar objects via _maybe_await.
     """
     for c in calendars:
+        last_segment = urlparse(str(c.url)).path.rstrip("/").rsplit("/", 1)[-1]
+        if cal_id and unquote(last_segment) == cal_id:
+            return c
         try:
-            props = await _maybe_await(c.get_properties([]))
-            display_name = props.get("{DAV:}displayname", "")
-            if "pythoncaldav-test" in str(display_name):
-                return c
-        except Exception:
-            pass
-    return calendars[0] if calendars else None
+            display_name = await _maybe_await(c.get_display_name())
+        except Exception as e:
+            logging.debug(f"no display name for {c.url}: {e}")
+            continue
+        if "pythoncaldav-test" in str(display_name):
+            return c
+    return None
 
 
 async def _get_or_create_impl(
@@ -170,7 +189,7 @@ async def _get_or_create_impl(
                     return None, False
                 calendars = filtered
 
-            calendar = await _find_test_calendar(calendars)
+            calendar = await _find_test_calendar(calendars, cal_id)
 
     return calendar, created
 

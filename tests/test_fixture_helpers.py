@@ -41,13 +41,18 @@ class FakeCalendar:
         url: str = "http://dav.example.com/cal/",
         n_objects: int = 0,
         exists: bool = True,
+        display_name: str = "",
     ) -> None:
         self.url = url
+        self.display_name = display_name
         self.objects: list[FakeObject] = [FakeObject(self) for _ in range(n_objects)]
         self.deleted = False
         ## A Calendar object built from a cal_id is just a URL - the collection
         ## behind it may not exist at all, and then every request 404s.
         self.exists = exists
+
+    async def get_display_name(self) -> str | None:
+        return self.display_name
 
     async def search(self) -> list[FakeObject]:
         if not self.exists:
@@ -251,6 +256,42 @@ def test_unicode_fixture_ids_are_cleaned_by_known_calendar_cleanup() -> None:
     assert fixture.testcal_id + "-unicode" in cleaned_ids
 
 
+class NoCreateCalendarProbe(FunctionalFixtureProbe):
+    """A probe for a server that cannot create calendars (Posteo)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.caldav = FakeClient({"create-calendar": False})
+
+    def is_supported(self, feature: str, return_type: type = bool, **kw: Any) -> Any:
+        if feature == "create-calendar" and return_type is bool:
+            return False
+        return super().is_supported(feature, return_type, **kw)
+
+
+def test_sync_fixture_skips_rather_than_borrowing_a_users_calendar() -> None:
+    """``_fixCalendar_`` must skip, not hand out None or the user's calendar."""
+    fixture = NoCreateCalendarProbe()
+    fixture.principal.calendars["personal"] = FunctionalCalendar(
+        fixture.principal, "Personal", "personal"
+    )
+
+    with pytest.raises(pytest.skip.Exception, match="test-calendar"):
+        fixture._fixCalendar()
+
+
+def test_sync_fixture_borrows_the_calendar_at_its_cal_id() -> None:
+    """Without create-calendar the sync fixture also finds a calendar by its cal_id."""
+    fixture = NoCreateCalendarProbe()
+    fixture.principal.calendars["personal"] = FunctionalCalendar(
+        fixture.principal, "Personal", "personal"
+    )
+    at_cal_id = FunctionalCalendar(fixture.principal, None, fixture.testcal_id)
+    fixture.principal.calendars[fixture.testcal_id] = at_cal_id
+
+    assert fixture._fixCalendar() is at_cal_id
+
+
 @pytest.mark.asyncio
 async def test_afix_calendar_creates_and_names() -> None:
     """Happy path: fresh calendar, display name set, deleted again on release."""
@@ -373,6 +414,75 @@ async def test_afix_calendar_returns_none_when_nothing_can_be_had() -> None:
     assert not created
     ## arelease_calendar must tolerate that None rather than blowing up in teardown
     await arelease_calendar(client, calendar, created)
+
+
+@pytest.mark.asyncio
+async def test_a_calendar_of_the_user_is_never_borrowed() -> None:
+    """Without create-calendar, only a calendar set aside for the tests may be used.
+
+    The tests wipe the calendar they get.  Falling back to whatever calendar
+    the server lists first would wipe the user's own data - on Posteo, which
+    cannot create calendars, that is the account's default calendar.
+    """
+    users_own = FakeCalendar(url="http://dav.example.com/personal/", n_objects=5)
+    client = FakeClient({"create-calendar": False})
+    principal = FakePrincipal({"personal": users_own})
+
+    calendar, created = await afix_calendar(client, principal, cal_id="testcal")
+
+    assert calendar is None
+    assert not created
+    assert len(users_own.objects) == 5, "the user's calendar must not be wiped"
+
+
+@pytest.mark.asyncio
+async def test_a_calendar_failing_mkcalendar_does_not_borrow_another() -> None:
+    """MKCALENDAR refused on a server claiming support: still no first-calendar fallback."""
+    users_own = FakeCalendar(url="http://dav.example.com/personal/", n_objects=1)
+    principal = FakePrincipal({"personal": users_own})
+
+    async def make_calendar(**kwargs: Any) -> FakeCalendar:
+        raise error.AuthorizationError("Forbidden")
+
+    principal.make_calendar = make_calendar  # type: ignore[method-assign]
+
+    calendar, created = await _get_or_create_impl(FakeClient(), principal)
+
+    assert calendar is None
+    assert not created
+
+
+@pytest.mark.asyncio
+async def test_a_calendar_named_for_the_tests_is_borrowed() -> None:
+    """A display name containing ``pythoncaldav-test`` is the user's opt-in."""
+    users_own = FakeCalendar(url="http://dav.example.com/personal/")
+    set_aside = FakeCalendar(url="http://dav.example.com/other/", display_name="pythoncaldav-test")
+    client = FakeClient({"create-calendar": False})
+    principal = FakePrincipal({"personal": users_own, "other": set_aside})
+
+    calendar, created = await _get_or_create_impl(client, principal)
+
+    assert calendar is set_aside
+    assert not created
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["http://dav.example.com/p%C3%B8-cal/", "http://dav.example.com/p%C3%B8-cal"],
+    ids=["trailing-slash", "no-trailing-slash"],
+)
+@pytest.mark.asyncio
+async def test_a_calendar_at_the_cal_id_is_borrowed(url: str) -> None:
+    """The fixture's own cal_id is matched against the URL-quoted last path segment."""
+    users_own = FakeCalendar(url="http://dav.example.com/personal/")
+    at_cal_id = FakeCalendar(url=url)
+    client = FakeClient({"create-calendar": False})
+    principal = FakePrincipal({"personal": users_own, "pø-cal": at_cal_id})
+
+    calendar, created = await _get_or_create_impl(client, principal, cal_id="pø-cal")
+
+    assert calendar is at_cal_id
+    assert not created
 
 
 @pytest.mark.asyncio
