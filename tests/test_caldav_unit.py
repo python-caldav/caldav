@@ -3457,6 +3457,73 @@ class TestSequenceOnSave:
         existing.save.assert_awaited_once_with(increase_seqno=False)
 
 
+class TestOlsonTzidHint:
+    @staticmethod
+    def _add_event(client: DAVClient, *largs: Any, **kwargs: Any) -> CalendarObjectResource:
+        put = []
+        with mock.patch.object(
+            CalendarObjectResource, "_create", lambda self_, *largs, **kwargs: put.append(self_)
+        ):
+            Calendar(client, url="/calendar/").add_event(*largs, **kwargs)
+        return put[0]
+
+    @staticmethod
+    def _berlin() -> datetime:
+        from zoneinfo import ZoneInfo
+
+        return datetime(2026, 6, 6, 20, tzinfo=ZoneInfo("Europe/Berlin"))
+
+    @pytest.mark.parametrize(
+        "support, vtimezone",
+        [
+            (None, True),
+            ("unsupported", True),
+            ("fragile", True),
+            ("quirk", False),
+            ("full", False),
+        ],
+    )
+    def test_add_event_sends_vtimezone_unless_olson_tzid_is_full(
+        self, support: str | None, vtimezone: bool
+    ) -> None:
+        from caldav.compatibility_hints import FeatureSet
+
+        client = MockedDAVClient("")
+        if support:
+            client.features = FeatureSet({"save-load.icalendar.olson-tzid": {"support": support}})
+        put = self._add_event(client, summary="tz", dtstart=self._berlin())
+        assert "DTSTART;TZID=Europe/Berlin:20260606T200000" in put.data
+        assert ("BEGIN:VTIMEZONE" in put.data) is vtimezone
+
+    def test_add_event_passes_add_vtimezones_on(self) -> None:
+        put = self._add_event(
+            MockedDAVClient(""), summary="tz", dtstart=self._berlin(), add_vtimezones=False
+        )
+        assert "VTIMEZONE" not in put.data
+
+    def test_add_vtimezones_true_overrides_the_hint(self) -> None:
+        from caldav.compatibility_hints import FeatureSet
+
+        client = MockedDAVClient("")
+        client.features = FeatureSet({"save-load.icalendar.olson-tzid": {"support": "full"}})
+        put = self._add_event(client, summary="tz", dtstart=self._berlin(), add_vtimezones=True)
+        assert "BEGIN:VTIMEZONE" in put.data
+
+    def test_add_vtimezones_does_not_become_a_property(self) -> None:
+        ical = icalendar.Calendar.from_ical(
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n"
+            "BEGIN:VTIMEZONE\nTZID:Europe/Berlin\n"
+            "BEGIN:STANDARD\nDTSTART:19701025T030000\n"
+            "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+            "END:STANDARD\nEND:VTIMEZONE\n"
+            "BEGIN:VEVENT\nUID:complete@example.com\nDTSTAMP:20261101T000000Z\n"
+            "DTSTART;TZID=Europe/Berlin:20261207T130000\nSUMMARY:complete\n"
+            "END:VEVENT\nEND:VCALENDAR\n"
+        )
+        put = self._add_event(MockedDAVClient(""), ical, add_vtimezones=False)
+        assert put.icalendar_instance.to_ical() == ical.to_ical()
+
+
 class TestFreeBusyScheduleResponse:
     """Unit tests for parsing RFC6638 schedule-response to a freebusy request.
 
@@ -6355,6 +6422,86 @@ class TestRecurringCompleteHelpers:
         nxt = datetime(1992, 9, 15, 13, 30, tzinfo=timezone.utc)
         assert thisandfuture["RECURRENCE-ID"].dt == nxt
         assert thisandfuture["DTSTART"].dt == nxt
+
+    _prague_vtimezone = (
+        "BEGIN:VTIMEZONE\nTZID:Europe/Prague\n"
+        "BEGIN:STANDARD\nDTSTART:19701025T030000\n"
+        "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\n"
+        "TZOFFSETFROM:+0200\nTZOFFSETTO:+0100\n"
+        "END:STANDARD\n"
+        "BEGIN:DAYLIGHT\nDTSTART:19700329T020000\n"
+        "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\n"
+        "TZOFFSETFROM:+0100\nTZOFFSETTO:+0200\n"
+        "END:DAYLIGHT\nEND:VTIMEZONE\n"
+    )
+
+    @staticmethod
+    def _prague_vtodo(day: int, extra: str) -> str:
+        return (
+            "BEGIN:VTODO\nUID:vtimezone-thisandfuture@example.com\n"
+            "DTSTAMP:20261101T000000Z\n"
+            f"DTSTART;TZID=Europe/Prague:202611{day:02}T090000\n"
+            f"DUE;TZID=Europe/Prague:202611{day:02}T100000\n"
+            f"{extra}SUMMARY:Weekly chore\nEND:VTODO\n"
+        )
+
+    def _prague_todo(self, vtodos: str, vtimezone_first: bool = True) -> Todo:
+        body = (
+            self._prague_vtimezone + vtodos if vtimezone_first else vtodos + self._prague_vtimezone
+        )
+        return self._make_todo(
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//test//EN\n" + body + "END:VCALENDAR\n"
+        )
+
+    @pytest.mark.parametrize("vtimezone_first", [True, False])
+    def test_prepare_thisandfuture_leaves_vtimezone_alone(self, vtimezone_first: bool) -> None:
+        todo = self._prague_todo(self._prague_vtodo(2, "RRULE:FREQ=WEEKLY\n"), vtimezone_first)
+        before = todo.icalendar_instance.walk("VTIMEZONE")[0].to_ical()
+
+        todo._prepare_recurring_thisandfuture(datetime(2026, 11, 3, 12, tzinfo=timezone.utc))
+
+        assert [tz.to_ical() for tz in todo.icalendar_instance.walk("VTIMEZONE")] == [before]
+        master, completed, thisandfuture = todo.icalendar_instance.walk("VTODO")
+        assert "RRULE" in master
+        assert str(master["STATUS"]) == "NEEDS-ACTION"
+        assert str(completed["STATUS"]) == "COMPLETED"
+        assert completed["RECURRENCE-ID"].dt == master["DTSTART"].dt
+        assert thisandfuture["RECURRENCE-ID"].params["RANGE"] == "THISANDFUTURE"
+
+    def test_prepare_thisandfuture_completes_the_counted_series_not_the_vtimezone(self) -> None:
+        todo = self._prague_todo(self._prague_vtodo(2, "RRULE:FREQ=WEEKLY;COUNT=2\n"))
+        before = todo.icalendar_instance.walk("VTIMEZONE")[0].to_ical()
+
+        todo._prepare_recurring_thisandfuture(datetime(2026, 11, 3, 12, tzinfo=timezone.utc))
+        todo._prepare_recurring_thisandfuture(datetime(2026, 11, 10, 12, tzinfo=timezone.utc))
+
+        assert [tz.to_ical() for tz in todo.icalendar_instance.walk("VTIMEZONE")] == [before]
+        assert [str(t["STATUS"]) for t in todo.icalendar_instance.walk("VTODO")] == [
+            "COMPLETED"
+        ] * 3
+
+    def test_prepare_thisandfuture_continues_a_series_with_the_vtimezone_last(self) -> None:
+        todo = self._prague_todo(
+            self._prague_vtodo(2, "RRULE:FREQ=WEEKLY\nSTATUS:NEEDS-ACTION\n")
+            + self._prague_vtodo(
+                2,
+                "RECURRENCE-ID;TZID=Europe/Prague:20261102T090000\n"
+                "STATUS:COMPLETED\nCOMPLETED:20261103T120000Z\n",
+            )
+            + self._prague_vtodo(
+                9, "RECURRENCE-ID;RANGE=THISANDFUTURE;TZID=Europe/Prague:20261109T090000\n"
+            ),
+            vtimezone_first=False,
+        )
+        before = todo.icalendar_instance.walk("VTIMEZONE")[0].to_ical()
+
+        todo._prepare_recurring_thisandfuture(datetime(2026, 11, 10, 12, tzinfo=timezone.utc))
+
+        assert [tz.to_ical() for tz in todo.icalendar_instance.walk("VTIMEZONE")] == [before]
+        *_, completed, thisandfuture = todo.icalendar_instance.walk("VTODO")
+        assert str(completed["STATUS"]) == "COMPLETED"
+        assert "RANGE" not in completed["RECURRENCE-ID"].params
+        assert thisandfuture["RECURRENCE-ID"].params["RANGE"] == "THISANDFUTURE"
 
     def test_safe_completion_issues_two_puts(self, monkeypatch: Any) -> None:
         """The standalone completed copy must not be PUT twice.

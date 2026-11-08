@@ -3,6 +3,7 @@ import datetime
 import logging
 import re
 import uuid
+from collections.abc import Iterator
 
 import icalendar
 
@@ -235,13 +236,14 @@ class LineFilterDiscardingDuplicates:
 
 
 ## sorry for being english-language-euro-centric ... fits rather perfectly as default language for me :-)
-def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
+def create_ical(
+    ical_fragment=None, objtype=None, language="en_DK", *, add_vtimezones=True, **props
+):
     """Creates some icalendar based on properties given as parameters.
     It basically creates an icalendar object with all the boilerplate,
     some sensible defaults, the properties given and returns it as a
-    string.
-
-    TODO: timezones not supported so far
+    string.  Unless add_vtimezones is False, a VTIMEZONE is added for
+    every known TZID that has none.
     """
     ical_fragment = to_normal_str(ical_fragment)
     if "class_" in props:
@@ -307,6 +309,8 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
                 component.add(prop, props[prop])
     if alarm:
         add_alarm(my_instance, alarm)
+    if add_vtimezones:
+        _add_vtimezones(my_instance)
     ret = to_normal_str(my_instance.to_ical())
     if ical_fragment and ical_fragment.strip():
         ret = re.sub(
@@ -317,6 +321,45 @@ def create_ical(ical_fragment=None, objtype=None, language="en_DK", **props):
             count=1,
         )
     return ret
+
+
+def _add_vtimezones(ical: icalendar.Calendar) -> None:
+    missing = ical.get_used_tzids() - {"UTC"} - {tz.get("TZID") for tz in ical.timezones}
+    if not missing:
+        return
+    ## vobject keeps the last offset after the last RDATE, icalendar stops at 2038
+    ## and starts at 1970, so stretch the range to every date in the object.
+    ## Stop after 2200: one RDATE per transition, and 9999 is often used for "no end"
+    years = list(_years(ical))
+    first_date = datetime.date(min([1970, *years]), 1, 1)
+    last_date = datetime.date(min(max([2099, *years]), 2200) + 1, 1, 1)
+    for tzid in sorted(missing):
+        try:
+            vtimezone = icalendar.Timezone.from_tzid(
+                tzid, first_date=first_date, last_date=last_date
+            )
+        except (ValueError, OSError):
+            continue
+        for observance in vtimezone.subcomponents:
+            rdates = observance.pop("RDATE", [])
+            ## vobject 0.9.9 only reads the first value of an RDATE list in a VTIMEZONE
+            for rdate in rdates if isinstance(rdates, list) else [rdates]:
+                for value in rdate.dts:
+                    observance.add("RDATE", value.dt)
+        ## at the end, so subcomponents[0] stays the event as the docs use it
+        ical.add_component(vtimezone)
+
+
+def _years(ical: icalendar.Calendar) -> Iterator[int]:
+    """The year of every date and date-time value in the calendar."""
+    for component in ical.walk():
+        for value in component.values():
+            for item in value if isinstance(value, list) else [value]:
+                ## RDATE and EXDATE hold a list of values in .dts
+                for prop in item.dts if hasattr(item, "dts") else [item]:
+                    dt = getattr(prop, "dt", None)
+                    if isinstance(dt, datetime.date):
+                        yield dt.year
 
 
 def add_alarm(ical, alarm):

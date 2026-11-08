@@ -2972,7 +2972,11 @@ class Todo(CalendarObjectResource):
         algorithm description.  The caller does the single
         ``save(increase_seqno=False)`` that follows.
         """
-        recurrences = self.icalendar_instance.subcomponents
+        recurrences = [
+            x
+            for x in self.icalendar_instance.subcomponents
+            if not isinstance(x, icalendar.Timezone)
+        ]
         orig = recurrences[0]
         if "STATUS" not in orig:
             orig["STATUS"] = "NEEDS-ACTION"
@@ -2984,6 +2988,7 @@ class Todo(CalendarObjectResource):
             just_completed.add("RECURRENCE-ID", orig.get("DTSTART", completion_timestamp))
             seqno = just_completed.pop("SEQUENCE", 0)
             just_completed.add("SEQUENCE", seqno + 1)
+            self.icalendar_instance.add_component(just_completed)
             recurrences.append(just_completed)
 
         prev = recurrences[-1]
@@ -3040,8 +3045,7 @@ class Todo(CalendarObjectResource):
         recurring tasks is ... but this is my shot at it.
 
         1) The original, with rrule, will be kept as it is.  The rrule
-        string is fetched from the first subcomponent of the
-        icalendar.
+        string is fetched from the first VTODO of the icalendar.
 
         2) If there are multiple recurrence instances in subcomponents
         and the last one is marked with RANGE=THISANDFUTURE, then
