@@ -494,6 +494,7 @@ hence, "fragile".
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
+        "save-load.todo.dtstart-without-due": {"description": "A task with a DTSTART and no DUE (RFC 5545 section 3.6.2 allows either alone) is stored with its DTSTART.  'unsupported' when the DTSTART is dropped, the behaviour saying whether it is kept beside a DUE: Zimbra drops it, but keeps it where the task also has a DUE.", "default": {"support": "full"}, "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.2"]},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
         "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: the PUT is answered with 201 and the GET with 404, while the same task without the ATTENDEE is kept.  'ungraceful' when it is refused (Ox, with 409).", "default": {"support": "full"}},
         "save-load.todo.alarm": {"description": "A task's VALARM is stored as sent: its TRIGGER, relative to the task's DTSTART, and its DESCRIPTION.  A property the server adds to the VALARM, such as a UID, is fine.  'unsupported' when the VALARM is dropped.  'broken' when it is kept but rewritten (Ox makes the TRIGGER absolute, so the alarm no longer follows the task when it is moved), the behaviour saying what was changed: the alarm is still there, but not the one sent, which is worse than a missing one.", "default": {"support": "full"}, "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.6", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.6.3"]},
@@ -2017,6 +2018,8 @@ zimbra_8_8 = {
     "scheduling.auto-schedule": {"support": "full"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
+    ## Probed 2026-11-15 by caldav-server-tester, on 8.8 and on 10.1
+    "save-load.todo.dtstart-without-due": {"support": "unsupported", "behaviour": "the DTSTART is dropped; with a DUE, both are kept"},
 }
 
 ## Zimbra 10.1.21, measured with caldav-server-tester 2026-10-29 against an
