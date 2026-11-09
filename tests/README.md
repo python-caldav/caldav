@@ -210,6 +210,18 @@ test-servers:
       - no-sync-token
 ```
 
+Most test calendars have ids starting with `pythoncaldav-`.  On an external
+server every such calendar is deleted when a test session first uses the
+server and again when the session ends, bypassing the Nextcloud trashbin.  Do
+not keep calendars of your own under that prefix.  Nothing is deleted when the
+server cannot create or cannot delete calendars, when `test-calendar` in the
+features names a calendar for the tests, or when its `cleanup-regime` is
+`none`.  Calendars already in the Nextcloud trashbin are not listed, so the
+sweep does not reach them; the tests themselves delete past the trashbin
+where a plain DELETE would leave the id taken.  The scheduling tests' calendars (`schedulingnosetestcalendar*`,
+`asyncschedtest*`) are kept apart from this on purpose: they are reused from
+run to run, with their contents wiped.
+
 ## Test Structure
 
 ### Unit Tests (no server required)

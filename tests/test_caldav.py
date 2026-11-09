@@ -1449,6 +1449,9 @@ class RepeatedFunctionalTestsBaseClass:
 
         self.principal = self.caldav.principal()
 
+        from .fixture_helpers import sweep_server_once
+
+        sweep_server_once(self.server_params.get("name"))
         self._cleanup("pre")
 
         logging.debug("##############################")
@@ -1557,13 +1560,15 @@ class RepeatedFunctionalTestsBaseClass:
                 self._teardownCalendar(cal_id=name)
 
     def _teardownCalendar(self, name=None, cal_id=None):
+        from .fixture_helpers import delete_test_calendar
+
         try:
             cal = self.principal.calendar(name=name, cal_id=cal_id)
-            cal.delete()
+            delete_test_calendar(self.caldav, cal)
         except:
             pass
         try:
-            cal.delete()
+            delete_test_calendar(self.caldav, cal)
         except:
             pass
 
@@ -2101,8 +2106,8 @@ END:VCALENDAR"""
             ## Deleting doesn't free the id (Nextcloud's trashbin), so a fixed
             ## id can be created only once, and deleting the shared test
             ## calendar would take it away from the tests reusing it.  A
-            ## fresh id per run instead, leaving one calendar per run in the
-            ## trashbin; its own name keeps it apart from the shared "Yep".
+            ## fresh id per run instead, purged from the trashbin after the
+            ## test; its own name keeps it apart from the shared "Yep".
             cal_id = f"pythoncaldav-test-{uuid.uuid4().hex[:8]}"
             name = "Yep-createdelete"
         c = self.principal.make_calendar(name=name, cal_id=cal_id)
@@ -2114,6 +2119,11 @@ END:VCALENDAR"""
             assert len(events) == 0
         finally:
             c.delete()
+            if not self.is_supported("delete-calendar.free-namespace"):
+                ## The trashbin entry sits at the same URL
+                from .fixture_helpers import delete_calendar_for_good
+
+                assert delete_calendar_for_good(self.caldav, c)
 
         if not self.is_supported("create-calendar.auto"):
             # Two separate pytest.raises blocks: with both probes in a single
@@ -2287,8 +2297,10 @@ END:VCALENDAR"""
             assert fetched.url == stored.url
             assert fetched.icalendar_component["uid"] == uid
         finally:
+            from .fixture_helpers import delete_test_calendar
+
             try:
-                cal.delete()
+                delete_test_calendar(self.caldav, cal)
             except Exception:
                 logging.warning(f"unable to delete calendar {cal.url} with name {name}")
             self._teardownCalendar(cal_id=cal_id)
@@ -4209,8 +4221,10 @@ END:VCALENDAR"""
         if self.cleanup_regime in ("light", "pre"):
             self._teardownCalendar(cal_id=self.testcal_id2)
         cc = self._fixCalendar(name="Yep", cal_id=self.testcal_id2)
+        from .fixture_helpers import delete_test_calendar
+
         try:
-            cc.delete()
+            delete_test_calendar(self.caldav, cc)
         except error.DeleteError:
             if not self.is_supported("delete-calendar"):
                 raise

@@ -8,8 +8,12 @@ ensuring consistent behavior and safeguards across sync and async tests.
 import asyncio
 import inspect
 import logging
+import time
 from typing import Any
 from urllib.parse import unquote, urlparse
+
+from caldav.compatibility_hints import write_delay
+from caldav.lib.error import DAVError, NotFoundError
 
 
 async def _maybe_await(result: Any) -> Any:
@@ -430,14 +434,17 @@ async def cleanup_calendar_objects(calendar: Any) -> None:
         pass
 
 
-async def adelete_calendar_if_present(principal: Any, cal_id: str) -> None:
+async def adelete_calendar_if_present(principal: Any, cal_id: str, client: Any = None) -> None:
     """Best-effort removal of a leftover test calendar from a previous run.
 
     A test that recreates a calendar with a fixed ``cal_id`` must first clear
     any leftover, or the recreate MKCALENDAR 405s ("resource already exists").
+    Given the ``client``, the leftover goes as adelete_test_calendar() deletes
+    it: past the trashbin where a plain DELETE would keep the id taken.
 
     Only ``NotFoundError`` (the calendar isn't there) is swallowed - everything
-    else propagates.  A previous incarnation wrapped this in a bare
+    else propagates, except on that past-the-trashbin path, where a refused
+    DELETE is logged rather than raised.  A previous incarnation wrapped this in a bare
     ``except Exception: pass``, which silently hid a real bug (async
     ``principal.calendar()`` raising ``TypeError``), so the cleanup never ran
     and calendars leaked.  Keep the catch narrow so that can't recur.
@@ -447,8 +454,172 @@ async def adelete_calendar_if_present(principal: Any, cal_id: str) -> None:
     calendar = await _maybe_await(principal.calendar(cal_id=cal_id))
     await cleanup_calendar_objects(calendar)
     try:
-        await _maybe_await(calendar.delete())
+        if client is None:
+            await _maybe_await(calendar.delete())
+        else:
+            await adelete_test_calendar(client, calendar)
     except error.NotFoundError:
         # Already gone, which is exactly what this function wants.  Nothing
         # wider is caught on purpose - see the docstring.
         pass
+
+
+## Most calendars the functional tests create have an id starting with this.
+TEST_CALENDAR_PREFIX = "pythoncaldav-"
+
+## Nextcloud moves a deleted calendar to a trashbin, where it still counts
+## towards the account's calendar limit and still holds the id; this header
+## deletes it for good.  Other servers ignore it.
+NO_TRASHBIN_HEADERS = {"X-NC-CalDAV-No-Trashbin": "1"}
+
+## Servers already swept in this pytest session, by registry name.
+_swept_servers: set[str] = set()
+
+
+def sweep_test_calendars(client: Any, principal: Any) -> list[str]:
+    """Delete every test calendar (id starting with ``pythoncaldav-``) for good.
+
+    The fixtures leave calendars behind on purpose where deleting them would
+    not free the id (wipe-calendar regime), and an interrupted run leaves them
+    behind anywhere.  On accounts allowing only a handful of calendars that
+    adds up, so the session sweeps them away at its start and end.
+
+    Nothing is touched where the calendars could not be recreated: without
+    calendar creation or deletion, with a calendar configured for the tests, or
+    with cleanup switched off.  Returns the ids deleted.
+    """
+    if not (_supports(client, "create-calendar") and _supports(client, "delete-calendar")):
+        return []
+    test_cal_info = client.features.is_supported("test-calendar", return_type=dict)
+    if test_cal_info.get("cleanup-regime") == "none" or any(
+        k in test_cal_info for k in ("name", "cal_id", "cal_url")
+    ):
+        return []
+    deleted = [
+        cal_id
+        for cal in principal.get_calendars()
+        if (cal_id := _cal_id(cal)).startswith(TEST_CALENDAR_PREFIX)
+        and delete_calendar_for_good(client, cal)
+    ]
+    ## A server deleting calendars asynchronously (Infomaniak) answers before
+    ## the calendar is gone; a fixture re-creating the id right after would
+    ## meet the old one, as Calendar.delete() knows.
+    delay = write_delay(client.features, "synchronous-write.delete-calendar")
+    deadline = time.monotonic() + delay
+    while deleted and delay:
+        if not any(_cal_id(cal) in deleted for cal in principal.get_calendars()):
+            break
+        if time.monotonic() >= deadline:
+            logging.warning("sweep: %s still listed after %ss", deleted, delay)
+            break
+        time.sleep(0.5)
+    return deleted
+
+
+def _cal_id(cal: Any) -> str:
+    return unquote(str(cal.url).rstrip("/").rsplit("/", 1)[-1])
+
+
+def delete_calendar_for_good(client: Any, cal: Any) -> bool:
+    """DELETE a calendar past the Nextcloud trashbin; False if refused.
+
+    A refusal is logged, not raised: the callers clean up, and one calendar
+    the server will not let go of must not stop them.
+    """
+    try:
+        response = client.delete(str(cal.url), headers=NO_TRASHBIN_HEADERS)
+    except DAVError as e:
+        return _deleted_for_good(cal, e)
+    return _deleted_for_good(cal, response)
+
+
+async def adelete_calendar_for_good(client: Any, cal: Any) -> bool:
+    """Async twin of delete_calendar_for_good()."""
+    try:
+        response = await _maybe_await(client.delete(str(cal.url), headers=NO_TRASHBIN_HEADERS))
+    except DAVError as e:
+        return _deleted_for_good(cal, e)
+    return _deleted_for_good(cal, response)
+
+
+def delete_test_calendar(client: Any, cal: Any) -> None:
+    """Delete a calendar the tests made, freeing its id where that takes more.
+
+    Where a plain DELETE leaves the id taken (``delete-calendar.free-namespace``
+    unsupported: Nextcloud's trashbin), the calendar goes for good, so that it
+    neither counts towards the account's calendar limit nor blocks the next
+    MKCALENDAR of the same id.  Elsewhere Calendar.delete() does it, with its
+    retries and its wait for an asynchronous deletion, or by wiping the
+    objects where the server refuses to delete calendars (Synology).
+    """
+    if _plain_delete_will_do(client):
+        cal.delete()
+    else:
+        delete_calendar_for_good(client, cal)
+
+
+async def adelete_test_calendar(client: Any, cal: Any) -> None:
+    """Async twin of delete_test_calendar()."""
+    if _plain_delete_will_do(client):
+        await _maybe_await(cal.delete())
+    else:
+        await adelete_calendar_for_good(client, cal)
+
+
+def _plain_delete_will_do(client: Any) -> bool:
+    return not _supports(client, "delete-calendar") or _supports(
+        client, "delete-calendar.free-namespace"
+    )
+
+
+def _deleted_for_good(cal: Any, outcome: Any) -> bool:
+    """Read a DELETE's response, or the error it raised; log a refusal."""
+    if isinstance(outcome, NotFoundError):
+        return True
+    if isinstance(outcome, DAVError):
+        logging.warning("DELETE %s refused: %s", cal.url, outcome)
+        return False
+    if outcome.status in (200, 204, 404):
+        return True
+    logging.warning("DELETE %s answered %s", cal.url, outcome.status)
+    return False
+
+
+def sweep_server(server_name: str) -> None:
+    """Sweep the test calendars off an external test server.
+
+    Docker and embedded servers are thrown away after the run anyway.  Best
+    effort: a sweep that fails must not fail a test.
+    """
+    from caldav.testing.base import ExternalTestServer
+    from caldav.testing.registry import get_registry
+
+    server = get_registry().get(server_name)
+    if not isinstance(server, ExternalTestServer):
+        return
+    try:
+        with server.get_sync_client() as client:
+            deleted = sweep_test_calendars(client, client.principal())
+    except Exception as e:
+        logging.warning("sweep of %s failed: %s", server_name, e)
+        return
+    if deleted:
+        logging.info("sweep of %s deleted %s", server_name, deleted)
+
+
+def sweep_server_once(server_name: str | None) -> None:
+    """Sweep a server the first time a test in this session uses it.
+
+    Clears leftovers from interrupted runs; conftest sweeps the same servers
+    again when the session ends.
+    """
+    if not server_name or server_name in _swept_servers:
+        return
+    _swept_servers.add(server_name)
+    sweep_server(server_name)
+
+
+def sweep_used_servers() -> None:
+    """Sweep every server swept at its first use, at the end of the session."""
+    for server_name in sorted(_swept_servers):
+        sweep_server(server_name)
