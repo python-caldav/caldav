@@ -197,8 +197,11 @@ class AsyncFunctionalTestsBaseClass:
         fixtures written as plain instance methods (each test gets a fresh
         instance, so per-instance state set here would not be visible anyway).
         """
+        from .fixture_helpers import sweep_server_once
+
         server = cls.server
         server.start()
+        sweep_server_once(server.name)
         yield server
         # Stop the server to free the port for other test modules
         server.stop()
@@ -256,9 +259,15 @@ class AsyncFunctionalTestsBaseClass:
         *,
         cal_id: str,
         what: str,
+        name: str | None = None,
         supported_calendar_component_set: list[str] | None = None,
     ) -> Any:
         """Shared body of the calendar fixtures below.
+
+        The cal_ids and display names are the ones the sync suite's
+        ``_fixCalendar`` uses, so both suites share one set of calendars
+        (fewer on accounts with a calendar limit) and a calendar one suite
+        left behind looks like the one the other expects.
 
         An async generator (not a fixture itself) so each fixture can keep its
         own name, docstring and cal_id while the create/wipe/teardown logic
@@ -281,7 +290,7 @@ class AsyncFunctionalTestsBaseClass:
             async_client,
             principal,
             cal_id=cal_id,
-            calendar_name=cal_id,
+            calendar_name=name or cal_id,
             supported_calendar_component_set=supported_calendar_component_set,
         )
         if calendar is None:
@@ -299,7 +308,7 @@ class AsyncFunctionalTestsBaseClass:
         handles the server-capability bookkeeping (see its docstring).
         """
         async for calendar in self._afixture_calendar(
-            async_client, cal_id="pythoncaldav-async-test", what="a calendar for testing"
+            async_client, cal_id="pythoncaldav-test", what="a calendar for testing", name="Yep"
         ):
             yield calendar
 
@@ -325,7 +334,7 @@ class AsyncFunctionalTestsBaseClass:
         component_set = None if self.is_supported("save-load.todo.mixed-calendar") else ["VTODO"]
         async for calendar in self._afixture_calendar(
             async_client,
-            cal_id="pythoncaldav-async-test-tasks",
+            cal_id="pythoncaldav-test-tasks",
             what="a task list for testing",
             supported_calendar_component_set=component_set,
         ):
@@ -336,8 +345,9 @@ class AsyncFunctionalTestsBaseClass:
         """Create or find a stable second test calendar for tests needing two calendars."""
         async for calendar in self._afixture_calendar(
             async_client,
-            cal_id="pythoncaldav-async-test-2",
+            cal_id="pythoncaldav-test2",
             what="a second calendar for testing",
+            name="Yapp",
         ):
             yield calendar
 
@@ -346,7 +356,7 @@ class AsyncFunctionalTestsBaseClass:
         """Create or find a stable VJOURNAL calendar, wiping it before and after use."""
         async for calendar in self._afixture_calendar(
             async_client,
-            cal_id="pythoncaldav-async-journal",
+            cal_id="pythoncaldav-test-journals",
             what="a journal list for testing",
             supported_calendar_component_set=["VJOURNAL"],
         ):
@@ -397,11 +407,15 @@ class AsyncFunctionalTestsBaseClass:
         from caldav.aio import AsyncCalendarSet, AsyncPrincipal
         from caldav.lib.error import AuthorizationError, MkcalendarError, NotFoundError
 
-        from .fixture_helpers import adelete_calendar_if_present, cleanup_calendar_objects
+        from .fixture_helpers import (
+            adelete_calendar_if_present,
+            adelete_test_calendar,
+            cleanup_calendar_objects,
+        )
 
         ## A cal_id of its own: this test deletes the calendar it creates, and
         ## the async_calendar fixture hands the same collection to other tests.
-        ## Sharing "pythoncaldav-async-test" with the fixture meant the delete
+        ## Sharing the fixture's cal_id meant the delete
         ## below raced the fixture's next MKCALENDAR, and the following test got
         ## a calendar that was not there (403/404 on its first PUT against
         ## Robur).  Only reachable since delete-calendar became supported there
@@ -420,7 +434,7 @@ class AsyncFunctionalTestsBaseClass:
         # don't accumulate calendars (some servers enforce a quota).
         try:
             principal = await AsyncPrincipal.create(async_client)
-            await adelete_calendar_if_present(principal, cal_id)
+            await adelete_calendar_if_present(principal, cal_id, client=async_client)
             calendar = await principal.make_calendar(name="Async Test", cal_id=cal_id)
         except (MkcalendarError, AuthorizationError):
             # Calendar exists and can't be (re)created (e.g. no delete support
@@ -449,7 +463,7 @@ class AsyncFunctionalTestsBaseClass:
             # Always clean up so calendars don't accumulate (quota safety).
             try:
                 if self.is_supported("delete-calendar"):
-                    await calendar.delete()
+                    await adelete_test_calendar(async_client, calendar)
                 else:
                     # Can't delete the calendar, just wipe its objects
                     await cleanup_calendar_objects(calendar)
@@ -1924,8 +1938,8 @@ class AsyncFunctionalTestsBaseClass:
             await adelete_calendar_if_present(principal, cal_id)
         else:
             ## Deleting doesn't free the id (Nextcloud's trashbin), so a fixed
-            ## id can be created only once; a fresh id per run instead, as in
-            ## testCreateDeleteCalendar
+            ## id can be created only once; a fresh id per run instead, purged
+            ## from the trashbin after the test, as in testCreateDeleteCalendar
             cal_id = f"pythoncaldav-async-createdelete-{uuid.uuid4().hex[:8]}"
 
         c = await principal.make_calendar(name="Yep", cal_id=cal_id)
@@ -1935,6 +1949,11 @@ class AsyncFunctionalTestsBaseClass:
             assert len(events) == 0
         finally:
             await c.delete()
+            if not self.is_supported("delete-calendar.free-namespace"):
+                ## The trashbin entry sits at the same URL
+                from .fixture_helpers import adelete_calendar_for_good
+
+                assert await adelete_calendar_for_good(async_client, c)
 
     @pytest.mark.asyncio
     async def test_calendar_by_full_url(self, async_calendar: Any, async_client: Any) -> None:
@@ -2356,15 +2375,15 @@ END:VCALENDAR"""
 
         ## keep_name=True: the non-ASCII *display name* is half of what this test
         ## checks, so it is sent unconditionally - exactly as the sync
-        ## testUtf8Event does by passing name="Yølp" to _fixCalendar (which only
+        ## testUtf8Event does by passing name="Yølp UTF-8" to _fixCalendar (which only
         ## applies its name-dropping rule when the caller supplied no name).
         ## Servers that relocate a named calendar (Zimbra, OX) are fine: the
         ## library re-points to the canonical URL.
         c, created = await afix_calendar(
             async_client,
             principal,
-            cal_id="pythoncaldav-async-utf8-test",
-            calendar_name="Yølp",
+            cal_id="pythoncaldav-test-utf8",
+            calendar_name="Yølp UTF-8",
             keep_name=True,
         )
         if c is None:

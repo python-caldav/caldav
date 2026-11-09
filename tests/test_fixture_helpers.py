@@ -20,9 +20,15 @@ from caldav.lib import error
 
 from .fixture_helpers import (
     _get_or_create_impl,
+    adelete_calendar_if_present,
+    adelete_test_calendar,
     afix_calendar,
     arelease_calendar,
     component_set_unobtainable,
+    sweep_server,
+    sweep_server_once,
+    sweep_test_calendars,
+    sweep_used_servers,
 )
 from .test_caldav import RepeatedFunctionalTestsBaseClass
 
@@ -639,3 +645,257 @@ def test_unobtainable_component_sets_per_profile(profile: str, component: str) -
     client = FakeClient(resolve_features(profile))
     unobtainable = bool(component_set_unobtainable(client, [component]))
     assert unobtainable is ((profile, component) in UNOBTAINABLE)
+
+
+class SweepResponse:
+    def __init__(self, status: int) -> None:
+        self.status = status
+
+
+class SweepClient(FakeClient):
+    """Sync client that records the DELETEs a sweep sends."""
+
+    def __init__(self, hints: dict[str, Any] | None = None, status: int = 204) -> None:
+        super().__init__(hints)
+        self.status = status
+        self.deletes: list[tuple[str, dict[str, str] | None]] = []
+
+    def delete(self, url: str, headers: dict[str, str] | None = None) -> SweepResponse:
+        self.deletes.append((url, headers))
+        if self.status in (401, 403):
+            ## The real client raises on these rather than returning them.
+            raise error.AuthorizationError(url=url, reason=str(self.status))
+        return SweepResponse(self.status)
+
+
+class SweepPrincipal:
+    def __init__(self, *cal_ids: str, lingering: int = 0) -> None:
+        self.cal_ids = list(cal_ids)
+        ## Listings that still show a deleted calendar, as on a server
+        ## deleting asynchronously.
+        self.lingering = lingering
+        self.listings = 0
+
+    def get_calendars(self) -> list[FakeCalendar]:
+        self.listings += 1
+        if self.listings > 1 and self.lingering:
+            self.lingering -= 1
+        elif self.listings > 1:
+            self.cal_ids = [c for c in self.cal_ids if not c.startswith("pythoncaldav-")]
+        return [FakeCalendar(url=f"http://dav.example.com/cals/{c}/") for c in self.cal_ids]
+
+
+def test_sweep_deletes_only_test_calendars_and_skips_the_trashbin() -> None:
+    """Leftover pythoncaldav-* calendars go, for good; the user's calendars stay.
+
+    On Nextcloud a plain DELETE moves the calendar to a trashbin that still
+    counts towards the account's calendar limit, hence the header.
+    """
+    client = SweepClient()
+    principal = SweepPrincipal(
+        "personal", "pythoncaldav-test", "pythoncaldav-test-tasks", "9b0c663d-b3b0", "testcal"
+    )
+
+    deleted = sweep_test_calendars(client, principal)
+
+    assert deleted == ["pythoncaldav-test", "pythoncaldav-test-tasks"]
+    assert [url for url, _ in client.deletes] == [
+        "http://dav.example.com/cals/pythoncaldav-test/",
+        "http://dav.example.com/cals/pythoncaldav-test-tasks/",
+    ]
+    assert all(h == {"X-NC-CalDAV-No-Trashbin": "1"} for _, h in client.deletes)
+
+
+@pytest.mark.parametrize(
+    "hints",
+    [
+        ## Nothing can be recreated: whatever is there was set up by hand.
+        {"create-calendar": {"support": "unsupported"}},
+        {"delete-calendar": {"support": "unsupported"}},
+        ## A calendar configured for the tests must survive the sweep.
+        {"test-calendar": {"cal_id": "pythoncaldav-test"}},
+        {"test-calendar": {"cleanup-regime": "none"}},
+    ],
+)
+def test_sweep_leaves_calendars_it_cannot_recreate(hints: dict[str, Any]) -> None:
+    client = SweepClient(hints)
+
+    assert sweep_test_calendars(client, SweepPrincipal("pythoncaldav-test")) == []
+    assert client.deletes == []
+
+
+def test_sweep_does_not_count_a_refused_delete() -> None:
+    client = SweepClient(status=403)
+
+    assert sweep_test_calendars(client, SweepPrincipal("pythoncaldav-test")) == []
+
+
+def test_sweep_goes_on_past_a_refused_delete() -> None:
+    """A 403 on one calendar must not leave the others behind."""
+    client = SweepClient(status=403)
+
+    sweep_test_calendars(client, SweepPrincipal("pythoncaldav-test", "pythoncaldav-test2"))
+
+    assert len(client.deletes) == 2
+
+
+def test_sweep_matches_the_decoded_prefix_only() -> None:
+    """Percent-encoded ids are decoded; a lookalike or a name is no match."""
+    client = SweepClient()
+    principal = SweepPrincipal("pythoncaldav%2Dtest", "xpythoncaldav-test", "my-pythoncaldav-test")
+
+    assert sweep_test_calendars(client, principal) == ["pythoncaldav-test"]
+
+
+def test_sweep_waits_for_an_asynchronous_deletion(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A fixture re-creating the id must not meet the calendar on its way out."""
+    import tests.fixture_helpers as fh
+
+    monkeypatch.setattr(fh.time, "sleep", lambda s: None)
+    client = SweepClient(
+        {"synchronous-write.delete-calendar": {"support": "unsupported", "delay": 20}}
+    )
+    principal = SweepPrincipal("personal", "pythoncaldav-test", lingering=2)
+
+    sweep_test_calendars(client, principal)
+
+    ## the listing to sweep, two still showing it, one without it
+    assert principal.listings == 4
+
+
+class FakeRegistry:
+    def __init__(self, servers: dict[str, Any]) -> None:
+        self.servers = servers
+
+    def get(self, name: str) -> Any:
+        return self.servers.get(name)
+
+
+@pytest.fixture
+def swept(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Record which servers get swept, with the registry and sweep faked."""
+    import caldav.testing.registry
+    import tests.fixture_helpers as fh
+    from caldav.testing.base import ExternalTestServer
+
+    class External(ExternalTestServer):
+        def __init__(self, name: str) -> None:
+            self.name = name
+
+        def get_sync_client(self) -> Any:
+            name = self.name
+
+            class Client:
+                def __enter__(self) -> Any:
+                    return self
+
+                def __exit__(self, *a: Any) -> None:
+                    pass
+
+                def principal(self) -> str:
+                    return name
+
+            return Client()
+
+    class Docker:
+        def get_sync_client(self) -> Any:
+            raise AssertionError("a docker server must not be swept")
+
+    registry = FakeRegistry(
+        {"ecloud": External("ecloud"), "gmx": External("gmx"), "baikal": Docker()}
+    )
+    monkeypatch.setattr(caldav.testing.registry, "get_registry", lambda: registry)
+    monkeypatch.setattr(fh, "_swept_servers", set())
+    calls: list[str] = []
+    monkeypatch.setattr(
+        fh, "sweep_test_calendars", lambda client, principal: calls.append(principal) or []
+    )
+    return calls
+
+
+def test_sweep_server_leaves_non_external_servers_alone(swept: list[str]) -> None:
+    sweep_server("baikal")
+    sweep_server("not-registered")
+
+    assert swept == []
+
+
+def test_sweep_once_per_server_then_again_at_session_end(swept: list[str]) -> None:
+    for name in ("ecloud", "gmx", "ecloud", None):
+        sweep_server_once(name)
+    assert swept == ["ecloud", "gmx"]
+
+    sweep_used_servers()
+    assert swept == ["ecloud", "gmx", "ecloud", "gmx"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("frees", [True, False])
+async def test_delete_test_calendar_skips_the_trashbin_where_it_would_keep_the_id(
+    frees: bool,
+) -> None:
+    """Where a plain DELETE leaves the id taken (Nextcloud's trashbin), the
+    calendar goes for good; elsewhere Calendar.delete() does it, with its
+    retries and its wait for an asynchronous deletion."""
+    client = SweepClient({"delete-calendar.free-namespace": frees})
+    cal = FakeCalendar(url="http://dav.example.com/cals/pythoncaldav-test2/")
+
+    await adelete_test_calendar(client, cal)
+
+    assert cal.deleted is frees
+    assert client.deletes == (
+        []
+        if frees
+        else [("http://dav.example.com/cals/pythoncaldav-test2/", {"X-NC-CalDAV-No-Trashbin": "1"})]
+    )
+
+
+@pytest.mark.asyncio
+async def test_delete_if_present_skips_the_trashbin_given_the_client() -> None:
+    """A leftover cleared before re-creating its id must not land in the
+    trashbin, or the MKCALENDAR that follows meets the id still taken."""
+    url = "http://dav.example.com/cals/pythoncaldav-async-mkcalendar/"
+    principal = FakePrincipal({"pythoncaldav-async-mkcalendar": FakeCalendar(url=url)})
+    client = SweepClient({"delete-calendar.free-namespace": False})
+
+    await adelete_calendar_if_present(principal, "pythoncaldav-async-mkcalendar", client=client)
+
+    assert client.deletes == [(url, {"X-NC-CalDAV-No-Trashbin": "1"})]
+
+
+@pytest.mark.asyncio
+async def test_delete_test_calendar_wipes_where_deletion_is_unsupported() -> None:
+    """Synology refuses the DELETE; Calendar.delete() wipes the objects there."""
+    client = SweepClient(
+        {"delete-calendar": {"support": "unsupported"}, "delete-calendar.free-namespace": False}
+    )
+    cal = FakeCalendar(url="http://dav.example.com/cals/pythoncaldav-test2/")
+
+    await adelete_test_calendar(client, cal)
+
+    assert cal.deleted
+    assert client.deletes == []
+
+
+def test_sweep_does_not_count_a_delete_answered_500() -> None:
+    client = SweepClient(status=500)
+
+    assert (
+        sweep_test_calendars(client, SweepPrincipal("pythoncaldav-test", "pythoncaldav-test2"))
+        == []
+    )
+    assert len(client.deletes) == 2
+
+
+def test_sweep_server_survives_a_failing_sweep(
+    swept: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Best effort: a server that breaks the sweep must not fail the session."""
+    import tests.fixture_helpers as fh
+
+    def boom(client: Any, principal: Any) -> list[str]:
+        raise error.DAVError("server fell over")
+
+    monkeypatch.setattr(fh, "sweep_test_calendars", boom)
+
+    sweep_server("ecloud")
