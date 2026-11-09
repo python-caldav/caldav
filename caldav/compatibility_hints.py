@@ -376,7 +376,7 @@ hence, "fragile".
                 "https://datatracker.ietf.org/doc/html/rfc5689",
             ],
             "extra_keys": {
-                "behaviour": "'mkcol-required' when MKCALENDAR is refused and the RFC5689 extended MKCOL has to be used instead - the library selects MKCOL for exactly this value.  'empty-207' when the server answers a successful creation with a multistatus whose DAV:response carries neither a DAV:status nor a DAV:propstat, in violation of RFC4918 section 13 (Bedework 5); purely descriptive, the library copes with it either way.  A creation that is accepted but materialises later is synchronous-write.create-calendar.",
+                "behaviour": "'mkcol-required' when MKCALENDAR is refused and the RFC5689 extended MKCOL has to be used instead - the library selects MKCOL for exactly this value.  'empty-207' when the server answers a successful creation with a multistatus whose DAV:response carries neither a DAV:status nor a DAV:propstat, in violation of RFC4918 section 13 (Bedework 5); purely descriptive, the library copes with it either way.  Otherwise free text describing a limit, e.g. a cap on the number of calendars per account (GMX).  A creation that is accepted but materialises later is synchronous-write.create-calendar.",
             },
         },
         "create-calendar.auto": {
@@ -3041,7 +3041,13 @@ gmx = {
     ## created (at the requested URL) and deleted on the first attempt.
     ## 2026-10-23: one run created calendars fine (set-displayname and
     ## stable-url full too).
-    'create-calendar': {'support': 'fragile'},
+    ## 2026-11-10: the failures were a cap, not flapping.  Holding three
+    ## calendars (one a leftover from a test run), the account took two
+    ## MKCALENDARs and refused the third with 403, twice in a row; holding
+    ## two, it took three and refused the fourth.  Calendars leaked by test
+    ## runs eat into the cap: if creation starts failing with 403, delete
+    ## the leftovers.
+    'create-calendar': {'support': 'full', 'behaviour': 'at most 5 calendars per account, the built-in Geburtstage (birthday) calendar included; MKCALENDAR beyond that is refused with 403'},
     'create-calendar.auto': {'support': 'unsupported'},
     'create-calendar.with-supported-component-types': {'support': 'unsupported'},
     ## Never probed: stated so the parent's hint is not read as an answer
