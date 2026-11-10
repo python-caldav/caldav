@@ -50,6 +50,28 @@ arguably 500/502/504.  This is #620's original subject.  Retrying is safe (the
 server declined to act), but it needs a *sleep*, ideally honouring
 `Retry-After`.
 
+423 Locked belongs to this class too.  RFC 4918 section 11.3: "The 423
+(Locked) status code means the source or destination resource of a method is
+locked."  It is meant for resources locked with WebDAV `LOCK`, but servers
+also use it for their own short internal locks.  Xandikos answers a PUT or
+DELETE with 423 when its git store's `index.lock` is held, i.e. when another
+request is writing to the same collection at that moment.  It does not wait
+for the lock itself.  A retry after a short sleep then succeeds.  Seen in the
+wild from plann's panic postponement.  That saves many tasks in a row, but one
+at a time, and Xandikos frees the lock before it answers, so plann cannot
+collide with itself: some other writer was busy at the same moment, and which
+one is unknown.  A burst of saves only makes such a collision more likely.
+The library already retried that PUT, but at once (see §4.6), so the lock was
+still held and the 423 reached the caller.  Two cases where retrying does not
+help: a real `LOCK` held by another client, which lasts until that client
+unlocks or the lock times out, which may be minutes; and a stale `index.lock`
+left behind by a crashed Xandikos or git process, which lasts until someone
+deletes it.  A `Retry-After` on the 423 would not help either: urllib3 only
+honours it on 413, 429 and 503 (`Retry.RETRY_AFTER_STATUS_CODES`), so a capped
+backoff is what decides how long we wait.  Unlike
+429/503, 423 is about one resource and not the whole server, so it is not
+rate limiting and does not belong to the `rate-limit` feature.
+
 The library already handles a subset of (C): `raise_if_rate_limited()` raises
 `RateLimitError` on 429/503, and `DAVClient.request()` /
 `AsyncDAVClient._async_request()` sleep and retry via
@@ -380,7 +402,7 @@ misdescribes class (A):
     "type": "client-feature",
     "description": "The client retries requests that failed for transport "
                    "reasons, and optionally requests answered with a "
-                   "server-error status.  The retrying itself is done by the "
+                   "status in status_forcelist.  The retrying itself is done by the "
                    "HTTP library, not by the CalDAV library: these keys are "
                    "mapped onto urllib3's Retry for niquests and requests.  "
                    "The httpx fallbacks can only retry connection setup, and "
@@ -404,7 +426,14 @@ keep-alive connection has been closed") without turning fast failures into slow
 ones:
 
 * `connect=2`, `read=1`, `status=0`, `status_forcelist=[]` - **on by default**
-* everything in class (C) beyond 429/503 - **opt-in**, as #620 asked
+* everything in class (C) beyond 429/503 - **opt-in**, as #620 asked.
+  That includes 423: `status_forcelist=[423]` with `status=3` covers the
+  Xandikos case.  Note that urllib3 never sleeps before the *first* retry
+  (`get_backoff_time()` is 0 until the second), so with `backoff_factor=0.5`
+  the sleeps are 0, 1 and 2 seconds, and the first retry is as immediate as
+  the one in §4.6.  `initial_delay` has no counterpart in `Retry`; it needs a
+  subclass overriding `get_backoff_time()`.  Whether 423 should be on by
+  default is Q7.
 * `backoff_factor=0.5`, `max_delay=30`, `jitter=true`, `initial_delay=0`
 
 Rationale for `read=1` being on by default: the #695 case is a *read* error in
@@ -487,6 +516,21 @@ the "raise, do not sleep" default.  The `interval`/`count` half of the
 is unaffected by all of this, and niquests' `LeakyBucketLimiter` /
 `TokenBucketLimiter` are the obvious home for it if it ever moves into the
 library.
+
+### 4.6 The immediate PUT retry in `_post_put`
+
+Separate from all of the above, `CalendarObjectResource._post_put()` retries a
+failed PUT once, at once and without a sleep, when vobject is installed.  It
+is meant for data that the server rejected and that vobject's cleanup might
+fix (https://github.com/python-caldav/caldav/issues/43), but it fires on
+almost any status that is not 2xx or 3xx: only a UID conflict, a 412 and a
+save sent with a wildcard (`If-None-Match: *` / `If-Match: *`) are left
+alone.  On a 423 (or a 503 without `Retry-After`, which
+`raise_if_rate_limited()` lets through) it only sends the same PUT into the same
+lock.  Its other problem, that the first answer is hidden from the caller, is
+https://github.com/python-caldav/caldav/issues/847.  Whatever is decided there,
+the immediate retry should leave the statuses of class (C) alone, so that the
+retry logic of this design is the only one that acts on them.
 
 ## 5. Consequences for PR #648
 
@@ -596,6 +640,19 @@ feature.  Step 7 is optional and step 6 is not.
   urllib3-future, since without a cap on `Retry-After` the delegation is a
   regression, not a simplification.  Sub-question: is filing that upstream
   something we want to spend the effort on?
+* **Q7.** Should 423 be in the default `status_forcelist`?  For it: the
+  Xandikos-style lock lasts milliseconds, so a few retries with backoff fix
+  it without anyone having to configure anything, and the server refused, so a
+  retry cannot duplicate a write.  Against: with a real WebDAV `LOCK` the
+  retries only delay the error, by up to the backoff budget, and §4.2 keeps
+  class (C) opt-in on principle.  A middle way is a small default budget,
+  `status=2` with `status_forcelist=[423]`, that adds about a second to the
+  worst case.  It is one budget shared by every status in the list, so it is
+  "for 423 only" only while 423 is the only entry.  Given the zero sleep
+  before the first retry (§4.2), it is in effect one delayed retry, unless
+  `initial_delay` is implemented.  The
+  long-term fix for the Xandikos case is on the server side: wait briefly for
+  `index.lock` instead of failing at once.
 
 ## 9. Rejected alternatives
 
