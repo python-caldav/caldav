@@ -458,6 +458,7 @@ hence, "fragile".
         "save-load.event.no-dtend": {"description": "The server stores a VEVENT with neither DTEND nor DURATION.  RFC 5545 section 3.6.1 allows one: an event on a date lasts that day, an event at a date-time ends when it starts.  'ungraceful' when the PUT is refused with an error (iCloud answers 404, or 403).", "default": {"support": "full"}},
         "save-load.event.recurrences": {"description": "it's possible to save and load recurring events to the calendar - events with an RRULE property set, including recurrence sets", "default": {"support": "full"}},
         "save-load.event.recurrences.count": {"description": "The server will receive and store a recurring event with a count set in the RRULE", "default": {"support": "full"}},
+        "save-load.event.recurrences.rdate": {"description": "An event's RDATE (RFC 5545 section 3.8.5.2), occurrences given by date rather than by an RRULE, is stored.  'unsupported' when it is dropped (Zimbra drops every RDATE, and keeps an RRULE), 'broken' when it is stored with other dates.", "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.5.2"]},
         ## This was Claude's suggestion and it works as of today, the
         ## "unsupported" description matches the behaviour of the Stalwart server.
         ## Stalwart apparently (in a breach with the RFC) stores the exception
@@ -1978,6 +1979,10 @@ zimbra_8_8 = {
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with STATUS, CLASS, TRANSP, LAST-MODIFIED and SEQUENCE added, yet the PUT answered with a strong ETag"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "save-load.event.floating": {"support": "unsupported", "behaviour": "a floating time is stored with TZID=\"UTC\""},
+    ## Probed 2026-11-11 by caldav-server-tester (a timed RDATE), on 8.8 and
+    ## on 10.1; an all-day RDATE is dropped too, and an RRULE beside them is
+    ## kept (checked by hand).
+    "save-load.event.recurrences.rdate": {"support": "unsupported", "behaviour": "the RDATE is dropped"},
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
     "scheduling.auto-schedule": {"support": "full"},
