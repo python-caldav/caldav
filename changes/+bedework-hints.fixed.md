@@ -1,0 +1,1 @@
+On Bedework (3.10 and 5.0), `save(no_overwrite=True)` for a name another object already holds raised a 500 error instead of `ConsistencyError`.  The server refuses such a PUT with 500 rather than 412, so `save.if-none-match` is now `ungraceful` there, and the library checks the name with a GET before the PUT instead of sending `If-None-Match: *`.
