@@ -3108,6 +3108,10 @@ gmx = {
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
     ## Probed 2026-11-07 by caldav-server-tester
     "search.time-range.todo.overlap": {"support": "unsupported", "behaviour": "only tasks starting inside the range are found"},
+    ## Probed 2026-11-11 by caldav-server-tester
+    "save-load.todo.status.rfc10051": {"support": "ungraceful", "behaviour": "PENDING is refused (401/403); FAILED is refused (401/403); the server does not advertise RFC 10051", "values": [], "map": {}, "refused": ["PENDING", "FAILED"]},
+    ## Probed 2026-11-12 by caldav-server-tester
+    "supported-task-modes": {"support": "unsupported", "behaviour": "neither the calendar home nor a calendar has CALDAV:supported-task-mode-set"},
 }
 
 ## https://ox.io/
