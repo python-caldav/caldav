@@ -377,12 +377,11 @@ jobs:
       - run: pip install tox
       - run: tox -e deptry
   no-http-library:
-    # Every other job has `requests`: it is not in the `test` extra, but
-    # Radicale is, and Radicale requires it.  So "no HTTP library at all" is a
-    # state the fallback jobs never reach, and the import-time error message
-    # went untested.  It matters once niquests stops being a hard dependency
-    # and a plain `pip install caldav` brings no library.
-    # Uninstalling `requests` breaks Radicale, so this job starts no server.
+    # The other jobs all have niquests or `requests` (the async fallback jobs
+    # install `requests` for the sync client), so "no HTTP library at all" is
+    # a state they never reach, and the import-time error message would go
+    # untested.  It matters once niquests stops being a hard dependency and a
+    # plain `pip install caldav` brings no library.  This job starts no server.
     name: no HTTP library
     runs-on: ubuntu-latest
     steps:
@@ -453,6 +452,10 @@ jobs:
           pip install --editable .[test]
           pip uninstall -y niquests
           pip install httpxyz
+          # The sync client is imported too (caldav.discovery, caldav.testing,
+          # test_caldav_unit), so keep requests as its library: Radicale stopped
+          # pulling it in at 3.9.1.
+          pip install requests
       - name: Verify httpxyz is used
         run: |
           python -c "
@@ -483,6 +486,10 @@ jobs:
           pip install --editable .[test]
           pip uninstall -y niquests httpxyz httpx
           pip install httpx2
+          # The sync client is imported too (caldav.discovery, caldav.testing,
+          # test_caldav_unit), so keep requests as its library: Radicale stopped
+          # pulling it in at 3.9.1.
+          pip install requests
       - name: Verify httpx2 is used
         run: |
           python -c "
@@ -524,6 +531,10 @@ jobs:
         run: |
           pip install --editable .[test]
           pip uninstall -y niquests httpxyz
+          # The sync client is imported too (caldav.discovery, caldav.testing,
+          # test_caldav_unit), so keep requests as its library: Radicale stopped
+          # pulling it in at 3.9.1.
+          pip install requests
       - name: Configure Baikal with pre-seeded database
         run: |
           docker cp tests/docker-test-servers/baikal/Specific/. ${{ job.services.baikal.id }}:/var/www/baikal/Specific/
