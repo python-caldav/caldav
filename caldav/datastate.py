@@ -146,7 +146,20 @@ class RawDataState(DataState):
         if match:
             uid = re.sub(r"\r?\n[ \t]", "", match.group(1)).strip()
             # leave backslash escapes to the full parse
-            if "\\" not in uid:
+            # Only take the shortcut when this is the first UID and we are
+            # directly inside the resource component. A VALARM can own a UID too.
+            headers = re.findall(
+                r"^(?:BEGIN|END|UID)[:;][^\r\n]*",
+                self._data[: match.start()],
+                re.MULTILINE | re.IGNORECASE,
+            )
+            if (
+                "\\" not in uid
+                and len(headers) == 2
+                and headers[0].upper() == "BEGIN:VCALENDAR"
+                and headers[1].upper()
+                in ("BEGIN:VEVENT", "BEGIN:VTODO", "BEGIN:VJOURNAL", "BEGIN:VFREEBUSY")
+            ):
                 return uid
         # Fall back to parsing if regex fails (e.g., UID with parameters)
         return super().get_uid()
