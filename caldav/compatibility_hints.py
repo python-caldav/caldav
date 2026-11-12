@@ -966,7 +966,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.4"],
         },
         "save.if-none-match": {
-            "description": "A PUT carrying If-None-Match: * to an existing object is refused with 412 Precondition Failed, and creates a missing object.  RFC 9110 section 13.1.2 has '*' hold only when the resource has no current representation, so it means 'create, but never overwrite'; RFC 4791 section 5.3.2 tells CalDAV clients to send it when creating.  save(no_overwrite=True) sends it, so the server enforces 'do not overwrite' in the same request rather than after a search.  When 'unsupported', the server overwrites the existing object (SOGo ignores the header; Zimbra compares '*' as a literal etag, so the condition always holds) - the library then does not send it, nor anywhere else this is not supported ('full' or 'quirk'), and relies on the UID search before the PUT, as before.  The default is 'full': RFC 4791 section 2 requires a CalDAV server to support ETags as RFC 2616 defines them, and RFC 2616 section 14.26 (now RFC 9110 section 13.1.2) says the server MUST NOT perform the method when '*' is given and the object exists.",
+            "description": "A PUT carrying If-None-Match: * to an existing object is refused with 412 Precondition Failed, and creates a missing object.  RFC 9110 section 13.1.2 has '*' hold only when the resource has no current representation, so it means 'create, but never overwrite'; RFC 4791 section 5.3.2 tells CalDAV clients to send it when creating.  save(no_overwrite=True) sends it, so the server enforces 'do not overwrite' in the same request rather than after a search.  When 'unsupported', the server overwrites the existing object (SOGo ignores the header; Zimbra compares '*' as a literal etag, so the condition always holds) - the library then does not send it, nor anywhere else this is not supported ('full' or 'quirk'), and relies on the UID search before the PUT, as before.  The default is 'full': RFC 4791 section 2 requires a CalDAV server to support ETags as RFC 2616 defines them, and RFC 2616 section 14.26 (now RFC 9110 section 13.1.2) says the server MUST NOT perform the method when '*' is given and the object exists.  'ungraceful' when the existing object is kept, but refused with something other than 412 (Bedework: 500 'duplicatename' for a new object under a name another object holds): the library cannot tell that from another error, so it treats it as unsupported and checks with a GET or a search.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-5.3.2", "https://datatracker.ietf.org/doc/html/rfc4791#section-2", "https://datatracker.ietf.org/doc/html/rfc2616#section-14.26", "https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.2"],
         },
@@ -2030,10 +2030,16 @@ bedework_3_10_3 = {
     "create-calendar.with-supported-component-types.multiple": {"support": "broken", "behaviour": "asked for VEVENT and VTODO, the calendar reports one concatenated name, ['VEVENTVTODO']"},
     ## Probed 2026-10-26 by caldav-server-tester
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (403)"},
+    ## Probed 2026-11-11 by caldav-server-tester
+    "save-load.icalendar.x-parameter": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER on SUMMARY is dropped, in an event"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
     "save.no-uid-conflict.href-given": {"support": "unsupported"},
     "save.no-uid-conflict.if-none-match": {"support": "quirk", "status": 412, "precondition": False},
+    ## Probed 2026-11-11 by caldav-server-tester: a new object under a taken
+    ## name, the case save(no_overwrite=True) guards, is refused with 500
+    ## "duplicatename", with or without the header; the same UID gets 412.
+    "save.if-none-match": {"support": "ungraceful", "behaviour": "If-None-Match: * on an existing object answered 500 rather than 412, for another UID"},
     ## If tests are yielding unexpected results, try to increase this:
     'search-cache': {'behaviour': 'delay', 'delay': 3},
     'scheduling.calendar-user-address-set': {'support': 'full'},
@@ -2113,6 +2119,10 @@ bedework_5_0_0 = {
     "save.no-uid-conflict": {"support": "full"},
     "save.no-uid-conflict.href-given": {"support": "unsupported"},
     "save.no-uid-conflict.if-none-match": {"support": "quirk", "status": 412, "precondition": False},
+    ## Probed 2026-11-11 by caldav-server-tester: a new object under a taken
+    ## name, the case save(no_overwrite=True) guards, is refused with 500
+    ## "duplicatename", with or without the header; the same UID gets 412.
+    "save.if-none-match": {"support": "ungraceful", "behaviour": "If-None-Match: * on an existing object answered 500 rather than 412, for another UID"},
     ## Writes are asynchronous: a read-back issued immediately after a PUT may
     ## 404 or hand back the pre-write copy.  However, in some cases the
     ## delay is small and varies, sometimes the caldav-server-tester tool will
@@ -3103,6 +3113,10 @@ gmx = {
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
     ## Probed 2026-11-07 by caldav-server-tester
     "search.time-range.todo.overlap": {"support": "unsupported", "behaviour": "only tasks starting inside the range are found"},
+    ## Probed 2026-11-11 by caldav-server-tester
+    "save-load.todo.status.rfc10051": {"support": "ungraceful", "behaviour": "PENDING is refused (401/403); FAILED is refused (401/403); the server does not advertise RFC 10051", "values": [], "map": {}, "refused": ["PENDING", "FAILED"]},
+    ## Probed 2026-11-12 by caldav-server-tester
+    "supported-task-modes": {"support": "unsupported", "behaviour": "neither the calendar home nor a calendar has CALDAV:supported-task-mode-set"},
 }
 
 ## https://ox.io/
