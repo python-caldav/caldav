@@ -17,6 +17,7 @@ from urllib.parse import urljoin, urlparse
 
 from lxml import etree
 
+from caldav.compatibility_hints import at_spelling_for_report_href
 from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
@@ -733,13 +734,18 @@ class BaseDAVClient(ABC):
     def _build_calendar_multiget_body(
         hrefs: list[str],
         include_data: bool = True,
+        features: Any = None,
     ) -> bytes:
-        """Build calendar-multiget REPORT request body."""
+        """Build calendar-multiget REPORT request body.
+
+        ``features`` spells the hrefs for the server, see
+        ``compatibility_hints.at_spelling_for_report_href``.
+        """
         elements: list[BaseElement] = []
         if include_data:
             elements.append(dav.Prop() + cdav.CalendarData())
         for href in hrefs:
-            elements.append(dav.Href(href))
+            elements.append(dav.Href(at_spelling_for_report_href(features, href)))
         multiget = cdav.CalendarMultiGet() + elements
         return etree.tostring(multiget.xmlelement(), encoding="utf-8", xml_declaration=True)
 

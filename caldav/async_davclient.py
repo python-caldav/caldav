@@ -835,7 +835,7 @@ class AsyncDAVClient(BaseDAVClient):
         Returns:
             DAVResponse with results containing List[CalendarQueryResult].
         """
-        body = self._build_calendar_multiget_body(hrefs or [])
+        body = self._build_calendar_multiget_body(hrefs or [], features=self.features)
 
         final_headers = self._build_method_headers("REPORT", depth, headers)
         response = await self.request(

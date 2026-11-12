@@ -45,6 +45,7 @@ from .calendarobjectresource import (
 )
 from .compatibility_hints import (
     at_literal_is_refused,
+    at_spelling_for_report_href,
     at_spelling_is_significant,
 )
 from .davobject import DAVObject
@@ -1523,7 +1524,12 @@ class Calendar(DAVObject):
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
         prop = dav.Prop() + [cdav.CalendarData(), dav.GetEtag(), cdav.ScheduleTag()]
-        return cdav.CalendarMultiGet() + prop + [dav.Href(value=u.path) for u in event_urls]
+        features = getattr(self.client, "features", None)
+        return (
+            cdav.CalendarMultiGet()
+            + prop
+            + [dav.Href(value=at_spelling_for_report_href(features, u.path)) for u in event_urls]
+        )
 
     def _extract_multiget_results(
         self, response: Any, raise_notfound: bool

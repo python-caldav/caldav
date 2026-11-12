@@ -516,3 +516,86 @@ class TestTheHomeSetHackReadsThePrincipalAxis:
     def test_a_real_owncloud_observation_still_encodes(self) -> None:
         fs = features(identity="full", **{"literal.principal": "unsupported"})
         assert _sanitize_calendar_home_set_url(HOME_SET, fs) == ENCODED_HOME_SET
+
+
+class TestAnHrefInAReportBody:
+    """Robur resolves ``%40`` in a request path, but not in an href inside a
+    REPORT body: a calendar-multiget naming ``foo%40example.com.ics`` answers
+    404 for an object a GET of that very URL serves.  Declared as
+    ``url.encode-at.encoded.href``; there the client spells the ``@`` of a
+    multiget href literally, and leaves every other escape alone."""
+
+    PATH = "/cal/home/foo%40example.com.ics"
+
+    def _hrefs(self, fs, path=PATH) -> list[str]:
+        from caldav.collection import Calendar
+
+        client = Mock()
+        client.features = fs
+        client.url = URL("http://dav.example.com/", alias_at=at_spellings_are_aliased(fs))
+        cal = Calendar(client, url="http://dav.example.com/cal/home/", parent=None)
+        root = cal._build_multiget_root([URL("http://dav.example.com" + path)])
+        return [el.text for el in root.xmlelement().iter("{DAV:}href")]
+
+    def test_the_child_exists_and_defaults_to_full(self) -> None:
+        assert "url.encode-at.encoded.href" in FeatureSet.FEATURES
+        assert FeatureSet().is_supported("url.encode-at.encoded.href")
+
+    def test_declaring_it_leaves_the_minted_spelling_alone(self) -> None:
+        """A PUT or GET of '%40' still works there, so new objects keep their URL."""
+        assert at_spelling_to_mint(features(**{"encoded.href": "unsupported"})) == "%40"
+
+    @pytest.mark.parametrize("fs", [None, FeatureSet(), NO_LITERAL])
+    def test_an_href_is_sent_as_it_always_was(self, fs) -> None:
+        assert self._hrefs(fs) == [self.PATH]
+
+    def test_a_server_refusing_every_percent_40_gets_the_literal_too(self) -> None:
+        """A declared parent reaches the child: where '%40' resolves nowhere,
+        the href gets the literal the client mints there anyway."""
+        assert self._hrefs(NO_ENCODED) == ["/cal/home/foo@example.com.ics"]
+
+    def test_robur_gets_the_literal(self) -> None:
+        assert self._hrefs(features(**{"encoded.href": "unsupported"})) == [
+            "/cal/home/foo@example.com.ics"
+        ]
+
+    @pytest.mark.parametrize("level", ["unknown", "fragile"])
+    def test_a_non_observation_changes_nothing(self, level) -> None:
+        assert self._hrefs(features(**{"encoded.href": level})) == [self.PATH]
+
+    def test_other_escapes_are_kept(self) -> None:
+        path = "/cal/home/A7Cz%252Fb%3D%3D%40mychart.example.org.ics"
+        assert self._hrefs(features(**{"encoded.href": "unsupported"}), path) == [
+            "/cal/home/A7Cz%252Fb%3D%3D@mychart.example.org.ics"
+        ]
+
+    def test_a_conformant_server_keeps_its_spelling(self) -> None:
+        """There '%40' and '@' are two resources, so the client may not swap them."""
+        fs = features(identity="full", **{"encoded.href": "unsupported"})
+        assert self._hrefs(fs) == [self.PATH]
+
+    def test_the_low_level_multiget_body_gets_it_too(self) -> None:
+        """``AsyncDAVClient.calendar_multiget`` builds its body on its own."""
+        from caldav.base_client import BaseDAVClient
+
+        build = BaseDAVClient._build_calendar_multiget_body
+        robur = features(**{"encoded.href": "unsupported"})
+        assert b"foo@example.com.ics" in build([self.PATH], features=robur)
+        assert self.PATH.encode() in build([self.PATH])
+        assert self.PATH.encode() in build([self.PATH], features=FeatureSet())
+
+    def test_an_answer_with_the_literal_is_matched_to_the_object(self) -> None:
+        """Robur answers with the href as it was sent, ``@`` and all; the
+        object asked for under its ``%40`` URL must still get the data."""
+        from caldav.calendarobjectresource import Event
+        from caldav.collection import Calendar
+
+        client = Mock()
+        client.features = features(**{"encoded.href": "unsupported"})
+        client.url = URL(
+            "http://dav.example.com/", alias_at=at_spellings_are_aliased(client.features)
+        )
+        cal = Calendar(client, url="http://dav.example.com/cal/home/", parent=None)
+        event = Event(client=client, url=cal.url.join("foo%40example.com.ics"), parent=cal)
+        cal._assign_multiget_data([event], [("/cal/home/foo@example.com.ics", EVENT, {})])
+        assert event.data and "foo@example.com" in event.data

@@ -207,6 +207,21 @@ class FeatureSet:
             ),
             "default": {"support": "full"},
         },
+        "url.encode-at.encoded.href": {
+            "description": (
+                "Whether '%40' resolves in an href inside a REPORT body (a calendar-multiget), "
+                "as it does in the request path.  RFC4918 section 8.3 makes such an href a URI "
+                "reference, so the server should decode it as it decodes the path.  "
+                "'unsupported' is the Robur case: a GET of '.../foo%40example.com.ics' serves "
+                "the object, a multiget naming the same href answers 404, and a multiget naming "
+                "'.../foo@example.com.ics' finds it.  There the client spells the '@' of a "
+                "multiget href literally and leaves every other escape alone - unless "
+                "'url.encode-at.identity' declares the two spellings different resources.  It "
+                "does not change the spelling the client mints for a new object, which "
+                "'url.encode-at.encoded' decides."
+            ),
+            "default": {"support": "full"},
+        },
         "auth": {
             ## Grouping node, needed so that the dotted children below resolve;
             ## it carries no verdict of its own.  Note that it does not derive
@@ -2623,6 +2638,13 @@ sogo = {
 #]
 
 robur = {
+    ## Probed 2026-11-12 by caldav-server-tester: a calendar-multiget naming
+    ## .../x%40y.ics answers 404, one naming .../x@y.ics finds it; PUT and GET
+    ## of the %40 URL both work.
+    "url.encode-at.encoded.href": {
+        "support": "unsupported",
+        "behaviour": "a %40 in a calendar-multiget href is not decoded: 404 for an object the same URL serves",
+    },
     ## Measured with caldav-server-tester, 2026-10-27.
     "search.text.uid": {"support": "unsupported", "behaviour": "objects not matching the UID come back"},
     ## Probed 2026-10-26 by caldav-server-tester
@@ -3501,6 +3523,22 @@ def at_spelling_to_mint(features: Any) -> str:
         return "%40"
     level = features.is_supported("url.encode-at.encoded", str)
     return "@" if level in ("unsupported", "broken", "ungraceful") else "%40"
+
+
+def at_spelling_for_report_href(features: Any, path: str) -> str:
+    """``path`` as an href in a REPORT body: with a literal ``@`` where
+    ``url.encode-at.encoded.href`` says the server will not decode ``%40`` there.
+
+    A support level, not a boolean, for the reason :func:`at_spelling_to_mint`
+    gives; and never on a server declared conformant, where the literal
+    spelling names a different resource.
+    """
+    if features is None:
+        return path
+    level = features.is_supported("url.encode-at.encoded.href", str)
+    if level in ("unsupported", "broken", "ungraceful") and at_spellings_are_aliased(features):
+        return path.replace("%40", "@")
+    return path
 
 
 def at_spellings_are_aliased(features: Any) -> bool:
