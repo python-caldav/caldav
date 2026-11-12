@@ -1829,9 +1829,14 @@ ecloud = nextcloud | {
     #'search.text.case-sensitive': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
     'delete-calendar.free-namespace': False,
     ## TODO: this applies only to test runs, not to ordinary usage
+    ## 2026-11-12: two test runs at one request per 2 s made 22 calendars in
+    ## 3 hours (up to 9 in one hour) and got no 429 at all, so the pace is
+    ## doubled to one request per second.  Only the sync suite paces by
+    ## interval/count.  Revisit: lower it further while no 429 shows up,
+    ## raise it again if one does.
     'rate-limit': {
         'enable': True,
-        'interval': 2,
+        'interval': 1,
         'count': 1,
         'default_sleep': 4,
         'max_sleep': 120,
