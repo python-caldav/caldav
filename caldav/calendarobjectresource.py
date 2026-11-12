@@ -47,7 +47,7 @@ from .davobject import DAVObject
 from .elements import cdav, dav
 from .lib import error, vcal
 from .lib.error import errmsg
-from .lib.python_utilities import WireBytes, to_normal_str, to_unicode, to_wire
+from .lib.python_utilities import WireBytes, entity_tag, to_normal_str, to_unicode, to_wire
 from .lib.url import URL
 
 log = logging.getLogger("caldav")
@@ -1278,7 +1278,8 @@ class CalendarObjectResource(DAVObject):
             ## with '"' or 'W/"', so a leading %22 can only be that encoding.
             if etag.startswith(("%22", "W/%22")):
                 etag = unquote(etag)
-            self.props[dav.GetEtag.tag] = etag
+            ## Robur leaves out the quotes of a PUT's ETag, which its GET has
+            self.props[dav.GetEtag.tag] = entity_tag(etag)
         if headers.get("Schedule-Tag"):
             self.props[cdav.ScheduleTag.tag] = headers["Schedule-Tag"]
         else:
@@ -1425,6 +1426,7 @@ class CalendarObjectResource(DAVObject):
         """ETagMismatchError unless ``current`` is ``expected``, compared weakly
         (RFC 9110 section 8.8.3.2): the opaque tag is what tells a version.
         No ``current`` passes: the server gave nothing to compare."""
+        expected = entity_tag(expected) or expected
         if current is not None and current.removeprefix("W/") != expected.removeprefix("W/"):
             raise error.ETagMismatchError(
                 str(self.url),

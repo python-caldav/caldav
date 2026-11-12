@@ -18,7 +18,7 @@ from caldav.compatibility_hints import at_spelling_is_significant
 from caldav.elements import cdav, dav
 from caldav.elements.base import BaseElement
 from caldav.lib import error
-from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.python_utilities import entity_tag, to_normal_str
 from caldav.lib.url import URL, unquote_preserving_at
 
 if TYPE_CHECKING:
@@ -218,7 +218,7 @@ def _element_to_value(elem: _Element) -> Any:
         ]
 
     if len(elem) == 0:
-        return elem.text
+        return entity_tag(elem.text) if tag == dav.GetEtag.tag else elem.text
 
     if tag == cdav.SupportedCalendarComponentSet.tag:
         return [child.get("name") for child in elem if child.get("name")]
@@ -518,7 +518,7 @@ class DAVResponse:
                 if child.tag == cdav.CalendarData.tag:
                     calendar_data = child.text
                 elif child.tag == dav.GetEtag.tag:
-                    etag = child.text
+                    etag = entity_tag(child.text)
         return etag, calendar_data
 
     def parse_propfind(self) -> "list[PropfindResult]":
@@ -906,8 +906,9 @@ class DAVResponse:
                     f"If you see this, please add a report at https://github.com/python-caldav/caldav/issues/209 - in _expand_simple_prop, dealing with {proptag}, extra item found: {'='.join(item)}."
                 )
             if not xpath and len(prop_xml) == 0:
-                if prop_xml.text:
-                    values.append(prop_xml.text)
+                value = entity_tag(prop_xml.text) if proptag == dav.GetEtag.tag else prop_xml.text
+                if value:
+                    values.append(value)
             else:
                 _xpath = xpath if xpath else ".//*"
                 leafs = prop_xml.findall(_xpath)
