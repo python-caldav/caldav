@@ -9771,6 +9771,11 @@ class TestUnquotedGetetag:
             ("1-6058-1794140565545", '"1-6058-1794140565545"'),
             ('"abc"', '"abc"'),
             ('W/"abc"', 'W/"abc"'),
+            ## Pretty-printed XML: whitespace around a quoted tag is not part of it
+            ('\n  "abc"\n', '"abc"'),
+            ("\n  abc\n", '"abc"'),
+            ## A weak tag left bare stays weak
+            ("W/abc", 'W/"abc"'),
         ],
     )
     def test_a_getetag_is_an_entity_tag(self, sent, read) -> None:
@@ -9779,3 +9784,5 @@ class TestUnquotedGetetag:
         assert found[dav.GetEtag.tag] == read
         [result] = MockedDAVResponse(self.XML.format(sent)).parse_propfind()
         assert result.properties[dav.GetEtag.tag] == read
+        [result] = MockedDAVResponse(self.XML.format(sent)).parse_calendar_query()
+        assert result.etag == read

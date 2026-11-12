@@ -47,3 +47,18 @@ def to_unicode(text):
     if text and isinstance(text, bytes):
         return text.decode("utf-8")
     return text
+
+
+def entity_tag(text: str | None) -> str | None:
+    """An ETag as an entity-tag (RFC 9110 section 8.8.3), quoted where a
+    server left the quotes out: Ox in a multistatus getetag, Robur in an
+    ETag header, though a GET of the object answers with them.  Whitespace
+    around it, as pretty-printed XML has, is not part of the tag."""
+    if not text or not text.strip():
+        return text
+    tag = text.strip()
+    if tag.startswith(('"', 'W/"')):
+        return tag
+    if tag.startswith("W/"):
+        return f'W/"{tag[2:]}"'
+    return f'"{tag}"'
