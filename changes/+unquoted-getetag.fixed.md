@@ -1,1 +1,1 @@
-An ETag a server reports without its quotes, in a multistatus as Ox does or in the response to a PUT as Robur does, is read as the quoted entity-tag a GET of the object gives, so an object has the same ETag however it was read or saved.
+An ETag is read as a quoted entity-tag whether or not the server quotes it: Ox leaves the quotes off in a multistatus, and Robur in the response to a PUT.

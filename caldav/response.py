@@ -906,10 +906,9 @@ class DAVResponse:
                     f"If you see this, please add a report at https://github.com/python-caldav/caldav/issues/209 - in _expand_simple_prop, dealing with {proptag}, extra item found: {'='.join(item)}."
                 )
             if not xpath and len(prop_xml) == 0:
-                if prop_xml.text:
-                    values.append(
-                        entity_tag(prop_xml.text) if proptag == dav.GetEtag.tag else prop_xml.text
-                    )
+                value = entity_tag(prop_xml.text) if proptag == dav.GetEtag.tag else prop_xml.text
+                if value:
+                    values.append(value)
             else:
                 _xpath = xpath if xpath else ".//*"
                 leafs = prop_xml.findall(_xpath)

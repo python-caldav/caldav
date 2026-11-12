@@ -249,16 +249,25 @@ class TestScheduleTagUnit:
 
         assert event.props[dav.GetEtag.tag] == '"etag-from-put"'
 
+    @pytest.mark.parametrize(
+        "header, expected",
+        [
+            ("25682dc03f61", '"25682dc03f61"'),
+            ("W/abc", 'W/"abc"'),
+            ('"abc"', '"abc"'),
+            ('W/"abc"', 'W/"abc"'),
+        ],
+    )
     @mock.patch("caldav.davclient.requests.Session.request")
-    def test_a_bare_etag_from_put_is_quoted(self, mocked):
+    def test_a_bare_etag_from_put_is_quoted(self, mocked, header, expected):
         """Robur answers a PUT with ``ETag: 2568...`` and a GET with
         ``ETag: "2568..."``.  Unquoted, the two never compare equal, and a
         client takes the object for changed since it was saved."""
-        mocked.return_value = _make_put_response(201, {"Etag": "25682dc03f61"})
+        mocked.return_value = _make_put_response(201, {"Etag": header})
 
         event = _make_event_with_tag(None)
         event.save()
-        assert event.props[dav.GetEtag.tag] == '"25682dc03f61"'
+        assert event.props[dav.GetEtag.tag] == expected
 
     @pytest.mark.parametrize(
         "header, expected",

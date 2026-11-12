@@ -1426,6 +1426,7 @@ class CalendarObjectResource(DAVObject):
         """ETagMismatchError unless ``current`` is ``expected``, compared weakly
         (RFC 9110 section 8.8.3.2): the opaque tag is what tells a version.
         No ``current`` passes: the server gave nothing to compare."""
+        expected = entity_tag(expected) or expected
         if current is not None and current.removeprefix("W/") != expected.removeprefix("W/"):
             raise error.ETagMismatchError(
                 str(self.url),

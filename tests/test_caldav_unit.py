@@ -7683,6 +7683,15 @@ class TestDeleteIfMatchIgnored:
         assert [m for m, _ in sent] == ["PROPFIND", "DELETE"]
         assert sent[-1][1]["if-match"] == '"etag-a"'
 
+    def test_a_bare_etag_given_by_hand_deletes(self, base) -> None:
+        """The server's getetag is read as a quoted entity-tag; a bare tag
+        the caller passes is the same tag, not a changed object."""
+        event, sent = self._event(base, stored_etag='"etag-a"')
+        self._run(event, if_match="etag-a")
+        assert [m for m, _ in sent] == ["PROPFIND", "DELETE"]
+        ## Only the comparison is normalised: the header goes out as given
+        assert sent[-1][1]["if-match"] == "etag-a"
+
     def test_weak_form_of_the_same_etag_deletes(self, base) -> None:
         event, sent = self._event(base, stored_etag='W/"etag-a"')
         self._run(event, if_match=True)
@@ -9786,3 +9795,16 @@ class TestUnquotedGetetag:
         assert result.properties[dav.GetEtag.tag] == read
         [result] = MockedDAVResponse(self.XML.format(sent)).parse_calendar_query()
         assert result.etag == read
+
+    @pytest.mark.parametrize("text", ["", "  ", "\n  "])
+    def test_an_empty_etag_is_no_etag(self, text) -> None:
+        """A pretty-printed empty getetag is read as no ETag at all."""
+        from caldav.lib.python_utilities import entity_tag
+
+        assert entity_tag(text) is None
+        response = MockedDAVResponse(self.XML.format(text))
+        [found] = response.expand_simple_props(props=[dav.GetEtag()]).values()
+        assert found.get(dav.GetEtag.tag) is None
+        response = MockedDAVResponse(self.XML.format(text))
+        [found] = response.expand_simple_props(multi_value_props=[dav.GetEtag()]).values()
+        assert found[dav.GetEtag.tag] == []
