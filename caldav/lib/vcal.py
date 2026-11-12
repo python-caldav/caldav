@@ -109,6 +109,10 @@ def fix(event):
     proposed in https://github.com/py-vobject/vobject/pull/150).  Drop
     it; the TZID is then resolved by name.
 
+    9) Bedework 5 stores every ATTENDEE of an event twice.  An exact
+    copy of an ATTENDEE line in the same component is dropped; a line
+    that differs, if only in a parameter, is kept.
+
     All logic here is done with on the ical string, and not on
     icalendar objects.  There are two reasons for it, originally
     optimization (not having to parse the icalendar data and create an
@@ -170,6 +174,8 @@ def fix(event):
     ## DTEND/DUE is set.
     ## remove duplication of DTSTAMP
     fixed2 = "\n".join(filter(LineFilterDiscardingDuplicates(), fixed.strip().split("\n"))) + "\n"
+    ## 9 drop an exact copy of an ATTENDEE line
+    fixed2 = _drop_duplicate_attendees(fixed2)
 
     if fixed2 != event:
         ## This obscure code will ensure efficient rate-limiting of the error
@@ -204,6 +210,36 @@ def fix(event):
         log("\n".join(log_message + diff))
 
     return fixed2
+
+
+def _drop_duplicate_attendees(text):
+    """Bedework 5 stores every ATTENDEE of an event twice.  An attendee is
+    one calendar user, so a line that is an exact copy of another in the
+    same component carries nothing; one that differs, if only in a
+    parameter, is kept.  Folded lines are compared as a whole."""
+    lines = text.split("\n")
+    out = []
+    seen = [set()]
+    i = 0
+    while i < len(lines):
+        j = i + 1
+        while j < len(lines) and lines[j][:1] in (" ", "\t"):
+            j += 1
+        logical = lines[i:j]
+        first = logical[0]
+        if first.startswith("BEGIN:"):
+            seen.append(set())
+        elif first.startswith("END:") and len(seen) > 1:
+            seen.pop()
+        elif first.startswith(("ATTENDEE;", "ATTENDEE:")):
+            key = "".join(line[1:] if k else line for k, line in enumerate(logical))
+            if key in seen[-1]:
+                i = j
+                continue
+            seen[-1].add(key)
+        out.extend(logical)
+        i = j
+    return "\n".join(out)
 
 
 class LineFilterDiscardingDuplicates:

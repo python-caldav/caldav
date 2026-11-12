@@ -1,0 +1,1 @@
+Bedework 5 stores every ATTENDEE of an event twice.  An exact copy of an ATTENDEE line in the same component is now dropped whenever iCalendar text is set on an object, on any server, so each attendee is seen once; a line that differs, if only in a parameter, is kept.  The new hint `save-load.icalendar.attendee-once` records the behaviour: `quirk`, "stored twice", for Bedework 5.

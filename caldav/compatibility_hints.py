@@ -605,6 +605,10 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.4.1", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.2"],
         },
+        "save-load.icalendar.attendee-once": {
+            "description": "Each ATTENDEE of an event comes back once.  'quirk' with behaviour 'stored twice' when every ATTENDEE line comes back twice, as an exact copy (Bedework 5, with or without ORGANIZER, RRULE or PARTSTAT); vcal.fix() drops an exact copy of an ATTENDEE line in the same component whenever iCalendar text is set on an object, whatever this hint says, so a client sees each attendee once.  'broken' when an attendee comes back twice with lines that differ, which the library keeps.",
+            "default": {"support": "full"},
+        },
         "save-load.icalendar.participant": {
             "description": "A PARTICIPANT component (RFC 9073 section 7.1) inside a VEVENT is stored and comes back.  'unsupported' when the event is stored without it.  'ungraceful' when the event is refused: CCS and Bedework 3 answer 403, robur 400, GMX and Ox 500 (and Zimbra, reportedly).  A client keeping data of its own in PARTICIPANT components loses it on those servers.",
             "default": {"support": "full"},
@@ -2128,6 +2132,10 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
+    ## Probed 2026-11-12 by caldav-server-tester, and by hand on a fresh
+    ## container: a PUT with one ATTENDEE gives two identical ATTENDEE lines
+    ## in GET and calendar-multiget alike.
+    "save-load.icalendar.attendee-once": {"support": "quirk", "behaviour": "stored twice"},
     ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
     "search.text.uid": {"support": "full"},
     ## Measured with caldav-server-tester, 2026-10-28.

@@ -710,6 +710,72 @@ END:VCALENDAR"""
             "COMPLETED was not parsed as the fixed-up 20070501T120000Z"
         )
 
+    def test_a_duplicated_attendee_is_dropped(self) -> None:
+        """Bedework 5 stores every ATTENDEE of an event twice: a PUT with
+        one gives two identical lines back.  An attendee is one calendar
+        user, so the exact copy carries nothing; one that differs in a
+        parameter is kept."""
+        ical = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//x//EN\nBEGIN:VEVENT\nUID:a\n"
+            "DTSTAMP:20261001T000000Z\nDTSTART:20261102T090000Z\n"
+            "ATTENDEE;CN=Bob:mailto:bob@example.com\n"
+            "ATTENDEE;CN=Bob:mailto:bob@example.com\n"
+            'ATTENDEE;CN="Åse";PARTSTAT=ACCEPTED:mailto:ase@example.com\n'
+            'ATTENDEE;CN="Åse";PARTSTAT=ACCEPTED:mailto:ase@example.com\n'
+            "ATTENDEE;CN=Bob;PARTSTAT=DECLINED:mailto:bob@example.com\n"
+            "END:VEVENT\nBEGIN:VEVENT\nUID:a\nRECURRENCE-ID:20261109T090000Z\n"
+            "DTSTAMP:20261001T000000Z\nDTSTART:20261109T100000Z\n"
+            "ATTENDEE;CN=Bob:mailto:bob@example.com\n"
+            "END:VEVENT\nEND:VCALENDAR\n"
+        )
+        fixed = vcal.fix(ical)
+        master, override = fixed.split("BEGIN:VEVENT")[1:]
+        assert master.count("ATTENDEE;CN=Bob:mailto:bob@example.com") == 1
+        assert master.count("mailto:ase@example.com") == 1
+        assert "PARTSTAT=DECLINED" in master, "a line that differs is not a duplicate"
+        assert override.count("mailto:bob@example.com") == 1, "the override keeps its own"
+
+    def test_a_folded_duplicated_attendee_is_dropped(self) -> None:
+        line = "ATTENDEE;CN=Someone With A Long Name;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:someone@example.com"
+        folded = line[:70] + "\n " + line[70:]
+        ical = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//x//EN\nBEGIN:VEVENT\nUID:b\n"
+            f"DTSTAMP:20261001T000000Z\nDTSTART:20261102T090000Z\n{folded}\n{folded}\n"
+            "END:VEVENT\nEND:VCALENDAR\n"
+        )
+        assert vcal.fix(ical).count("ATTENDEE") == 1
+
+    def test_an_alarm_keeps_its_own_attendee(self) -> None:
+        """An email VALARM names its recipient with ATTENDEE; each component
+        has its own attendees, and a copy after END:VALARM is still one."""
+        ical = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//x//EN\nBEGIN:VEVENT\nUID:c\n"
+            "DTSTAMP:20261001T000000Z\nDTSTART:20261102T090000Z\n"
+            "ATTENDEE:mailto:bob@example.com\n"
+            "BEGIN:VALARM\nACTION:EMAIL\nTRIGGER:-PT15M\nSUMMARY:x\nDESCRIPTION:x\n"
+            "ATTENDEE:mailto:bob@example.com\nEND:VALARM\n"
+            "ATTENDEE:mailto:bob@example.com\n"
+            "X-ATTENDEEX:mailto:bob@example.com\nATTENDEEX:a\nATTENDEEX:a\n"
+            "END:VEVENT\nEND:VCALENDAR\n"
+        )
+        fixed = vcal.fix(ical)
+        alarm = fixed.split("BEGIN:VALARM")[1].split("END:VALARM")[0]
+        assert alarm.count("ATTENDEE:mailto:bob@example.com") == 1
+        assert fixed.count("ATTENDEE:mailto:bob@example.com") == 2, (
+            "one in the event, one in the alarm"
+        )
+        assert fixed.count("ATTENDEEX:a") == 2, "another property is not an ATTENDEE"
+
+    def test_copies_folded_at_different_points_are_one(self) -> None:
+        line = "ATTENDEE;CN=Someone With A Long Name;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION:mailto:someone@example.com"
+        ical = (
+            "BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//x//EN\nBEGIN:VEVENT\nUID:d\n"
+            "DTSTAMP:20261001T000000Z\nDTSTART:20261102T090000Z\n"
+            f"{line[:60]}\n {line[60:]}\n{line[:70]}\n {line[70:]}\n"
+            "END:VEVENT\nEND:VCALENDAR\n"
+        )
+        assert vcal.fix(ical).count("ATTENDEE") == 1
+
     def test_missing_dtstamp_fix(self) -> None:
         """
         Test that missing DTSTAMP is added by the fix function.
