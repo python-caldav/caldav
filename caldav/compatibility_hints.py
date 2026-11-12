@@ -2877,8 +2877,11 @@ ccs = {
 ## Stalwart - all-in-one mail & collaboration server (CalDAV added 2024/2025)
 ## https://stalw.art/
 ## CalDAV served at /dav/cal/<username>/ over HTTP on port 8080.
-## Feature support mostly unknown until tested; starting with empty hints.
-stalwart = {
+## Measured against the stalwartlabs/stalwart docker image up to v0.16.  v1.0
+## has a new database layout, so v0.16 servers need a migration rather than
+## an upgrade, and v1.1 behaves differently - see stalwart_1_1.  The
+## comments in this dict describe v0.16, also for keys stalwart_1_1 overrides.
+stalwart_0_16 = {
     ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
     ## storing a component type outside the set an error.
     "supported-components.honoured": {"support": "broken", "behaviour": "the restriction is advertised but not enforced: a VTODO-only calendar reports ['VTODO'], and a VEVENT can be saved to it"},
@@ -2994,6 +2997,42 @@ stalwart = {
     },
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full"},
+}
+
+## Stalwart v1.1, probed 2026-11-12 by caldav-server-tester against the
+## docker image.  Only the differences from v0.16.
+stalwart_1_1 = stalwart_0_16 | {
+    ## Text search reads an index that is updated asynchronously, so an
+    ## object written just before a text search may not be found yet
+    ## (testSearchEvent, 2026-11-12).
+    "search-cache": {"behaviour": "delay", "delay": 0.5},
+    ## Fixed since v0.16
+    "supported-components.honoured": {"support": "full"},
+    "save.no-uid-conflict": {"support": "full"},
+    "search.time-range.alarm": {"support": "full"},
+    ## Old-date DTSTART-less tasks are found too (testTodoDatesearch)
+    "search.time-range.todo.no-dtstart": {"support": "full"},
+    "search.time-range.todo.no-dtstart.no-due": {"support": "full"},
+    "sync-token.limit.initial-sync": {"support": "full"},
+    ## Matched on v0.16; RFC 4791 section 9.7.2 has a prop-filter test the
+    ## properties of the component it sits in, so v1.1 is the stricter reading
+    "search.text.comp-type-optional": {
+        "support": "unsupported",
+        "behaviour": "comp-type-less prop-filter query returns nothing (prop-filter under VCALENDAR matches no component property)",
+    },
+    ## v0.16 kept the two spellings of a calendar id apart as two
+    ## collections, and served an object PUT to a literal "@" name only
+    ## under "%40".  On v1.1 both spellings resolve: for a calendar id they
+    ## name one collection, for an object name the probe cannot tell.  Both
+    ## values are the defaults; they only cancel the v0.16 overrides.
+    "url.encode-at.identity": {
+        "support": "unsupported",
+        "behaviour": "calendar paths: both spellings name one collection; object paths: both spellings resolve; principal paths: the server-given path answers under both spellings",
+    },
+    "url.encode-at.literal.object": {
+        "support": "full",
+        "behaviour": "an object PUT to the literal '@' path resolves under both spellings; the server would not take a second object at '%40', so whether they are one resource is not observable",
+    },
 }
 
 ## Lots of transient problems with purelymail

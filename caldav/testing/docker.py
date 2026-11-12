@@ -506,7 +506,7 @@ class StalwartTestServer(DockerTestServer):
         )
         config.setdefault("password", os.environ.get("STALWART_PASSWORD", "testcaldav"))
         if "features" not in config:
-            config["features"] = compatibility_hints.stalwart.copy()
+            config["features"] = compatibility_hints.stalwart_1_1.copy()
         # user1-user3 are created by setup_stalwart.sh for scheduling tests
         # Passwords match setup_stalwart.sh defaults (caldavtest{N}).
         if "scheduling_users" not in config:

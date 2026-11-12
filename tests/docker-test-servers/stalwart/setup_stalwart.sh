@@ -2,7 +2,8 @@
 # Setup script for Stalwart test server.
 # Creates the test domain and user via the JMAP management API.
 #
-# Stalwart v0.16+ architecture:
+# Stalwart v0.16+ architecture (v1.0 renamed some settings fields, e.g.
+# passwordMinStrength -> minPasswordStrength):
 #   - REST /api/ endpoints are gone; management is done via JMAP (POST /jmap).
 #   - x:Domain/set creates a domain principal.
 #   - x:Account/set creates a user account (name = local part, domainId = domain id).
@@ -57,7 +58,7 @@ RESULT=$(jmap_call '{
     "using": ["urn:ietf:params:jmap:core"],
     "methodCalls": [["x:Authentication/set", {
         "accountId": "d333333",
-        "update": {"singleton": {"passwordMinStrength": "zero"}}
+        "update": {"singleton": {"minPasswordStrength": "zero"}}
     }, "0"]]
 }')
 if echo "$RESULT" | grep -q '"updated"'; then
@@ -94,6 +95,32 @@ if echo "$RESULT" | grep -q '"notCreated"\|"notUpdated"\|"error"'; then
 else
     echo "Rate limiting disabled"
 fi
+
+echo ""
+echo "Disabling MTA inbound throttles for test environment..."
+# v1 delivers iTIP between local accounts through the MTA, whose default
+# throttles include 25 messages an hour per sender domain and recipient.  The
+# test users share one domain, so a test run exhausts it and invitations
+# stall with "452 4.4.5 Rate limit exceeded" for up to an hour.
+RESULT=$(jmap_call '{"using":["urn:ietf:params:jmap:core"],"methodCalls":[["x:MtaInboundThrottle/get",{"accountId":"d333333","ids":null,"properties":["id"]},"0"]]}')
+THROTTLE_IDS=$(echo "$RESULT" | \
+    python3 -c "import json,sys; print(' '.join(x['id'] for x in json.load(sys.stdin)['methodResponses'][0][1]['list']))" 2>/dev/null || true)
+if [ -z "$THROTTLE_IDS" ]; then
+    echo "Warning: no MTA inbound throttles found, invitations may stall: $RESULT"
+fi
+for THROTTLE_ID in $THROTTLE_IDS; do
+    RESULT=$(jmap_call "{
+        \"using\": [\"urn:ietf:params:jmap:core\"],
+        \"methodCalls\": [[\"x:MtaInboundThrottle/set\", {
+            \"accountId\": \"d333333\",
+            \"update\": {\"${THROTTLE_ID}\": {\"enable\": false}}
+        }, \"0\"]]
+    }")
+    if ! echo "$RESULT" | grep -q '"updated"'; then
+        echo "Warning: disabling throttle ${THROTTLE_ID} returned: $RESULT"
+    fi
+done
+echo "Disabled throttles: ${THROTTLE_IDS:-none}"
 
 echo ""
 echo "Creating domain '${DOMAIN}'..."

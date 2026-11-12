@@ -96,6 +96,10 @@ DEPRECATED_FEATURE_PROFILES = {
         "the profile was measured against a Zimbra 8.8 docker image; use "
         "zimbra_10_1 for a current Zimbra",
     ),
+    "stalwart": (
+        "stalwart_0_16",
+        "the profile was measured against Stalwart v0.16; use stalwart_1_1 for Stalwart v1.1",
+    ),
 }
 
 

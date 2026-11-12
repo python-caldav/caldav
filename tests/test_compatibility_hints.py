@@ -665,6 +665,30 @@ class TestRenamedProfiles:
         assert ch.zimbra_8_8["save.no-uid-conflict"] == {"support": "full"}
         assert ch.zimbra_10_1["save-load.stable-url"] == ch.zimbra_8_8["save-load.stable-url"]
 
+    def test_stalwart_profile_was_version_stamped(self) -> None:
+        assert hasattr(ch, "stalwart_0_16")
+        assert hasattr(ch, "stalwart_1_1")
+        assert "stalwart" not in vars(ch)
+
+    def test_deprecated_stalwart_name_still_resolves(self) -> None:
+        for name in ("stalwart", "compatibility_hints.stalwart"):
+            with pytest.warns(FutureWarning, match="stalwart_1_1"):
+                assert _resolve_features(name) == ch.stalwart_0_16
+        with pytest.warns(DeprecationWarning, match="stalwart_0_16"):
+            assert ch.stalwart is ch.stalwart_0_16
+
+    def test_stalwart_1_1_differs_from_0_16(self) -> None:
+        old = FeatureSet(ch.stalwart_0_16)
+        new = FeatureSet(ch.stalwart_1_1)
+        for feature, before, after in [
+            ("supported-components.honoured", "broken", "full"),
+            ("search.text.comp-type-optional", "full", "unsupported"),
+            ("sync-token.limit.initial-sync", "broken", "full"),
+            ("search.time-range.alarm", "unsupported", "full"),
+        ]:
+            assert old.is_supported(feature, str) == before, feature
+            assert new.is_supported(feature, str) == after, feature
+
     def test_unknown_profile_names_the_offender(self) -> None:
         with pytest.raises(ValueError) as exc_info:
             _resolve_features("no_such_server")
@@ -1085,9 +1109,10 @@ class TestComponentSetFeatures:
             ("bedework_3_10_3", {CREATE: "full", HONOURED: "broken"}),
             ("davical", {CREATE: "full", HONOURED: "broken"}),
             ("synology", {CREATE: "full", HONOURED: "broken"}),
-            ("stalwart", {CREATE: "full", HONOURED: "broken"}),
+            ("stalwart_0_16", {CREATE: "full", HONOURED: "broken"}),
             ## the calendar is VEVENT-only, whatever was asked for
             ("bedework_5_0_0", {CREATE: "unsupported", HONOURED: "full"}),
+            ("stalwart_1_1", {CREATE: "full", HONOURED: "full"}),
             ("sogo", {CREATE: "unsupported", EXISTS: "full"}),
             ("gmx", {CREATE: "unsupported", MULTIPLE: "unknown"}),
             ("yahoo", {CREATE: "unknown"}),
