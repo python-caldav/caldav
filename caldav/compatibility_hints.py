@@ -496,6 +496,7 @@ hence, "fragile".
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
         "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: the PUT is answered with 201 and the GET with 404, while the same task without the ATTENDEE is kept.  'ungraceful' when it is refused (Ox, with 409).", "default": {"support": "full"}},
+        "save-load.todo.alarm": {"description": "A task's VALARM is stored as sent: its TRIGGER, relative to the task's DTSTART, and its DESCRIPTION.  A property the server adds to the VALARM, such as a UID, is fine.  'unsupported' when the VALARM is dropped.  'broken' when it is kept but rewritten (Ox makes the TRIGGER absolute, so the alarm no longer follows the task when it is moved), the behaviour saying what was changed: the alarm is still there, but not the one sent, which is worse than a missing one.", "default": {"support": "full"}, "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.6", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.6.3"]},
         "save-load.todo.status": {
             "description": "Each STATUS RFC 5545 section 3.8.1.11 gives a task (NEEDS-ACTION, IN-PROCESS, COMPLETED, CANCELLED) is stored as sent.  'unsupported' when one is dropped or stored as another, 'ungraceful' when a task with one is refused, the worse of the two where both apply; the extra keys say which.  Zimbra refuses CANCELLED.  The statuses RFC 10051 adds are save-load.todo.status.rfc10051.",
             "default": {"support": "full"},
@@ -3200,6 +3201,9 @@ ox = {
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.todo.attendee": {"support": "ungraceful", "behaviour": "a task with an ATTENDEE is refused (409)"},
     "save-load.todo.completed-without-status": {"support": "unsupported", "behaviour": "COMPLETED is dropped"},
+    ## Probed 2026-11-08 by caldav-server-tester.  An event's VALARM Ox
+    ## keeps as sent (seen by hand).
+    "save-load.todo.alarm": {"support": "broken", "behaviour": "the alarm's TRIGGER -PT15M is stored as TRIGGER;VALUE=DATE-TIME:20270120T114500Z; its DESCRIPTION is stored as Open-XChange"},
     ## Probed 2026-11-03 by caldav-server-tester
     "save-load.todo.status.rfc10051": {"support": "unsupported", "behaviour": "PENDING is dropped; FAILED is dropped; the server does not advertise RFC 10051", "values": [], "map": {}, "refused": []},
     "supported-task-modes": {"support": "unsupported", "behaviour": "neither the calendar home nor a calendar has CALDAV:supported-task-mode-set"},
