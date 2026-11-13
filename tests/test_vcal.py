@@ -519,7 +519,7 @@ END:VCALENDAR""",
         """An empty CATEGORIES line holds no category and is dropped.
 
         icalendar's ``component.categories`` accessor inserts one when there
-        is none (https://github.com/collective/icalendar/issues/1722), so
+        is none (https://github.com/pycalendar/icalendar/issues/1722), so
         tasks end up with ``CATEGORIES:`` next to the real CATEGORIES line.
         """
         head = "BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VTODO\nUID:test\nDTSTAMP:20190103T070319Z\n"
