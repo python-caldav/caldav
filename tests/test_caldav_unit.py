@@ -8761,6 +8761,24 @@ class TestPreconditionsOnOtherStatuses:
         assert exc_info.value.preconditions == [MKCALENDAR_TAG]
         assert exc_info.value.body
 
+    @pytest.mark.parametrize("status", ["200 OK", "403 Forbidden"])
+    def test_proppatch_checks_each_property(self, base, status) -> None:
+        body = (
+            '<multistatus xmlns="DAV:"><response><href>/cal/</href>'
+            "<propstat><prop><displayname/></prop><status>HTTP/1.1 200 OK</status></propstat>"
+            f"<propstat><prop><calendar-description xmlns='urn:ietf:params:xml:ns:caldav'/></prop><status>HTTP/1.1 {status}</status>"
+            "</propstat></response></multistatus>"
+        ).encode()
+        client, sent = self._client(base, 207, body)
+        cal = Calendar(client, url=self.URL)
+        props = [dav.DisplayName("new"), cdav.CalendarDescription("overview")]
+        if status.startswith("200"):
+            assert self._run(cal.set_properties(props)) is cal
+        else:
+            with pytest.raises(error.PropsetError):
+                self._run(cal.set_properties(props))
+        assert [method for method, _ in sent] == ["PROPPATCH"]
+
     def test_proppatch_failure_keeps_preconditions(self) -> None:
         client = DAVClient(url=self.URL)
         with pytest.raises(error.PropsetError) as exc_info:

@@ -486,6 +486,7 @@ class DAVObject:
 
          * props = [dav.DisplayName('name'), ...]
 
+        A failed property status in a Multi-Status response raises PropsetError.
         For async clients, returns a coroutine that must be awaited.
 
         Returns:
@@ -519,9 +520,6 @@ class DAVObject:
         ## A server applying PROPPATCH asynchronously (Infomaniak) keeps
         ## answering PROPFIND with the old value for a while; wait for it to go
         ## away rather than for the new one, which the server may normalise.
-        ## TODO: a property the server dropped (a 207 with a per-property 403
-        ## or 404) never changes and costs the whole delay; poll only those
-        ## the PROPPATCH answered with 200.
         if old:
             query = [prop for prop in query if prop.tag in old]
             self._wait_until(
@@ -587,7 +585,7 @@ class DAVObject:
         return any(current.get(tag) == value for tag, value in old.items())
 
     def _post_set_properties(self, r) -> Self:
-        if r.status >= 400:
+        if r.status >= 400 or (r.status == 207 and not r.all_statuses_ok()):
             raise error.error_from_response(error.PropsetError, r)
         return self
 
