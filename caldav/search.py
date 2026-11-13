@@ -139,7 +139,8 @@ def _flag_component_type(searcher: "Searcher", flag: str) -> None:
 ## Whether servers honour negate-condition, or a bare prop-filter, has not
 ## been probed yet (caldav-server-tester), so search() decides these
 ## client-side.  https://github.com/python-caldav/caldav/issues/568
-_NEGATED_OR_PRESENCE_OPERATORS = ("!=", "!contains", "def")
+## "in" (equal to one of several values) has no CalDAV form at all.
+_NEGATED_OR_PRESENCE_OPERATORS = ("!=", "!contains", "def", "in")
 
 
 def _collation_str(searcher: "Searcher", property: str) -> str:
@@ -497,8 +498,8 @@ class CalDAVSearcher(Searcher):
                    Special virtual property "category" (singular) is also supported
                    for substring matching within category names
         :param value: Filter value, should adhere to the type defined in the RFC
-        :param operator: Comparison operator ("contains", "==", "!contains",
-                        "!=", "def", "undef"; see below). If not
+        :param operator: Comparison operator ("contains", "==", "in",
+                        "!contains", "!=", "def", "undef"; see below). If not
                         specified, the server decides the matching behavior (usually
                         substring search per RFC). If explicitly set to "contains"
                         and the server doesn't support substring search, client-side
@@ -517,17 +518,21 @@ class CalDAVSearcher(Searcher):
         * **contains** - substring match (e.g., "rain" matches "Training session"
           and "Singing in the rain")
         * **==** - exact match required, enforced client-side
+        * **in** - equal to one of the values in a collection (a list, a
+          range ...), e.g. ``PRIORITY`` in ``range(1, 4)``; the property must
+          be defined.  Not for categories.
         * **!contains** - no substring match; the property must be defined
         * **!=** (or **<>**) - not an exact match; the property must be defined
         * **def** - matches if property is defined (value parameter ignored)
         * **undef** - matches if property is not defined (value parameter ignored)
 
-        The negations and ``def`` need icalendar-searcher 1.1.0 or later.
+        The negations and ``def`` need icalendar-searcher 1.1.0 or later,
+        ``in`` an icalendar-searcher release with it.
         search() decides them client-side and leaves them out of the
         server query, unless ``post_filter=False``; then, as with
         build_search_xml_query() on its own, they are sent as the
-        closest CalDAV filter that never excludes a match, and != and
-        def match any object where the property is defined.
+        closest CalDAV filter that never excludes a match, and !=, def
+        and in match any object where the property is defined.
 
         **Special handling for categories:**
 

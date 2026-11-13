@@ -1846,6 +1846,20 @@ class TestSearchBatchLoadIntegration:
         assert len(results) == 1
 
 
+def _searcher_has_in_operator() -> bool:
+    try:
+        CalDAVSearcher().add_property_filter("SUMMARY", ["x"], operator="in")
+    except NotImplementedError:
+        return False
+    return True
+
+
+## The "in" operator is newer than the oldest icalendar-searcher supported
+needs_in_operator = pytest.mark.skipif(
+    not _searcher_has_in_operator(), reason="icalendar-searcher has no in operator"
+)
+
+
 class TestNegatedOperators:
     """The negated and presence operators: ``!=``, ``!contains`` and ``def``.
 
@@ -1982,6 +1996,67 @@ class TestNegatedOperators:
         """!= cannot be a negated substring match; only "defined" is sent."""
         searcher = CalDAVSearcher(event=True)
         searcher.add_property_filter("SUMMARY", "rain", operator="!=")
+        xml = self._xml(searcher)
+        assert b'prop-filter name="SUMMARY"' in xml
+        assert b"text-match" not in xml
+
+    @needs_in_operator
+    @pytest.mark.parametrize(
+        ("values", "expected"),
+        [
+            (["rain", "Training session"], {"training", "rain"}),
+            (["rain", "Training"], {"rain"}),
+            (["Rain"], set()),
+        ],
+    )
+    @pytest.mark.parametrize(
+        "supported", [True, False, "search.text"], ids=["all", "none", "no-text-search"]
+    )
+    def test_search_in_filters_client_side(
+        self, values: list[str], expected: set[str], supported: bool | str
+    ) -> None:
+        """``in`` (equal to one of several values) has no CalDAV form either."""
+        cal = self._calendar(supported)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", values, operator="in")
+        results = searcher.search(cal)
+        uids = {str(r.icalendar_component["UID"]).split("@")[0] for r in results}
+        assert uids == expected
+
+    @needs_in_operator
+    @pytest.mark.parametrize(
+        "supported", [True, False, "search.text"], ids=["all", "none", "no-text-search"]
+    )
+    def test_search_priority_in_range(self, supported: bool | str) -> None:
+        """The motivating case: PRIORITY in range(1, 4), an integer property."""
+        self._events = {"one": "1", "three": "3", "five": "5", "none": None}
+        cal = self._calendar(supported, prop="PRIORITY")
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("PRIORITY", range(1, 4), operator="in")
+        results = searcher.search(cal)
+        uids = {str(r.icalendar_component["UID"]).split("@")[0] for r in results}
+        assert uids == {"one", "three"}
+
+    @needs_in_operator
+    def test_search_in_without_post_filter_sends_bare_prop_filter(self) -> None:
+        """With post_filter=False the server's answer is trusted, and the
+        query asks only for the property to be defined: a superset."""
+        from lxml import etree
+
+        cal = self._calendar(True)
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", ["rain"], operator="in")
+        results = searcher.search(cal, post_filter=False)
+        assert len(results) == 3
+        for call in cal._request_report_build_resultlist.call_args_list:
+            body = etree.tostring(call.args[0].xmlelement())
+            assert b'prop-filter name="SUMMARY"' in body
+            assert b"text-match" not in body
+
+    @needs_in_operator
+    def test_xml_in_is_a_bare_prop_filter(self) -> None:
+        searcher = CalDAVSearcher(event=True)
+        searcher.add_property_filter("SUMMARY", ["rain", "Training"], operator="in")
         xml = self._xml(searcher)
         assert b'prop-filter name="SUMMARY"' in xml
         assert b"text-match" not in xml

@@ -1,0 +1,1 @@
+Searches with the new `in` operator of icalendar-searcher (the property equals one of several values) are decided client-side, as CalDAV has no such filter.  It needs an icalendar-searcher release with the operator, https://github.com/pycalendar/icalendar-searcher/pull/27
