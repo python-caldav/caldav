@@ -856,6 +856,15 @@ hence, "fragile".
         "search.recurrences.expanded.exception": {
             "description": "Server expand should work correctly also if a recurrence set with exceptions is given"
         },
+        "search.recurrences.exception": {
+            "description": "A search handles the exceptions of a recurrence set (the components with a RECURRENCE-ID) as it handles any other component.  The children say in what way it does not",
+            "default": {"support": "full"},
+        },
+        "search.recurrences.exception.in-calendar-data": {
+            "description": "A search returns a recurring object with all its components: the exceptions (the components with a RECURRENCE-ID) along with the master, as a GET has them.  RFC 4791 section 9.6 makes a calendar-data element with no children ask for the whole object.  'unsupported' when the calendar-data of a search holds the master only (Bedework 3.10 and 5): a client expanding the recurrence set itself then gets each moved or changed occurrence as a plain one.  search() then loads the recurring objects it found again with a multiget",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-9.6"],
+        },
         "sync-token": {
             "description": "RFC6578 sync-collection reports are supported. Server provides sync tokens that can be used to efficiently retrieve only changed objects since last sync. Support can be 'full', 'fragile' (occasionally returns more content than expected), or 'unsupported'. Behaviour 'time-based' indicates second-precision tokens requiring sleep(1) between operations",
             ## Independent feature (directly probed): the default marks it so the
@@ -2041,6 +2050,10 @@ def __getattr__(name: str) -> Any:
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
+    ## Measured by hand 2026-11-14 (the conformance suite of calendaring):
+    ## a calendar-query returns the master without the moved occurrence,
+    ## which a GET of the same object has.
+    "search.recurrences.exception.in-calendar-data": {"support": "unsupported", "behaviour": "the calendar-data of a search holds the master only"},
     ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
     "search.text.uid": {"support": "full"},
     ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
@@ -2133,6 +2146,10 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
+    ## Measured by hand 2026-11-14 (the conformance suite of calendaring):
+    ## a calendar-query returns the master without the moved occurrence,
+    ## which a GET of the same object has.
+    "search.recurrences.exception.in-calendar-data": {"support": "unsupported", "behaviour": "the calendar-data of a search holds the master only"},
     ## Probed 2026-11-12 by caldav-server-tester, and by hand on a fresh
     ## container: a PUT with one ATTENDEE gives two identical ATTENDEE lines
     ## in GET and calendar-multiget alike.

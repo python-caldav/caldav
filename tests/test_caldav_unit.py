@@ -9955,3 +9955,189 @@ class TestUnquotedGetetag:
         response = MockedDAVResponse(self.XML.format(text))
         [found] = response.expand_simple_props(multi_value_props=[dav.GetEtag()]).values()
         assert found[dav.GetEtag.tag] == []
+
+
+class TestSearchDropsExceptions:
+    """Where ``search.recurrences.exception.in-calendar-data`` is unsupported, a calendar-query
+    returns a recurring object without its exceptions, the VEVENTs with a
+    RECURRENCE-ID (Bedework 3.10 and 5), while a GET or a multiget has them.
+    search() then loads the recurring objects it found again, so the moved
+    occurrence is not expanded as a plain one."""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+    MASTER = (
+        "BEGIN:VEVENT\r\nUID:series-1\r\nDTSTAMP:20260101T000000Z\r\n"
+        "DTSTART:20261101T090000Z\r\nDTEND:20261101T100000Z\r\n"
+        "RRULE:FREQ=DAILY;COUNT=5\r\nSUMMARY:R: daily\r\nEND:VEVENT\r\n"
+    )
+    MOVED = (
+        "BEGIN:VEVENT\r\nUID:series-1\r\nDTSTAMP:20260101T000000Z\r\n"
+        "RECURRENCE-ID:20261103T090000Z\r\n"
+        "DTSTART:20261103T140000Z\r\nDTEND:20261103T150000Z\r\n"
+        "SUMMARY:R: moved\r\nEND:VEVENT\r\n"
+    )
+    ## A one-off event in a zone with summer time: its VTIMEZONE has RRULEs
+    ONE_OFF = (
+        "BEGIN:VTIMEZONE\r\nTZID:Europe/Berlin\r\nBEGIN:STANDARD\r\n"
+        "DTSTART:19701025T030000\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\n"
+        "TZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nEND:STANDARD\r\nBEGIN:DAYLIGHT\r\n"
+        "DTSTART:19700329T020000\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\n"
+        "TZOFFSETFROM:+0100\r\nTZOFFSETTO:+0200\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\n"
+        "BEGIN:VEVENT\r\nUID:one-off\r\nDTSTAMP:20260101T000000Z\r\n"
+        "DTSTART;TZID=Europe/Berlin:20261102T100000\r\n"
+        "DTEND;TZID=Europe/Berlin:20261102T110000\r\nSUMMARY:once\r\nEND:VEVENT\r\n"
+    )
+    HEAD = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Example//EN\r\n"
+    TAIL = "END:VCALENDAR\r\n"
+    FEATURES = {
+        "search.recurrences.expanded": {"support": "unsupported"},
+        "search.recurrences.exception.in-calendar-data": {"support": "unsupported"},
+    }
+
+    @pytest.fixture(params=["sync", "async"])
+    def base(self, request):
+        if request.param == "sync":
+            return DAVClient
+        from caldav.async_davclient import AsyncDAVClient
+
+        return AsyncDAVClient
+
+    @staticmethod
+    def _run(result):
+        import asyncio
+
+        if asyncio.iscoroutine(result):
+            return asyncio.run(result)
+        return result
+
+    @staticmethod
+    def _multistatus(data: str | None) -> bytes:
+        calendar_data = (
+            ""
+            if data is None
+            else f"<cal:calendar-data>{data.replace(chr(13), '&#13;')}</cal:calendar-data>"
+        )
+        return (
+            '<d:multistatus xmlns:d="DAV:" xmlns:cal="urn:ietf:params:xml:ns:caldav">'
+            "<d:response><d:href>/dav/user/mycal/series-1.ics</d:href><d:propstat><d:prop>"
+            f'<d:getetag>"etag-1"</d:getetag>{calendar_data}'
+            "</d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>"
+            "</d:multistatus>"
+        ).encode()
+
+    def _calendar(
+        self, base, features, query=None, full=None, multiget_fails=False, query_has_data=True
+    ):
+        """A fake Bedework: the calendar-query answers ``query``, a multiget or GET ``full``."""
+        query = self.HEAD + self.MASTER + self.TAIL if query is None else query
+        full = self.HEAD + self.MASTER + self.MOVED + self.TAIL if full is None else full
+        requests = []
+        client = base(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body="", headers=None):
+            text = body.decode() if isinstance(body, bytes) else (body or "")
+            resp = mock.MagicMock()
+            if method == "GET":
+                requests.append("get")
+                resp.status_code, resp.reason = 200, "OK"
+                resp.headers = {"Content-Type": "text/calendar", "Etag": '"etag-g"'}
+                resp.content = full.encode()
+                return DAVResponse(resp, client)
+            assert method == "REPORT", method
+            multiget = "calendar-multiget" in text
+            requests.append("multiget" if multiget else "query")
+            if multiget and multiget_fails:
+                resp.status_code, resp.reason = 500, "Internal Server Error"
+                resp.headers = {}
+                resp.content = b""
+                return DAVResponse(resp, client)
+            resp.status_code, resp.reason = 207, "Multi-Status"
+            resp.headers = {"Content-Type": "text/xml"}
+            resp.content = self._multistatus(
+                full if multiget else (query if query_has_data else None)
+            )
+            return DAVResponse(resp, client)
+
+        if base is DAVClient:
+            client.request = request
+        else:
+
+            async def async_request(*args, **kwargs):
+                return request(*args, **kwargs)
+
+            client.request = async_request
+        return Calendar(client, url=self.URL), requests
+
+    def _search(self, base, features=None, expand=True, **kwargs):
+        search_kwargs = kwargs.pop("search_kwargs", {})
+        calendar, requests = self._calendar(
+            base, self.FEATURES if features is None else features, **kwargs
+        )
+        found = self._run(
+            calendar.search(
+                event=True,
+                start=datetime(2026, 11, 1, tzinfo=timezone.utc),
+                end=datetime(2026, 11, 8, tzinfo=timezone.utc),
+                expand=expand,
+                **search_kwargs,
+            )
+        )
+        summaries = sorted(
+            (str(c.get("RECURRENCE-ID") and c["RECURRENCE-ID"].dt), str(c["SUMMARY"]))
+            for obj in found
+            for c in obj.icalendar_instance.walk("VEVENT")
+        )
+        return summaries, requests
+
+    def test_the_moved_occurrence_is_found(self, base) -> None:
+        summaries, requests = self._search(base)
+        assert requests == ["query", "multiget"]
+        assert ("2026-11-03 09:00:00+00:00", "R: moved") in summaries
+        assert ("2026-11-03 09:00:00+00:00", "R: daily") not in summaries
+        assert len(summaries) == 5
+
+    def test_no_second_request_elsewhere(self, base) -> None:
+        _, requests = self._search(
+            base, {"search.recurrences.expanded": {"support": "unsupported"}}
+        )
+        assert requests == ["query"]
+
+    def test_a_one_off_event_in_a_zone_is_not_loaded_again(self, base) -> None:
+        one_off = self.HEAD + self.ONE_OFF + self.TAIL
+        summaries, requests = self._search(base, query=one_off, full=one_off)
+        assert requests == ["query"]
+        assert summaries == [("None", "once")]
+
+    def test_lower_case_names_count(self, base) -> None:
+        query = self.HEAD + self.MASTER.replace("RRULE:", "rrule:") + self.TAIL
+        _, requests = self._search(base, query=query)
+        assert requests == ["query", "multiget"]
+
+    def test_an_object_of_overrides_only_is_loaded_again(self, base) -> None:
+        moved_only = self.HEAD + self.MOVED + self.TAIL
+        summaries, requests = self._search(base, expand=False, query=moved_only, full=moved_only)
+        assert requests == ["query", "multiget"]
+
+    def test_an_object_without_data_is_loaded_once(self, base) -> None:
+        summaries, requests = self._search(base, query_has_data=False)
+        assert requests == ["query", "multiget"]
+        assert ("2026-11-03 09:00:00+00:00", "R: moved") in summaries
+
+    def test_a_failed_multiget_falls_back_to_get(self, base) -> None:
+        summaries, requests = self._search(base, multiget_fails=True)
+        assert requests == ["query", "multiget", "get"]
+        assert ("2026-11-03 09:00:00+00:00", "R: moved") in summaries
+
+    def test_not_without_compatibility_workarounds(self, base) -> None:
+        _, requests = self._search(base, search_kwargs={"compatibility_workarounds": False})
+        assert requests == ["query"]
+
+    def test_not_when_the_caller_wrote_the_query(self, base) -> None:
+        query = (
+            '<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">'
+            "<D:prop><C:calendar-data/></D:prop>"
+            '<C:filter><C:comp-filter name="VCALENDAR"><C:comp-filter name="VEVENT"/></C:comp-filter></C:filter>'
+            "</C:calendar-query>"
+        )
+        _, requests = self._search(base, expand=False, search_kwargs={"xml": query})
+        assert requests == ["query"]

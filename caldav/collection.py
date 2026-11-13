@@ -1640,15 +1640,16 @@ class Calendar(DAVObject):
                 obj._keep_raw_data(data)
                 obj.props.update(tags)
 
-    def _batch_load_objects(self, objects: list) -> None:
+    def _batch_load_objects(self, objects: list, reload: bool = False) -> None:
         """Load unloaded objects from the list in a single calendar-multiget REPORT.
 
-        Already-loaded objects are skipped.  If the REPORT fails, falls back to
-        individual obj.load(only_if_unloaded=True) calls per object; a per-object
-        failure is logged at debug level and otherwise swallowed, so callers can
-        filter on is_loaded() afterward.
+        Already-loaded objects are skipped, unless ``reload``: then all are
+        loaded again.  If the REPORT fails, falls back to individual
+        obj.load() calls per object; a per-object failure is logged at debug
+        level and otherwise swallowed, so callers can filter on is_loaded()
+        afterward.
         """
-        unloaded = [o for o in objects if not o.is_loaded()]
+        unloaded = list(objects) if reload else [o for o in objects if not o.is_loaded()]
         if not unloaded:
             return
         try:
@@ -1657,7 +1658,7 @@ class Calendar(DAVObject):
             logging.error("Batch multiget failed, falling back to individual loads", exc_info=True)
             for obj in unloaded:
                 try:
-                    obj.load(only_if_unloaded=True)
+                    obj.load(only_if_unloaded=not reload)
                 except Exception:
                     ## Deliberate: this method's contract is that the caller
                     ## filters on is_loaded() afterwards, so one object that
@@ -1667,14 +1668,14 @@ class Calendar(DAVObject):
                     ## otherwise produce a wall of warnings.
                     log.debug("Individual load failed for %s", obj.url, exc_info=True)
 
-    async def _async_batch_load_objects(self, objects: list) -> None:
+    async def _async_batch_load_objects(self, objects: list, reload: bool = False) -> None:
         """Async version of _batch_load_objects.
 
         The post-processing is shared via _assign_multiget_data(); the only
         sync/async difference is the await on the multiget REPORT and on the
         per-object fallback load().
         """
-        unloaded = [o for o in objects if not o.is_loaded()]
+        unloaded = list(objects) if reload else [o for o in objects if not o.is_loaded()]
         if not unloaded:
             return
         try:
@@ -1687,7 +1688,7 @@ class Calendar(DAVObject):
             )
             for obj in unloaded:
                 try:
-                    load_result = obj.load(only_if_unloaded=True)
+                    load_result = obj.load(only_if_unloaded=not reload)
                     if inspect.isawaitable(load_result):
                         await load_result
                 except Exception:

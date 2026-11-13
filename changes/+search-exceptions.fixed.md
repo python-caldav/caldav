@@ -1,0 +1,1 @@
+New server hint `search.recurrences.exception.in-calendar-data`: whether a search returns a recurring object with its exceptions.  Bedework 3.10 and 5 return the master only, so `search()` loads such objects again there, and a moved occurrence is no longer expanded as a plain one.

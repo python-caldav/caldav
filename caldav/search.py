@@ -1,5 +1,6 @@
 import inspect
 import logging
+import re
 from copy import deepcopy
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
@@ -15,6 +16,7 @@ from .calendarobjectresource import CalendarObjectResource, Event, Journal, Todo
 from .collection import Calendar
 from .elements import cdav, dav
 from .lib import error
+from .lib.python_utilities import to_normal_str
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -383,6 +385,20 @@ _PROPERTY_FILTER_ATTRS = (
 )
 
 
+_VTIMEZONE = re.compile(r"^BEGIN:VTIMEZONE\b.*?^END:VTIMEZONE\b", re.I | re.M | re.S)
+_RECURRENCE = re.compile(r"^(RRULE|RDATE|RECURRENCE-ID)[;:]", re.I | re.M)
+
+
+def _is_recurring(obj: CalendarObjectResource) -> bool:
+    """Whether a loaded object is (part of) a recurrence set, by a look at its text.
+
+    The rules of a VTIMEZONE don't count.
+    """
+    if not obj.is_loaded():
+        return False
+    return bool(_RECURRENCE.search(_VTIMEZONE.sub("", to_normal_str(obj.data))))
+
+
 class SearchAction(Enum):
     """Actions yielded by the search generator to be executed by sync/async wrappers."""
 
@@ -393,6 +409,9 @@ class SearchAction(Enum):
     LOAD_OBJECTS_BATCH = (
         auto()
     )  # (calendar, objects) -> batch-load via calendar._batch_load_objects
+    RELOAD_OBJECTS_BATCH = (
+        auto()
+    )  # (calendar, objects) -> load again via calendar._batch_load_objects(reload=True)
     RETURN = auto()  # (result) -> return this value
 
 
@@ -640,6 +659,8 @@ class CalDAVSearcher(Searcher):
         ## and the query is sent verbatim (used by the compatibility checker to
         ## observe raw server behaviour).
         cw = self._compatibility_workarounds
+        ## What the caller asked the server for, before the query is built
+        caller_chose_data = props is not None or xml is not None
 
         ## Workaround for servers where REPORT without a time range only returns
         ## objects within a sliding window (search.unlimited-time-range: broken).
@@ -1106,8 +1127,22 @@ class CalDAVSearcher(Searcher):
                     )
                     return
 
+        # Bedework leaves the exceptions out of the calendar-data of a search.
+        # Only what the search itself returned; the batch load below fetches whole objects
+        partial = []
+        if (
+            cw
+            and not caller_chose_data
+            and not calendar.client.features.is_supported(
+                "search.recurrences.exception.in-calendar-data"
+            )
+        ):
+            partial = [o for o in objects if _is_recurring(o)]
+
         # Post-process: batch-load unloaded objects in one REPORT instead of N GETs
         yield (SearchAction.LOAD_OBJECTS_BATCH, (calendar, objects))
+        if partial:
+            yield (SearchAction.RELOAD_OBJECTS_BATCH, (calendar, partial))
         objects = [o for o in objects if o.is_loaded() or o.has_component()]
 
         # Google sometimes returns empty objects
@@ -1220,6 +1255,10 @@ class CalDAVSearcher(Searcher):
         if action == SearchAction.LOAD_OBJECTS_BATCH:
             cal, objs = data
             cal._batch_load_objects(objs)
+            return None
+        if action == SearchAction.RELOAD_OBJECTS_BATCH:
+            cal, objs = data
+            cal._batch_load_objects(objs, reload=True)
             return None
         raise AssertionError(f"unhandled search action {action!r}")
 
@@ -1334,6 +1373,10 @@ class CalDAVSearcher(Searcher):
         if action == SearchAction.LOAD_OBJECTS_BATCH:
             cal, objs = data
             await cal._async_batch_load_objects(objs)
+            return None
+        if action == SearchAction.RELOAD_OBJECTS_BATCH:
+            cal, objs = data
+            await cal._async_batch_load_objects(objs, reload=True)
             return None
         raise AssertionError(f"unhandled search action {action!r}")
 
