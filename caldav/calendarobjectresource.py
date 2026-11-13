@@ -455,7 +455,7 @@ class CalendarObjectResource(DAVObject):
         # without str(…), icalendar ignores properties
         #  because if type(uid) == vText
         #  then Component._encode does miss adding properties
-        #  see https://github.com/collective/icalendar/issues/557
+        #  see https://github.com/PyCalendar/icalendar/issues/557
         #  workaround should be safe to remove if issue gets fixed
         self.icalendar_component.add(
             "related-to", str(uid), parameters={"RELTYPE": reltype}, encode=True

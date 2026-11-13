@@ -98,7 +98,7 @@ def fix(event):
     7) An empty CATEGORIES line holds no category.  The icalendar
     library inserts one when ``component.categories`` is read on a
     component without categories
-    (https://github.com/collective/icalendar/issues/1722), and it ends up
+    (https://github.com/PyCalendar/icalendar/issues/1722), and it ends up
     stored next to the real CATEGORIES line.  Drop it.  This is a
     temporary workaround until the upstream bug is fixed.
 
@@ -146,7 +146,7 @@ def fix(event):
     fixed = re.sub(r"(?<![ \t])[ \t]+$(?!\n[ \t])", "", fixed, flags=re.MULTILINE)
 
     ## 7) drop empty CATEGORIES lines (not followed by a folded continuation).
-    ## Temporary workaround for https://github.com/collective/icalendar/issues/1722
+    ## Temporary workaround for https://github.com/PyCalendar/icalendar/issues/1722
     fixed = re.sub(r"^CATEGORIES(?:;[^:\n]*)?:\r?\n(?![ \t])", "", fixed, flags=re.MULTILINE)
 
     ## 8) drop a VTIMEZONE without STANDARD or DAYLIGHT.  Stopping at any

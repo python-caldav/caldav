@@ -578,7 +578,7 @@ external `icalendar_searcher` library, which `search.py` imports.
 
 - **Priority:** Medium
 - **Estimated effort:** 24-40 hours
-- **Related issues:** [#659](https://github.com/python-caldav/caldav/issues/659), [#664](https://github.com/python-caldav/caldav/issues/664), [#665](https://github.com/python-caldav/caldav/issues/665), [#698](https://github.com/python-caldav/caldav/issues/698), [#634](https://github.com/python-caldav/caldav/issues/634), [#94](https://github.com/python-caldav/caldav/issues/94), [icalendar#1922](https://github.com/collective/icalendar/issues/1922)
+- **Related issues:** [#659](https://github.com/python-caldav/caldav/issues/659), [#664](https://github.com/python-caldav/caldav/issues/664), [#665](https://github.com/python-caldav/caldav/issues/665), [#698](https://github.com/python-caldav/caldav/issues/698), [#634](https://github.com/python-caldav/caldav/issues/634), [#94](https://github.com/python-caldav/caldav/issues/94), [icalendar#1922](https://github.com/PyCalendar/icalendar/issues/1922)
 
 Housekeeping that does not change what the library can do, but that the code
 needs.  Collected here so the roadmap does not pretend the backlog is only
@@ -596,7 +596,7 @@ features.
 - [ ] `object.id` should always work ([#94](https://github.com/python-caldav/caldav/issues/94))
 - [ ] Keep the raw string and the icalendar object side by side instead of
       either-or, and skip saving unmodified objects.  Needs change tracking in
-      `icalendar`, requested in [icalendar#1922](https://github.com/collective/icalendar/issues/1922)
+      `icalendar`, requested in [icalendar#1922](https://github.com/PyCalendar/icalendar/issues/1922)
 - [ ] v4.0: a major API review — no issue for this, and it is the kind of thing
       that needs one before it means anything
 
