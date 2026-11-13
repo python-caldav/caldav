@@ -7042,6 +7042,18 @@ class TestFoldedUid:
         event = Event(data=ical)
         assert event.id == ("event-1" if parent_uid else None)
 
+    def test_timezone_before_resource_uid_needs_no_full_parse(self) -> None:
+        from caldav.datastate import RawDataState
+
+        zone = (
+            "BEGIN:VTIMEZONE\r\nTZID:Example\r\nBEGIN:STANDARD\r\n"
+            "DTSTART:19700101T000000\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0100\r\n"
+            "END:STANDARD\r\nEND:VTIMEZONE\r\n"
+        )
+        data = self._ical("\r\n ").replace("BEGIN:VEVENT", zone + "BEGIN:VEVENT")
+        with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
+            assert RawDataState(data).get_uid() == self.UID
+
     def test_folded_uid_needs_no_full_parse(self) -> None:
         from caldav.datastate import RawDataState
 

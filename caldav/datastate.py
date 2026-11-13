@@ -145,22 +145,30 @@ class RawDataState(DataState):
         match = re.search(r"^UID:([^\r\n]*(?:\r?\n[ \t][^\r\n]*)*)", self._data, re.MULTILINE)
         if match:
             uid = re.sub(r"\r?\n[ \t]", "", match.group(1)).strip()
-            # leave backslash escapes to the full parse
-            # Only take the shortcut when this is the first UID and we are
-            # directly inside the resource component. A VALARM can own a UID too.
-            headers = re.findall(
-                r"^(?:BEGIN|END|UID)[:;][^\r\n]*",
-                self._data[: match.start()],
-                re.MULTILINE | re.IGNORECASE,
-            )
-            if (
-                "\\" not in uid
-                and len(headers) == 2
-                and headers[0].upper() == "BEGIN:VCALENDAR"
-                and headers[1].upper()
-                in ("BEGIN:VEVENT", "BEGIN:VTODO", "BEGIN:VJOURNAL", "BEGIN:VFREEBUSY")
-            ):
-                return uid
+            if "\\" not in uid:
+                # A preceding VTIMEZONE is common. Only the components still
+                # open at the UID determine whether it belongs to the resource.
+                stack = []
+                for header in re.finditer(
+                    r"^(BEGIN|END|UID)[:;]([^\r\n]*)",
+                    self._data[: match.start()],
+                    re.IGNORECASE | re.MULTILINE,
+                ):
+                    token, name = header.group(1).upper(), header.group(2).upper()
+                    if token == "BEGIN":
+                        stack.append(name)
+                    elif token == "END" and stack and stack[-1] == name:
+                        stack.pop()
+                    else:
+                        # Earlier UID with parameters/case differences, or malformed nesting.
+                        break
+                else:
+                    if (
+                        len(stack) == 2
+                        and stack[0] == "VCALENDAR"
+                        and stack[1] in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY")
+                    ):
+                        return uid
         # Fall back to parsing if regex fails (e.g., UID with parameters)
         return super().get_uid()
 
