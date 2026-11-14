@@ -630,6 +630,33 @@ END:VCALENDAR
         with pytest.raises(error.AuthorizationError):
             object.load(multiget_fallback=False)
 
+    def testLoadWithoutFallbacksRaisesA404ForAnObjectWithAUid(self):
+        """load(fallbacks=False) is the GET and nothing else.
+
+        A 404 for an object that has a UID is otherwise retried as a multiget
+        and then as a search by UID - the latter whatever multiget_fallback
+        says.  A compatibility checker comparing what a GET returns with what
+        a search returns must not get a search for its GET.
+        """
+        client = DAVClient(url="http://cal.example.com/")
+        client.request = mock.Mock(side_effect=error.NotFoundError("404 Not Found"))
+        calendar = Calendar(client, url="/calendar/")
+        event = Event(client=client, url="/calendar/x.ics", parent=calendar, data=ev1)
+        with (
+            mock.patch.object(Calendar, "get_object_by_uid") as by_uid,
+            mock.patch.object(Event, "load_by_multiget") as multiget,
+        ):
+            with pytest.raises(error.NotFoundError):
+                event.load(fallbacks=False)
+        by_uid.assert_not_called()
+        multiget.assert_not_called()
+
+    def testLoadWithoutFallbacksRaisesAForbidden(self):
+        """fallbacks=False also leaves a refused GET unrescued."""
+        object = self._robur_object(self.MULTIGET_FOUND, "/calendar/robur/found.ics")
+        with pytest.raises(error.AuthorizationError):
+            object.load(fallbacks=False)
+
     def testTheMultigetFallbackDoesNotLaunderARealForbidden(self):
         """A genuine 403 does not come out of the multiget fallback as a 404.
 
@@ -10101,6 +10128,31 @@ class TestSearchDropsExceptions:
             base, {"search.recurrences.expanded": {"support": "unsupported"}}
         )
         assert requests == ["query"]
+
+    def test_a_server_expansion_is_not_loaded_again(self, base) -> None:
+        """Expanded on the server, each instance carries a RECURRENCE-ID: a
+        multiget would swap them for the unexpanded master and exception."""
+        instances = "".join(
+            "BEGIN:VEVENT\r\nUID:series-1\r\nDTSTAMP:20260101T000000Z\r\n"
+            f"RECURRENCE-ID:202611{day:02d}T090000Z\r\n"
+            f"DTSTART:202611{day:02d}T{hour}0000Z\r\nDTEND:202611{day:02d}T{hour + 1}0000Z\r\n"
+            f"SUMMARY:R: {'moved' if day == 3 else 'daily'}\r\nEND:VEVENT\r\n"
+            for day, hour in ((1, 9), (2, 9), (3, 14), (4, 9), (5, 9))
+        )
+        features = {
+            "search.recurrences.expanded": {"support": "full"},
+            "search.recurrences.exception.in-calendar-data": {"support": "unsupported"},
+        }
+        summaries, requests = self._search(
+            base,
+            features,
+            expand=False,
+            query=self.HEAD + instances + self.TAIL,
+            search_kwargs={"server_expand": True},
+        )
+        assert requests == ["query"]
+        assert ("2026-11-03 09:00:00+00:00", "R: moved") in summaries
+        assert len(summaries) == 5
 
     def test_a_one_off_event_in_a_zone_is_not_loaded_again(self, base) -> None:
         one_off = self.HEAD + self.ONE_OFF + self.TAIL

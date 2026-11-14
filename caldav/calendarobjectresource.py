@@ -981,7 +981,10 @@ class CalendarObjectResource(DAVObject):
     ## TODO: move get-logics to a load_by_get method.
     ## The load method should deal with "server quirks".
     def load(
-        self, only_if_unloaded: bool = False, multiget_fallback: bool = True
+        self,
+        only_if_unloaded: bool = False,
+        multiget_fallback: bool = True,
+        fallbacks: bool = True,
     ) -> "Self | Coroutine[Any, Any, Self]":
         """
         (Re)load the object from the caldav server.
@@ -999,6 +1002,13 @@ class CalendarObjectResource(DAVObject):
             on by default.  Pass False to see what the server itself
             answered - a compatibility checker probing whether a missing
             object really raises NotFoundError needs the unrescued error.
+            A 404 for an object with a UID is still retried as a search by
+            UID; fallbacks=False is the GET alone.
+        :param fallbacks: False loads by the GET and nothing else: no
+            multiget, and no search by UID after a 404 for an object that
+            has one (which multiget_fallback=False still does).  For a
+            caller that needs the server's own answer to the GET, such as a
+            compatibility checker comparing it with what a search returns.
 
         Example (sync):
             obj.load()
@@ -1021,7 +1031,9 @@ class CalendarObjectResource(DAVObject):
         # Dual-mode support: async clients return a coroutine
         if self.is_async_client:
             return self._async_load(
-                only_if_unloaded=only_if_unloaded, multiget_fallback=multiget_fallback
+                only_if_unloaded=only_if_unloaded,
+                multiget_fallback=multiget_fallback,
+                fallbacks=fallbacks,
             )
 
         if self.url is None:
@@ -1040,7 +1052,7 @@ class CalendarObjectResource(DAVObject):
             # (has a UID), indicating the server may have changed the URL.
             # Without a UID, the 404 is definitive.
             uid = self.id
-            if uid:
+            if uid and fallbacks:
                 # Fallback 1: try multiget (REPORT may work even when GET fails)
                 if multiget_fallback:
                     try:
@@ -1062,7 +1074,7 @@ class CalendarObjectResource(DAVObject):
                         pass
             raise
         except Exception:
-            if not multiget_fallback:
+            if not (multiget_fallback and fallbacks):
                 raise
             return self.load_by_multiget()
 
@@ -1070,7 +1082,10 @@ class CalendarObjectResource(DAVObject):
         return self
 
     async def _async_load(
-        self, only_if_unloaded: bool = False, multiget_fallback: bool = True
+        self,
+        only_if_unloaded: bool = False,
+        multiget_fallback: bool = True,
+        fallbacks: bool = True,
     ) -> Self:
         """Async implementation of load."""
         if only_if_unloaded and self.is_loaded():
@@ -1089,7 +1104,7 @@ class CalendarObjectResource(DAVObject):
             self._keep_raw_data(getattr(r, "_raw_body", None))
         except error.NotFoundError:
             uid = self.id
-            if uid:
+            if uid and fallbacks:
                 # Fallback 1: try multiget (REPORT may work even when GET fails)
                 if multiget_fallback:
                     try:
@@ -1111,7 +1126,7 @@ class CalendarObjectResource(DAVObject):
                         pass
             raise
         except Exception:
-            if not multiget_fallback:
+            if not (multiget_fallback and fallbacks):
                 raise
             return await self.load_by_multiget()
 

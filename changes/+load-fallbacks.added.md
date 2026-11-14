@@ -1,0 +1,1 @@
+New parameter `CalendarObjectResource.load(fallbacks=True)`.  Set it to `False` to load by the GET alone: no calendar-multiget and no search by UID when the GET fails, which `multiget_fallback=False` still does after a 404.

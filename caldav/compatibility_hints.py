@@ -557,8 +557,8 @@ hence, "fragile".
                 "REPORT against the parent collection, and a server answering 403 on the object "
                 "URL may report the missing href with a 404 inside that multistatus (Robur does); "
                 "read the `behaviour` field for what a given server does.  Anything reaching past "
-                "`load()` sees the raw answer, and `load(multiget_fallback=False)` asks for it "
-                "deliberately.  'unsupported' when the lookup ends in some other DAVError - "
+                "`load()` sees the raw answer, and `load(fallbacks=False)` asks for it "
+                "deliberately (`multiget_fallback=False` still retries a 404 as a search by UID).  'unsupported' when the lookup ends in some other DAVError - "
                 "typically AuthorizationError, because the server answers 403 rather than 404 to "
                 "avoid leaking whether a resource exists, which is a legitimate choice rather "
                 "than an RFC breach, hence 'unsupported' rather than 'broken'."
@@ -2050,10 +2050,12 @@ def __getattr__(name: str) -> Any:
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
-    ## Measured by hand 2026-11-14 (the conformance suite of calendaring):
-    ## a calendar-query returns the master without the moved occurrence,
-    ## which a GET of the same object has.
+    ## Probed 2026-11-14 by caldav-server-tester: a calendar-query returns
+    ## the master without the moved occurrence, which a GET of the same
+    ## object has.  The object keeps both, so the exception is stored
+    ## (save-load.event.recurrences.exception was read off a search before).
     "search.recurrences.exception.in-calendar-data": {"support": "unsupported", "behaviour": "the calendar-data of a search holds the master only"},
+    "save-load.event.recurrences.exception": {"support": "full"},
     ## Measured with caldav-server-tester, 2026-10-27: the UID filter works although search.text does not.
     "search.text.uid": {"support": "full"},
     ## Probed 2026-10-26 by caldav-server-tester: RFC 4791 section 5.2.3 makes
@@ -2085,7 +2087,6 @@ bedework_3_10_3 = {
     'auto-connect.url': {'basepath': '/ucaldav/'},
     'save-load.journal': {'support': 'ungraceful'},
     'save-load.todo.recurrences.thisandfuture': {'support': 'ungraceful'},
-    'save-load.event.recurrences.exception': {'support': 'unsupported'},
     'search.time-range.alarm': {'support': 'unsupported'},
     "freebusy-query": True,
     "search.time-range.todo": False,
@@ -2146,10 +2147,12 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
-    ## Measured by hand 2026-11-14 (the conformance suite of calendaring):
-    ## a calendar-query returns the master without the moved occurrence,
-    ## which a GET of the same object has.
+    ## Probed 2026-11-14 by caldav-server-tester: a calendar-query returns
+    ## the master without the moved occurrence, which a GET of the same
+    ## object has.  The object keeps both, so the exception is stored
+    ## (save-load.event.recurrences.exception was read off a search before).
     "search.recurrences.exception.in-calendar-data": {"support": "unsupported", "behaviour": "the calendar-data of a search holds the master only"},
+    "save-load.event.recurrences.exception": {"support": "full"},
     ## Probed 2026-11-12 by caldav-server-tester, and by hand on a fresh
     ## container: a PUT with one ATTENDEE gives two identical ATTENDEE lines
     ## in GET and calendar-multiget alike.
@@ -2222,7 +2225,6 @@ bedework_5_0_0 = {
     ## user with a working `tasks` collection may well see this work.
     "search.time-range.todo": {"support": "unknown"},
 
-    "save-load.event.recurrences.exception": {"support": "unsupported"},
     ## Seen 2026-09-13 in testChangeAttendeeStatusWithEmailGiven, which only
     ## started running once save-load.mutable.attendee-partstat came out full.
     "save-load.event.no-summary": {
