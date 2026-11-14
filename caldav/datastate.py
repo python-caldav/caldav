@@ -65,6 +65,8 @@ class DataState(ABC):
         Default implementation parses the data, but subclasses can optimize.
         """
         cal = self.get_icalendar_copy()
+        if cal.name in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY"):
+            return str(cal["UID"]) if "UID" in cal else None
         for comp in cal.subcomponents:
             if comp.name in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY") and "UID" in comp:
                 return str(comp["UID"])
@@ -148,7 +150,7 @@ class RawDataState(DataState):
             if "\\" not in uid:
                 # A preceding VTIMEZONE is common. Only the components still
                 # open at the UID determine whether it belongs to the resource.
-                stack = []
+                stack: list[str] = []
                 for header in re.finditer(
                     r"^(BEGIN|END|UID)[:;]([^\r\n]*)",
                     self._data[: match.start()],
@@ -169,7 +171,7 @@ class RawDataState(DataState):
                         and stack[1] in ("VEVENT", "VTODO", "VJOURNAL", "VFREEBUSY")
                     ):
                         return uid
-        # Fall back to parsing if regex fails (e.g., UID with parameters)
+        # Parse parameterized or escaped UIDs and resolve ambiguous component nesting.
         return super().get_uid()
 
     def get_component_type(self) -> str | None:

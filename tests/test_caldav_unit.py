@@ -7030,17 +7030,22 @@ class TestFoldedUid:
         assert RawDataState(ical).get_uid() == self.UID
         assert Event(data=ical).id == self.UID
 
-    @pytest.mark.parametrize("parent_uid", ["UID:event-1", ""])
-    def test_nested_alarm_uid_is_not_the_event_id(self, parent_uid) -> None:
+    @pytest.mark.parametrize(("kind", "resource"), [("VEVENT", Event), ("VTODO", Todo)])
+    @pytest.mark.parametrize("parent_uid", ["UID:parent-1", ""])
+    def test_nested_alarm_uid_is_not_the_resource_id(self, kind, resource, parent_uid) -> None:
         ical = (
-            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n"
+            f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:{kind}\r\n"
             "DTSTART:20260101T000000Z\r\nBEGIN:VALARM\r\nUID:alarm-1\r\n"
             "ACTION:DISPLAY\r\nTRIGGER:-PT5M\r\nDESCRIPTION:Reminder\r\nEND:VALARM\r\n"
             + (parent_uid + "\r\n" if parent_uid else "")
-            + "END:VEVENT\r\nEND:VCALENDAR\r\n"
+            + f"END:{kind}\r\nEND:VCALENDAR\r\n"
         )
-        event = Event(data=ical)
-        assert event.id == ("event-1" if parent_uid else None)
+        assert resource(data=ical).id == ("parent-1" if parent_uid else None)
+
+    @pytest.mark.parametrize("alarm", ["", "BEGIN:VALARM\r\nUID:alarm-1\r\nEND:VALARM\r\n"])
+    def test_unwrapped_event_uid(self, alarm) -> None:
+        data = f"BEGIN:VEVENT\r\n{alarm}UID:event-1\r\nEND:VEVENT\r\n"
+        assert Event(data=data).id == "event-1"
 
     def test_timezone_before_resource_uid_needs_no_full_parse(self) -> None:
         from caldav.datastate import RawDataState
