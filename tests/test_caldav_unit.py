@@ -10129,6 +10129,31 @@ class TestSearchDropsExceptions:
         )
         assert requests == ["query"]
 
+    def test_a_server_expansion_is_not_loaded_again(self, base) -> None:
+        """Expanded on the server, each instance carries a RECURRENCE-ID: a
+        multiget would swap them for the unexpanded master and exception."""
+        instances = "".join(
+            "BEGIN:VEVENT\r\nUID:series-1\r\nDTSTAMP:20260101T000000Z\r\n"
+            f"RECURRENCE-ID:202611{day:02d}T090000Z\r\n"
+            f"DTSTART:202611{day:02d}T{hour}0000Z\r\nDTEND:202611{day:02d}T{hour + 1}0000Z\r\n"
+            f"SUMMARY:R: {'moved' if day == 3 else 'daily'}\r\nEND:VEVENT\r\n"
+            for day, hour in ((1, 9), (2, 9), (3, 14), (4, 9), (5, 9))
+        )
+        features = {
+            "search.recurrences.expanded": {"support": "full"},
+            "search.recurrences.exception.in-calendar-data": {"support": "unsupported"},
+        }
+        summaries, requests = self._search(
+            base,
+            features,
+            expand=False,
+            query=self.HEAD + instances + self.TAIL,
+            search_kwargs={"server_expand": True},
+        )
+        assert requests == ["query"]
+        assert ("2026-11-03 09:00:00+00:00", "R: moved") in summaries
+        assert len(summaries) == 5
+
     def test_a_one_off_event_in_a_zone_is_not_loaded_again(self, base) -> None:
         one_off = self.HEAD + self.ONE_OFF + self.TAIL
         summaries, requests = self._search(base, query=one_off, full=one_off)

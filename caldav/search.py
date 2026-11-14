@@ -1128,11 +1128,14 @@ class CalDAVSearcher(Searcher):
                     return
 
         # Bedework leaves the exceptions out of the calendar-data of a search.
-        # Only what the search itself returned; the batch load below fetches whole objects
+        # Only what the search itself returned; the batch load below fetches whole objects.
+        # Not after a server-side expansion: its instances carry a RECURRENCE-ID, and a
+        # multiget would swap them for the unexpanded master and exception
         partial = []
         if (
             cw
             and not caller_chose_data
+            and not server_expand
             and not calendar.client.features.is_supported(
                 "search.recurrences.exception.in-calendar-data"
             )
