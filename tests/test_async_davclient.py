@@ -1131,6 +1131,45 @@ class TestAsyncLoadMultigetFallback:
                 await event.load(multiget_fallback=False)
         multiget.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_load_without_fallbacks_raises_the_servers_own_error(self) -> None:
+        """fallbacks=False surfaces the 403 and sends no REPORT."""
+        from caldav.aio import AsyncCalendarObjectResource
+
+        event = self._forbidden_event()
+        with patch.object(
+            AsyncCalendarObjectResource, "load_by_multiget", new_callable=AsyncMock
+        ) as multiget:
+            with pytest.raises(error.AuthorizationError):
+                await event.load(fallbacks=False)
+        multiget.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_load_without_fallbacks_raises_a_404_for_an_object_with_a_uid(self) -> None:
+        """fallbacks=False: no multiget and no search by UID after a 404."""
+        from caldav.aio import AsyncCalendarObjectResource, AsyncEvent
+        from caldav.collection import Calendar
+
+        client = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        client.request = AsyncMock(side_effect=error.NotFoundError("404 Not Found"))
+        calendar = Calendar(client=client, url="https://caldav.example.com/dav/calendars/test/")
+        event = AsyncEvent(
+            client=client,
+            url="https://caldav.example.com/dav/calendars/test/x.ics",
+            parent=calendar,
+            data="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//x//y//EN\r\nBEGIN:VEVENT\r\nUID:x\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20260101T000000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n",
+        )
+        with (
+            patch.object(
+                AsyncCalendarObjectResource, "load_by_multiget", new_callable=AsyncMock
+            ) as multiget,
+            patch.object(Calendar, "get_object_by_uid", new_callable=AsyncMock) as by_uid,
+        ):
+            with pytest.raises(error.NotFoundError):
+                await event.load(fallbacks=False)
+        multiget.assert_not_awaited()
+        by_uid.assert_not_awaited()
+
 
 class TestAsyncRateLimiting:
     """

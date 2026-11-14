@@ -630,6 +630,33 @@ END:VCALENDAR
         with pytest.raises(error.AuthorizationError):
             object.load(multiget_fallback=False)
 
+    def testLoadWithoutFallbacksRaisesA404ForAnObjectWithAUid(self):
+        """load(fallbacks=False) is the GET and nothing else.
+
+        A 404 for an object that has a UID is otherwise retried as a multiget
+        and then as a search by UID - the latter whatever multiget_fallback
+        says.  A compatibility checker comparing what a GET returns with what
+        a search returns must not get a search for its GET.
+        """
+        client = DAVClient(url="http://cal.example.com/")
+        client.request = mock.Mock(side_effect=error.NotFoundError("404 Not Found"))
+        calendar = Calendar(client, url="/calendar/")
+        event = Event(client=client, url="/calendar/x.ics", parent=calendar, data=ev1)
+        with (
+            mock.patch.object(Calendar, "get_object_by_uid") as by_uid,
+            mock.patch.object(Event, "load_by_multiget") as multiget,
+        ):
+            with pytest.raises(error.NotFoundError):
+                event.load(fallbacks=False)
+        by_uid.assert_not_called()
+        multiget.assert_not_called()
+
+    def testLoadWithoutFallbacksRaisesAForbidden(self):
+        """fallbacks=False also leaves a refused GET unrescued."""
+        object = self._robur_object(self.MULTIGET_FOUND, "/calendar/robur/found.ics")
+        with pytest.raises(error.AuthorizationError):
+            object.load(fallbacks=False)
+
     def testTheMultigetFallbackDoesNotLaunderARealForbidden(self):
         """A genuine 403 does not come out of the multiget fallback as a 404.
 
