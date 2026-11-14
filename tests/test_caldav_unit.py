@@ -7030,6 +7030,30 @@ class TestFoldedUid:
         assert RawDataState(ical).get_uid() == self.UID
         assert Event(data=ical).id == self.UID
 
+    @pytest.mark.parametrize("parent_uid", ["UID:event-1", ""])
+    def test_nested_alarm_uid_is_not_the_event_id(self, parent_uid) -> None:
+        ical = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\n"
+            "DTSTART:20260101T000000Z\r\nBEGIN:VALARM\r\nUID:alarm-1\r\n"
+            "ACTION:DISPLAY\r\nTRIGGER:-PT5M\r\nDESCRIPTION:Reminder\r\nEND:VALARM\r\n"
+            + (parent_uid + "\r\n" if parent_uid else "")
+            + "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        event = Event(data=ical)
+        assert event.id == ("event-1" if parent_uid else None)
+
+    def test_timezone_before_resource_uid_needs_no_full_parse(self) -> None:
+        from caldav.datastate import RawDataState
+
+        zone = (
+            "BEGIN:VTIMEZONE\r\nTZID:Example\r\nBEGIN:STANDARD\r\n"
+            "DTSTART:19700101T000000\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0100\r\n"
+            "END:STANDARD\r\nEND:VTIMEZONE\r\n"
+        )
+        data = self._ical("\r\n ").replace("BEGIN:VEVENT", zone + "BEGIN:VEVENT")
+        with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
+            assert RawDataState(data).get_uid() == self.UID
+
     def test_folded_uid_needs_no_full_parse(self) -> None:
         from caldav.datastate import RawDataState
 
