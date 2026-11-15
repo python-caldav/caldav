@@ -1225,11 +1225,19 @@ class CalendarObjectResource(DAVObject):
     ) -> "None | Coroutine[Any, Any, None]":
         ## TODO: this is low-level http-communication - shouldn't it be in the davclient file rather than in calendarobjectresource.py?
         headers = self._put_headers(precondition, wildcard)
+        body = self.data
+        features = getattr(self.client, "features", None)
+        if (
+            features is not None
+            and features.is_supported("save-load.icalendar.tzid-link", str) == "ungraceful"
+        ):
+            ## The server refuses a TZID that is a tz database link (Bedework 5)
+            body = vcal.canonical_tzids(str(body))
         if self.is_async_client:
             return self._async_send_put(
-                str(self.data), headers, retry_on_failure, precondition, wildcard
+                str(body), headers, retry_on_failure, precondition, wildcard
             )
-        return self._send_put(self.data, headers, retry_on_failure, precondition, wildcard)
+        return self._send_put(body, headers, retry_on_failure, precondition, wildcard)
 
     def _send_put(
         self, body, headers, retry_on_failure, precondition: Precondition, wildcard: Wildcard | None

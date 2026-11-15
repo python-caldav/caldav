@@ -1080,7 +1080,7 @@ END:VCALENDAR
         xml = """
 <D:multistatus xmlns:D="DAV:">
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/</D:href>
+    <D:href>/dav/testuser%40example.com/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1092,7 +1092,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Inbox/</D:href>
+    <D:href>/dav/testuser%40example.com/Inbox/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1105,7 +1105,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Emailed%20Contacts/</D:href>
+    <D:href>/dav/testuser%40example.com/Emailed%20Contacts/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1118,7 +1118,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Calendarc5f1a47c-2d92-11e3-b654-0016eab36bf4.ics</D:href>
+    <D:href>/dav/testuser%40example.com/Calendarc5f1a47c-2d92-11e3-b654-0016eab36bf4.ics</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1128,7 +1128,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Yep/</D:href>
+    <D:href>/dav/testuser%40example.com/Yep/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1143,7 +1143,7 @@ END:VCALENDAR
 </D:multistatus>
 """
         client = MockedDAVClient(xml)
-        calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
+        calendar_home_set = CalendarSet(client, url="/dav/testuser%40example.com/")
         assert len(calendar_home_set.get_calendars()) == 1
 
     def test_get_calendars_client_url_is_calendar_without_home_set(self):
@@ -6241,6 +6241,44 @@ class TestPropstatStatusValidation:
         result = MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
         assert result == {"/dav/calendars/user/broken/": {"{DAV:}displayname": None}}
 
+    def test_a_404_without_a_reason_phrase_is_a_404(self):
+        """Bedework 5 answers a calendar-multiget naming a missing href with a
+        bare "HTTP/1.1 404": no reason phrase, nor the space RFC 9112 section
+        4 keeps before an empty one."""
+        xml = self.XML.replace("500 Internal Server Error", "404")
+        result = MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert result == {"/dav/calendars/user/broken/": {"{DAV:}displayname": None}}
+        gone = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/dav/calendars/user/cal/missing.ics</href>
+    <status>HTTP/1.1 404</status>
+  </response>
+</multistatus>
+"""
+        [result] = MockedDAVResponse(gone).parse_propfind()
+        assert result.status == 404
+
+    def test_a_multiget_of_a_missing_object_answered_without_a_reason_phrase(self):
+        """The Bedework 5 case: multiget(raise_notfound=True) reports it missing."""
+        gone = """
+<multistatus xmlns="DAV:">
+  <response>
+    <href>/calendar/bedework/missing.ics</href>
+    <status>HTTP/1.1 404</status>
+  </response>
+</multistatus>
+"""
+        calendar = Calendar(MockedDAVClient(gone), url="/calendar/bedework/")
+        with pytest.raises(error.NotFoundError):
+            calendar.multiget([URL("/calendar/bedework/missing.ics")], raise_notfound=True)
+
+    def test_a_failure_without_a_reason_phrase_still_raises(self):
+        xml = self.XML.replace("500 Internal Server Error", "500")
+        with pytest.raises(error.ResponseError) as excinfo:
+            MockedDAVResponse(xml).expand_simple_props(props=[dav.DisplayName()])
+        assert excinfo.value.status == 500
+
     @pytest.mark.parametrize(
         "status", ["500 Internal Server Error", "HTTP/1.1 Internal Server Error"]
     )
@@ -7091,6 +7129,24 @@ class TestFoldedUid:
 
         with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
             assert RawDataState(self._ical("\r\n ")).get_uid() == self.UID
+
+    def test_trailing_space_after_component_name_needs_no_full_parse(self) -> None:
+        from caldav.datastate import RawDataState
+
+        data = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT \r\nUID:event-1\r\nEND:VEVENT \r\nEND:VCALENDAR\r\n"
+        with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
+            assert RawDataState(data).get_uid() == "event-1"
+
+    @pytest.mark.parametrize("first_uid", ["UID;X-P=1:first", "uid:first"])
+    def test_earlier_uid_line_is_left_to_the_parser(self, first_uid) -> None:
+        """A UID line the cheap regex skips still belongs to the first resource."""
+        from caldav.datastate import RawDataState
+
+        data = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n" + first_uid + "\r\nEND:VEVENT\r\n"
+            "BEGIN:VEVENT\r\nUID:second\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        assert RawDataState(data).get_uid() == "first"
 
     def test_escaped_uid_is_unescaped(self) -> None:
         ical = self._ical("\n ").replace(self.UID[:30], "a\\,b" + self.UID[:30])
@@ -10222,3 +10278,187 @@ class TestSearchDropsExceptions:
         )
         _, requests = self._search(base, expand=False, search_kwargs={"xml": query})
         assert requests == ["query"]
+
+
+class TestTzidLinkRewritten:
+    """Where ``save-load.icalendar.tzid-link`` is ungraceful, the server refuses
+    a TZID that is a tz database link name (Bedework 5: Europe/Oslo, a link to
+    Europe/Berlin since tzdata 2022b, is "unknownTimezone", VTIMEZONE or not).
+    save() then sends the zone the link points to instead."""
+
+    URL = "http://cal.example.com/dav/user/mycal/"
+
+    @staticmethod
+    def _vtimezone(tzid):
+        return (
+            "BEGIN:VTIMEZONE\r\n"
+            f"TZID:{tzid}\r\n"
+            "BEGIN:STANDARD\r\n"
+            "DTSTART:19701025T030000\r\n"
+            "RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\n"
+            "TZOFFSETFROM:+0200\r\n"
+            "TZOFFSETTO:+0100\r\n"
+            "END:STANDARD\r\n"
+            "END:VTIMEZONE\r\n"
+        )
+
+    def _ical(self, *tzids, rid=None):
+        events = "".join(
+            "BEGIN:VEVENT\r\n"
+            "UID:tzlink-1\r\n"
+            "DTSTAMP:20261101T000000Z\r\n"
+            f"DTSTART;TZID={tzid}:20261103T100000\r\n"
+            f"DTEND;TZID={tzid}:20261103T110000\r\n"
+            + (
+                f"RECURRENCE-ID;TZID={tzid}:20261103T100000\r\n"
+                if i
+                else f"RRULE:FREQ=DAILY;COUNT=4\r\nEXDATE;TZID={tzid}:20261104T100000,20261105T100000\r\n"
+            )
+            + "SUMMARY:x\r\n"
+            "END:VEVENT\r\n"
+            for i, tzid in enumerate(tzids)
+        )
+        zones = "".join(self._vtimezone(t) for t in dict.fromkeys(tzids))
+        return (
+            f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n{zones}{events}END:VCALENDAR\r\n"
+        )
+
+    def _save(self, data, support="ungraceful", raw=False):
+        sent = []
+        features = {"save-load.icalendar.tzid-link": {"support": support}}
+        client = DAVClient(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body="", headers=None):
+            if method.upper() == "PUT":
+                sent.append(body.decode() if isinstance(body, bytes) else str(body))
+            resp = mock.MagicMock()
+            resp.reason = "whatever"
+            resp.status_code = 201 if method.upper() == "PUT" else 404
+            resp.content = b""
+            resp.headers = {}
+            resp.text = ""
+            return DAVResponse(resp, client)
+
+        client.request = request
+        event = Event(
+            client, url=self.URL + "tzlink-1.ics", data=data, parent=Calendar(client, url=self.URL)
+        )
+        if raw:
+            event.save(raw_data=data.encode(), no_overwrite=False, no_create=False)
+        else:
+            event.save(increase_seqno=False)
+        [body] = sent
+        return event, icalendar.Calendar.from_ical(body), body
+
+    @staticmethod
+    def _tzids(cal):
+        found = {str(c["TZID"]) for c in cal.walk("VTIMEZONE")}
+        for component in cal.walk("VEVENT"):
+            for name in ("DTSTART", "DTEND", "RECURRENCE-ID", "EXDATE"):
+                if name in component:
+                    found.add(component[name].params["TZID"])
+        return found
+
+    def test_a_link_is_sent_as_the_zone_it_points_to(self) -> None:
+        event, sent, _ = self._save(self._ical("Europe/Oslo", "Europe/Oslo"))
+        assert self._tzids(sent) == {"Europe/Berlin"}
+        assert len(sent.walk("VTIMEZONE")) == 1
+        assert "Europe/Oslo" in event.data, "the object as the caller holds it is not rewritten"
+
+    def test_a_link_beside_its_target_leaves_one_vtimezone(self) -> None:
+        _, sent, _ = self._save(self._ical("Europe/Berlin", "Europe/Oslo"))
+        assert self._tzids(sent) == {"Europe/Berlin"}
+        assert len(sent.walk("VTIMEZONE")) == 1
+
+    def test_a_canonical_zone_is_sent_as_it_is(self) -> None:
+        data = self._ical("Europe/Berlin")
+        _, _, body = self._save(data)
+        assert "TZID=Europe/Berlin" in body and "Europe/Oslo" not in body
+
+    def test_nothing_is_rewritten_where_the_server_takes_links(self) -> None:
+        for support in ("full", "unknown"):
+            _, sent, _ = self._save(self._ical("Europe/Oslo"), support=support)
+            assert self._tzids(sent) == {"Europe/Oslo"}
+
+    def test_raw_data_is_sent_unchanged(self) -> None:
+        data = self._ical("Europe/Oslo")
+        _, _, body = self._save(data, raw=True)
+        assert body == data
+
+    @pytest.mark.parametrize("utc", ["UTC", "Zulu", "GMT"])
+    def test_a_utc_alias_is_left_alone(self, utc) -> None:
+        """Rewriting TZID=UTC would put a TZID on a UTC time, which RFC 5545 forbids."""
+        from caldav.lib.vcal import canonical_tzids
+
+        data = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nBEGIN:VEVENT\r\n"
+            f"UID:tzlink-1\r\nDTSTAMP:20261101T000000Z\r\nDTSTART;TZID={utc}:20261103T100000\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        assert canonical_tzids(data) == data
+
+    def test_a_vtimezone_without_tzid_is_skipped(self) -> None:
+        from caldav.lib.vcal import canonical_tzids
+
+        data = self._ical("Europe/Oslo")
+        nameless = self._vtimezone("Europe/Oslo").replace("TZID:Europe/Oslo\r\n", "")
+        data = data.replace("BEGIN:VEVENT", nameless + "BEGIN:VEVENT", 1)
+        assert "TZID=Europe/Berlin" in canonical_tzids(data)
+
+    def test_the_links_come_from_the_tz_database(self) -> None:
+        from caldav.lib.vcal import tzdata_links
+
+        links = tzdata_links()
+        assert links["Europe/Oslo"] == "Europe/Berlin"
+        assert links["Asia/Calcutta"] == "Asia/Kolkata"
+        assert "Europe/Berlin" not in links
+
+    def test_x_lic_location_follows_the_rename(self) -> None:
+        data = self._ical("Europe/Oslo").replace(
+            "TZID:Europe/Oslo\r\n", "TZID:Europe/Oslo\r\nX-LIC-LOCATION:Europe/Oslo\r\n"
+        )
+        _, sent, _ = self._save(data)
+        [tz] = sent.walk("VTIMEZONE")
+        assert str(tz["X-LIC-LOCATION"]) == "Europe/Berlin"
+
+    def test_due_and_rdate_of_a_task_are_rewritten(self) -> None:
+        from caldav.lib.vcal import canonical_tzids
+
+        data = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n"
+            + self._vtimezone("Europe/Oslo")
+            + "BEGIN:VTODO\r\nUID:tzlink-2\r\nDTSTAMP:20261101T000000Z\r\n"
+            "DTSTART;TZID=Europe/Oslo:20261103T100000\r\n"
+            "DUE;TZID=Europe/Oslo:20261103T110000\r\n"
+            "RDATE;TZID=Europe/Oslo:20261110T100000\r\n"
+            "END:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+        out = canonical_tzids(data)
+        assert "Europe/Oslo" not in out
+        [todo] = icalendar.Calendar.from_ical(out).walk("VTODO")
+        assert todo["DUE"].params["TZID"] == "Europe/Berlin"
+        assert todo["RDATE"].params["TZID"] == "Europe/Berlin"
+
+    def test_a_link_to_a_link_points_on_to_the_zone(self) -> None:
+        from caldav.lib.vcal import _parse_links
+
+        links = _parse_links(
+            "Z Europe/Berlin 1\nL Europe/Berlin Europe/Oslo\nL Europe/Oslo Arctic/Longyearbyen\n"
+        )
+        assert links == {"Europe/Oslo": "Europe/Berlin", "Arctic/Longyearbyen": "Europe/Berlin"}
+
+    def test_without_a_tz_database_nothing_is_rewritten(self, monkeypatch) -> None:
+        from caldav.lib import vcal
+
+        def no_package(name):
+            raise ModuleNotFoundError(name)
+
+        monkeypatch.setattr(vcal.importlib.resources, "files", no_package)
+        monkeypatch.setattr(vcal.zoneinfo, "TZPATH", ())
+        vcal.tzdata_links.cache_clear()
+        try:
+            assert vcal.tzdata_links() == {}
+            data = self._ical("Europe/Oslo")
+            assert vcal.canonical_tzids(data) == data
+        finally:
+            vcal.tzdata_links.cache_clear()

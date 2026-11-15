@@ -156,7 +156,7 @@ class RawDataState(DataState):
                     self._data[: match.start()],
                     re.IGNORECASE | re.MULTILINE,
                 ):
-                    token, name = header.group(1).upper(), header.group(2).upper()
+                    token, name = header.group(1).upper(), header.group(2).strip().upper()
                     if token == "BEGIN":
                         stack.append(name)
                     elif token == "END" and stack and stack[-1] == name:

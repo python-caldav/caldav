@@ -389,9 +389,9 @@ UID:e42481ad-aabf-43c1-bbc0-04754373678d
 RRULE:FREQ=WEEKLY;UNTIL=20221222T225959Z;BYDAY=WE
 SUMMARY:Competence Lunch
 DESCRIPTION: *removed*
-ATTENDEE;CN=Tobias Brox;PARTSTAT=TENTATIVE:mailto:tobias@redpill-linpro.com
+ATTENDEE;CN=Test User;PARTSTAT=TENTATIVE:mailto:testuser@example.com
 PRIORITY:9
-ORGANIZER;CN=Someone:mailto:noreply@redpill-linpro.com
+ORGANIZER;CN=Someone:mailto:noreply@example.com
 DTSTART;TZID="Europe/Brussels":20220817T110000
 DTEND;TZID="Europe/Brussels":20220817T113000
 DURATION:PT30M

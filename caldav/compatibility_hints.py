@@ -494,6 +494,7 @@ hence, "fragile".
         "save-load.todo.recurrences.count": {"description": "The server will receive and store a recurring task with a count set in the RRULE", "default": {"support": "full"}},
         "save-load.todo.recurrences.thisandfuture": {"description": "Completing a recurring task with rrule_mode='thisandfuture' works (modifies RRULE and saves back to server)", "default": {"support": "full"}},
         "save-load.todo.mixed-calendar": {"description": "The same calendar may contain both events and tasks (Zimbra only allows tasks to be placed on special task lists)", "default": {"support": "full"}},
+        "save-load.todo.dtstart-without-due": {"description": "A task with a DTSTART and no DUE (RFC 5545 section 3.6.2 allows either alone) is stored with its DTSTART.  'unsupported' when the DTSTART is dropped, the behaviour saying whether it is kept beside a DUE: Zimbra drops it, but keeps it where the task also has a DUE.", "default": {"support": "full"}, "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.2"]},
         "save-load.todo.uncomplete": {"description": "A completed task can be made pending again (Todo.uncomplete()): after saving it with STATUS:NEEDS-ACTION and without COMPLETED, it loads back that way.", "default": {"support": "full"}},
         "save-load.todo.attendee": {"description": "A task with an ATTENDEE (RFC 5545 section 3.6.2 allows it in a VTODO) is stored with it.  The probe sends no ORGANIZER, so no scheduling applies.  'unsupported' when the ATTENDEE is dropped.  'broken' when the task with it is gone although the PUT succeeded: the PUT is answered with 201 and the GET with 404, while the same task without the ATTENDEE is kept.  'ungraceful' when it is refused (Ox, with 409).", "default": {"support": "full"}},
         "save-load.todo.alarm": {"description": "A task's VALARM is stored as sent: its TRIGGER, relative to the task's DTSTART, and its DESCRIPTION.  A property the server adds to the VALARM, such as a UID, is fine.  'unsupported' when the VALARM is dropped.  'broken' when it is kept but rewritten (Ox makes the TRIGGER absolute, so the alarm no longer follows the task when it is moved), the behaviour saying what was changed: the alarm is still there, but not the one sent, which is worse than a missing one.", "default": {"support": "full"}, "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.6", "https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.6.3"]},
@@ -619,6 +620,11 @@ hence, "fragile".
             "description": "The VTIMEZONE a client sends with an object comes back with it.  RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID an object uses.  RFC 7809 lets a server leave VTIMEZONEs out, but only for a client asking for that with the CalDAV-Timezones: F request header, which the probe does not send.  'unsupported' when the object comes back without it, so a client that resolves TZIDs only from the object's own VTIMEZONEs cannot place the times.  'ungraceful' when an object carrying a VTIMEZONE is refused.  See also save-load.event.timezone.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.6.5", "https://datatracker.ietf.org/doc/html/rfc7809"],
+        },
+        "save-load.icalendar.tzid-link": {
+            "description": "An object whose TZID is a link name of the tz database (Europe/Oslo, a link to Europe/Berlin since tzdata 2022b; Asia/Calcutta, to Asia/Kolkata), sent with its VTIMEZONE, is stored with that TZID.  'ungraceful' when it is refused: Bedework 5 answers 403 with valid-calendar-object-resource and unknownTimezone, as its time zone service knows each zone by the TZID inside its definition only, and the definition of a link carries its target's.  save() then sends the zone the link points to instead, which keeps every time since 1970 where it was (before 1970 a link may have had rules of its own); save(raw_data=...) does not.  'quirk' when the TZID is stored as the zone it points to, the behaviour saying so.  'unsupported' when it comes back as another TZID while an event in the zone it points to keeps its own.",
+            "default": {"support": "full"},
+            "links": ["https://data.iana.org/time-zones/tz-link.html"],
         },
         "save-load.icalendar.olson-tzid": {
             "description": "An object whose TZID names a time zone of the tz database (\"Olson\" names, such as Europe/Berlin) is placed in that time zone without a VTIMEZONE for it.  RFC 5545 section 3.6.5 requires the VTIMEZONE, so the default is 'unsupported', and a client should send one; where 'full', it may leave the VTIMEZONE out and keep the object small.  The probe stores an event with TZID=Asia/Tokyo and no VTIMEZONE, and compares where time-range searches in UTC find it with where they find the same event carrying its VTIMEZONE and one at 12:00 UTC.  'full' when it is placed as the event with the VTIMEZONE is, so the verdict says whether the bare TZID is read as the zoned one; whether a zoned time is placed right is search.time-range.event.tzid.  'unsupported' when it is placed as UTC or elsewhere, 'ungraceful' when the event is refused.  'fragile' where the reading depends on circumstances, such as the client (Synology's web UI).  The behaviour notes whether the server adds a VTIMEZONE of its own.  A client of the server may still misread a bare TZID where the server does not: Synology's web UI was reported to read it as UTC (https://github.com/python-caldav/caldav/issues/849).  See also save-load.icalendar.vtimezone, whether a VTIMEZONE sent is kept.",
@@ -2017,6 +2023,8 @@ zimbra_8_8 = {
     "scheduling.auto-schedule": {"support": "full"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
+    ## Probed 2026-11-15 by caldav-server-tester, on 8.8 and on 10.1
+    "save-load.todo.dtstart-without-due": {"support": "unsupported", "behaviour": "the DTSTART is dropped; with a DUE, both are kept"},
 }
 
 ## Zimbra 10.1.21, measured with caldav-server-tester 2026-10-29 against an
@@ -2314,6 +2322,10 @@ bedework_5_0_0 = {
     "save.etag.matches-stored": {"support": "broken", "behaviour": "stored with CREATED and LAST-MODIFIED added, PRODID and DTSTAMP changed, yet the PUT answered with a strong ETag"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
+    ## Probed 2026-11-08 by hand: Europe/Oslo, Stockholm, Copenhagen, Amsterdam, Zagreb, Kiev, Belfast,
+    ## Arctic/Longyearbyen, America/Montreal and Asia/Calcutta refused, VTIMEZONE or not; Europe/Berlin,
+    ## Europe/Kyiv and the other canonical zones tried stored.  Bedework 3.10 stores them all.
+    "save-load.icalendar.tzid-link": {"support": "ungraceful", "behaviour": "403 valid-calendar-object-resource: unknownTimezone Europe/Oslo"},
 }
 
 baikal =  { ## version 0.10.1
