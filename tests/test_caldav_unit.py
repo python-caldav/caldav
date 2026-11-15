@@ -10385,6 +10385,26 @@ class TestTzidLinkRewritten:
         _, _, body = self._save(data, raw=True)
         assert body == data
 
+    @pytest.mark.parametrize("utc", ["UTC", "Zulu", "GMT"])
+    def test_a_utc_alias_is_left_alone(self, utc) -> None:
+        """Rewriting TZID=UTC would put a TZID on a UTC time, which RFC 5545 forbids."""
+        from caldav.lib.vcal import canonical_tzids
+
+        data = (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\nBEGIN:VEVENT\r\n"
+            f"UID:tzlink-1\r\nDTSTAMP:20261101T000000Z\r\nDTSTART;TZID={utc}:20261103T100000\r\n"
+            "END:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        assert canonical_tzids(data) == data
+
+    def test_a_vtimezone_without_tzid_is_skipped(self) -> None:
+        from caldav.lib.vcal import canonical_tzids
+
+        data = self._ical("Europe/Oslo")
+        nameless = self._vtimezone("Europe/Oslo").replace("TZID:Europe/Oslo\r\n", "")
+        data = data.replace("BEGIN:VEVENT", nameless + "BEGIN:VEVENT", 1)
+        assert "TZID=Europe/Berlin" in canonical_tzids(data)
+
     def test_the_links_come_from_the_tz_database(self) -> None:
         from caldav.lib.vcal import tzdata_links
 

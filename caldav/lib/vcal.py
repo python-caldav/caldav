@@ -62,10 +62,15 @@ def canonical_tzids(data: str) -> str:
     A VTIMEZONE for a link is renamed, or dropped where one for the zone is there already.
     ``data`` comes back as it is where it names no link.
     """
-    links = tzdata_links()
+    ## UTC and GMT are links to Etc/UTC and Etc/GMT, but icalendar reads a
+    ## TZID=UTC time as a UTC one and would write it with both a TZID and a Z,
+    ## which RFC 5545 forbids.
+    links = {
+        link: zone for link, zone in tzdata_links().items() if zone not in ("Etc/UTC", "Etc/GMT")
+    }
     cal = icalendar.Calendar.from_ical(data)
     changed = False
-    named = {str(tz["TZID"]) for tz in cal.walk("VTIMEZONE")}
+    named = {str(tz["TZID"]) for tz in cal.walk("VTIMEZONE") if "TZID" in tz}
     for component in cal.walk():
         if component.name == "VTIMEZONE":
             continue
@@ -76,7 +81,7 @@ def canonical_tzids(data: str) -> str:
                     params["TZID"] = links[params["TZID"]]
                     changed = True
     for tz in list(cal.walk("VTIMEZONE")):
-        target = links.get(str(tz["TZID"]))
+        target = links.get(str(tz.get("TZID")))
         if target is None:
             continue
         changed = True
