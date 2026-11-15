@@ -1080,7 +1080,7 @@ END:VCALENDAR
         xml = """
 <D:multistatus xmlns:D="DAV:">
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/</D:href>
+    <D:href>/dav/testuser%40example.com/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1092,7 +1092,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Inbox/</D:href>
+    <D:href>/dav/testuser%40example.com/Inbox/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1105,7 +1105,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Emailed%20Contacts/</D:href>
+    <D:href>/dav/testuser%40example.com/Emailed%20Contacts/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1118,7 +1118,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Calendarc5f1a47c-2d92-11e3-b654-0016eab36bf4.ics</D:href>
+    <D:href>/dav/testuser%40example.com/Calendarc5f1a47c-2d92-11e3-b654-0016eab36bf4.ics</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1128,7 +1128,7 @@ END:VCALENDAR
     </D:propstat>
   </D:response>
   <D:response>
-    <D:href>/dav/tobias%40redpill-linpro.com/Yep/</D:href>
+    <D:href>/dav/testuser%40example.com/Yep/</D:href>
     <D:propstat>
       <D:status>HTTP/1.1 200 OK</D:status>
       <D:prop>
@@ -1143,7 +1143,7 @@ END:VCALENDAR
 </D:multistatus>
 """
         client = MockedDAVClient(xml)
-        calendar_home_set = CalendarSet(client, url="/dav/tobias%40redpill-linpro.com/")
+        calendar_home_set = CalendarSet(client, url="/dav/testuser%40example.com/")
         assert len(calendar_home_set.get_calendars()) == 1
 
     def test_get_calendars_client_url_is_calendar_without_home_set(self):
