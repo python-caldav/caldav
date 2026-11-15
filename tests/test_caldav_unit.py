@@ -7130,6 +7130,24 @@ class TestFoldedUid:
         with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
             assert RawDataState(self._ical("\r\n ")).get_uid() == self.UID
 
+    def test_trailing_space_after_component_name_needs_no_full_parse(self) -> None:
+        from caldav.datastate import RawDataState
+
+        data = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT \r\nUID:event-1\r\nEND:VEVENT \r\nEND:VCALENDAR\r\n"
+        with mock.patch("caldav.datastate.parse_ical", side_effect=AssertionError):
+            assert RawDataState(data).get_uid() == "event-1"
+
+    @pytest.mark.parametrize("first_uid", ["UID;X-P=1:first", "uid:first"])
+    def test_earlier_uid_line_is_left_to_the_parser(self, first_uid) -> None:
+        """A UID line the cheap regex skips still belongs to the first resource."""
+        from caldav.datastate import RawDataState
+
+        data = (
+            "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\n" + first_uid + "\r\nEND:VEVENT\r\n"
+            "BEGIN:VEVENT\r\nUID:second\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        )
+        assert RawDataState(data).get_uid() == "first"
+
     def test_escaped_uid_is_unescaped(self) -> None:
         ical = self._ical("\n ").replace(self.UID[:30], "a\\,b" + self.UID[:30])
         event = Event(data=ical)
