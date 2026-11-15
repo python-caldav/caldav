@@ -29,7 +29,7 @@ def tzdata_links() -> dict[str, str]:
     try:
         sources.append(importlib.resources.files("tzdata").joinpath("zoneinfo", "tzdata.zi"))
     except ModuleNotFoundError:
-        pass
+        pass  # tzdata is optional; fall back to the system's tz database below
     sources += [pathlib.Path(path, "tzdata.zi") for path in zoneinfo.TZPATH]
     for source in sources:
         try:

@@ -10410,7 +10410,7 @@ class TestTzidLinkRewritten:
         assert links == {"Europe/Oslo": "Europe/Berlin", "Arctic/Longyearbyen": "Europe/Berlin"}
 
     def test_without_a_tz_database_nothing_is_rewritten(self, monkeypatch) -> None:
-        import caldav.lib.vcal as vcal
+        from caldav.lib import vcal
 
         def no_package(name):
             raise ModuleNotFoundError(name)
