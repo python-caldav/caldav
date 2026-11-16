@@ -893,7 +893,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.5.1"],
         },
         "sync-token.initial-sync": {
-            "description": "A sync report from an empty token lists exactly the current members of the collection: RFC 6578 section 3.4 says it MUST NOT return removed members.  'quirk' when it lists more, which a client can filter away (keep only hrefs below the collection, answered 200): Radicale lists deleted members with a 404, Stalwart also lists the collection itself.  The behaviour says which.  The limit on an initial sync is sync-token.limit.initial-sync, which inherits from sync-token.limit rather than from this.",
+            "description": "A sync report from an empty token lists exactly the current members of the collection: RFC 6578 section 3.4 says it MUST NOT return removed members.  'quirk' when it lists more, which a client can filter away (keep only hrefs below the collection, answered 200): Radicale lists deleted members with a 404, Stalwart and CCS also list the collection itself.  The behaviour says which.  The limit on an initial sync is sync-token.limit.initial-sync, which inherits from sync-token.limit rather than from this.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.4"],
         },
