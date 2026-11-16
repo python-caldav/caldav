@@ -1258,3 +1258,22 @@ class TestTodoStatusHints:
         """RFC 10051: absent means unsupported, but an unprobed server is not known to lack it."""
         assert FeatureSet({}).is_supported("supported-task-modes", str) == "unknown"
         assert FeatureSet(ch.ox).is_supported("supported-task-modes", str) == "unsupported"
+
+
+class TestCalendarCreationRateLimit:
+    """Nextcloud limits how many calendars an account may make in an hour.
+
+    A client making many, like a test suite, reuses them instead: the limit is
+    an extra key on the rate-limit client-feature, not a probed server-feature.
+    """
+
+    KEY = "create_calendar_per_hour"
+
+    def test_the_key_is_documented(self) -> None:
+        assert self.KEY in FeatureSet.FEATURES["rate-limit"]["extra_keys"]
+
+    def test_ecloud_declares_its_limit(self) -> None:
+        assert FeatureSet(ch.ecloud).is_supported("rate-limit", dict)[self.KEY] == 10
+
+    def test_absent_on_a_server_without_one(self) -> None:
+        assert self.KEY not in FeatureSet(ch.baikal).is_supported("rate-limit", dict)

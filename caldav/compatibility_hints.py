@@ -343,7 +343,8 @@ hence, "fragile".
                 "interval": "Rate limiting window, in seconds",
                 "count": "Max number of requests to send within the interval",
                 "max_sleep": "Max sleep when hitting a 429 or 503 with retry-after, in seconds",
-                "default_sleep": "Sleep for this long when hitting a 429, in seconds"
+                "default_sleep": "Sleep for this long when hitting a 429, in seconds",
+                "create_calendar_per_hour": "How many calendars the account may make within an hour (Nextcloud's default period); MKCALENDAR beyond that gets a 429 (Nextcloud's rateLimitCalendarCreation, observed as about 10 on ecloud).  A client that makes many calendars, like a test suite, should reuse them rather than make new ones.  Read on its own, whatever 'enable' says: a server with only this limit needs no pacing or sleep-and-retry",
             }},
         "search-cache": {
             "type": "server-peculiarity",
@@ -1875,6 +1876,10 @@ ecloud = nextcloud | {
         'count': 1,
         'default_sleep': 4,
         'max_sleep': 120,
+        ## Nextcloud's own default (rateLimitCalendarCreation); 2026-11-11 a
+        ## dozen creations within the hour got a 429, 2026-11-12 nine in one
+        ## hour did not.
+        'create_calendar_per_hour': 10,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this operation takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
     },
     'auto-connect.url': {

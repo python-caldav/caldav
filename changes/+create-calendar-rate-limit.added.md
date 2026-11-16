@@ -1,0 +1,1 @@
+New extra key `create_calendar_per_hour` on the `rate-limit` client-feature: how many calendars the account may make within an hour before MKCALENDAR gets a 429.  Set to 10 for ecloud, Nextcloud's default.  A client making many calendars, like a test suite, can reuse them instead.
