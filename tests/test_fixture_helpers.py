@@ -780,7 +780,7 @@ def swept(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
     class External(ExternalTestServer):
         def __init__(self, name: str) -> None:
-            self.name = name
+            super().__init__({"name": name})
 
         def get_sync_client(self) -> Any:
             name = self.name
