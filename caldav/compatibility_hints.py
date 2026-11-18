@@ -2540,7 +2540,14 @@ synology = davical | {
     ## through its own UI/API and refuses a CalDAV DELETE on the collection,
     ## where upstream DAViCal allows it.  Consequence for callers: Calendar
     ## .delete() degrades to wiping the objects, so a cal_id is never freed for
-    ## reuse and a later MKCALENDAR at the same id gets 405.
+    ## reuse and a later MKCALENDAR at the same id gets 405.  DSM's own web
+    ## API does delete them, with the account's CalDAV credentials: log in
+    ## at /webapi/entry.cgi (api=SYNO.API.Auth, version=6, method=login,
+    ## session=Calendar, format=sid), then api=SYNO.Cal.Cal, version=1,
+    ## method=delete, cal_id='"/<user>/<segment>/"' (a JSON string) with the
+    ## sid as _sid.  It works on calendars made over CalDAV too, although
+    ## SYNO.Cal.Cal's list method does not show those (2026-11-18, 384
+    ## leftover test calendars deleted).
     'delete-calendar': False,
     ## sync-token (fragile, inherited from davical) and sync-token.delete
     ## both came out full in a server-tester run on 2026-10-23.
