@@ -16,7 +16,7 @@ import re
 import uuid
 import warnings
 from collections.abc import Generator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date as _date
 from datetime import datetime, timezone
 from time import sleep
@@ -96,6 +96,8 @@ class CalendarInfo:
     cal_id: str | None
     name: str | None
     resource_types: list[str]
+    #: Every property the listing answered, as ``get_properties()`` parses them
+    props: dict[str, Any] = field(default_factory=dict)
 
 
 def _extract_calendar_id_from_url(url: str) -> str | None:
@@ -170,6 +172,7 @@ def _extract_calendars_from_propfind_results(
                 cal_id=cal_id,
                 name=name,
                 resource_types=result.properties.get("{DAV:}resourcetype", []),
+                props=dict(result.properties),
             )
         )
     return calendars
@@ -238,7 +241,9 @@ class CalendarSet(DAVObject):
             response.results, features=features
         )
         return [
-            Calendar(client=self.client, url=info.url, name=info.name, id=info.cal_id, parent=self)
+            Calendar(
+                client=self.client, url=info.url, id=info.cal_id, parent=self, props=info.props
+            )
             for info in calendar_infos
         ]
 
@@ -1262,11 +1267,14 @@ class Calendar(DAVObject):
         return rfc_default
 
     def get_supported_components(
-        self, with_fallback=True
+        self, with_fallback=True, use_cached=False
     ) -> "list[Any] | Coroutine[Any, Any, list[Any]]":
         """
         returns a list of component types supported by the calendar, in
         string format (typically ['VJOURNAL', 'VTODO', 'VEVENT'])
+
+        With ``use_cached``, a set already in ``props`` - from the
+        get_calendars() listing - is returned without asking the server.
 
         RFC 4791 section 5.2.3: supported-calendar-component-set is optional.
         When absent, the server MUST accept all component types, so we return
@@ -1276,6 +1284,9 @@ class Calendar(DAVObject):
         """
         if self.url is None:
             raise ValueError("Unexpected value None for self.url")
+        cached = self.props.get(cdav.SupportedCalendarComponentSet.tag) if use_cached else None
+        if cached:
+            return self.client._value_or_coroutine(list(cached))
         if self.is_async_client:
             return self._async_get_supported_components(with_fallback)
         props = [cdav.SupportedCalendarComponentSet()]

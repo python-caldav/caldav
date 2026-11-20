@@ -645,7 +645,7 @@ class BaseDAVClient(ABC):
         _raise_unless_propfind_ok(list_response)
         calendar_infos = extract_calendars(list_response.results, features=self.features)
         return [
-            Calendar(client=self, url=info.url, name=info.name, id=info.cal_id)
+            Calendar(client=self, url=info.url, id=info.cal_id, props=info.props)
             for info in calendar_infos
         ]
 

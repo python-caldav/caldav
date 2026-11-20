@@ -1146,6 +1146,68 @@ END:VCALENDAR
         calendar_home_set = CalendarSet(client, url="/dav/testuser%40example.com/")
         assert len(calendar_home_set.get_calendars()) == 1
 
+    def test_get_calendars_keeps_the_listed_properties(self):
+        """
+        The calendar-list PROPFIND asks for the component set and the ctag
+        too; each Calendar keeps what was answered in its props, so a client
+        needs no second PROPFIND per calendar.  A property answered 404 is
+        left out, so it is still fetched when asked for.
+        """
+        xml = """
+<D:multistatus xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"
+               xmlns:CS="http://calendarserver.org/ns/">
+  <D:response>
+    <D:href>/dav/user/tasks/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+        <D:displayname>Tasks</D:displayname>
+        <C:supported-calendar-component-set><C:comp name="VTODO"/></C:supported-calendar-component-set>
+        <CS:getctag>ctag-1</CS:getctag>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+  <D:response>
+    <D:href>/dav/user/plain/</D:href>
+    <D:propstat>
+      <D:status>HTTP/1.1 200 OK</D:status>
+      <D:prop>
+        <D:resourcetype><D:collection/><C:calendar/></D:resourcetype>
+      </D:prop>
+    </D:propstat>
+    <D:propstat>
+      <D:status>HTTP/1.1 404 Not Found</D:status>
+      <D:prop>
+        <D:displayname/>
+        <C:supported-calendar-component-set/>
+      </D:prop>
+    </D:propstat>
+  </D:response>
+</D:multistatus>
+"""
+        sccs = cdav.SupportedCalendarComponentSet.tag
+        client = MockedDAVClient(xml)
+        from_set = CalendarSet(client, url="/dav/user/").get_calendars()
+        listing = client.propfind("/dav/user/", props=client.CALENDAR_LIST_PROPS, depth=1)
+        from_client = client._build_calendars_from_propfind(listing)
+        for tasks, plain in (from_set, from_client):
+            assert tasks.props[sccs] == ["VTODO"]
+            assert tasks.props["{http://calendarserver.org/ns/}getctag"] == "ctag-1"
+            assert tasks.props[dav.DisplayName.tag] == "Tasks"
+            assert sccs not in plain.props
+            assert dav.DisplayName.tag not in plain.props
+
+        ## use_cached answers from the listing; without it, or with nothing
+        ## listed, the server is asked as before
+        tasks, plain = from_set
+        with mock.patch.object(client, "request", side_effect=AssertionError("asked")):
+            assert tasks.get_supported_components(use_cached=True) == ["VTODO"]
+        with mock.patch.object(client, "request", wraps=client.request) as request:
+            tasks.get_supported_components()
+            plain.get_supported_components(use_cached=True)
+        assert request.call_count == 2
+
     def test_get_calendars_client_url_is_calendar_without_home_set(self):
         """
         No calendar-home-set and no calendars below the principal: the
