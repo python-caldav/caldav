@@ -23,6 +23,7 @@ ADMIN_USER="admin"
 ADMIN_PASSWORD="adminpass"
 DOMAIN="example.org"
 TEST_USER="${STALWART_USERNAME:-testuser}"
+TEST_USER="${TEST_USER%@*}"  # the local part, if a full address is given
 TEST_PASSWORD="${STALWART_PASSWORD:-testcaldav}"
 JMAP_URL="http://localhost:${HOST_PORT}/jmap"
 

@@ -500,10 +500,12 @@ class StalwartTestServer(DockerTestServer):
         port = int(config.get("port") or os.environ.get("STALWART_PORT", "8809"))
         config.setdefault("host", host)
         config.setdefault("port", port)
-        # v0.16+: username is a full email address; default matches setup_stalwart.sh
-        config.setdefault(
-            "username", os.environ.get("STALWART_USERNAME", f"testuser@{self._domain}")
-        )
+        # v0.16+: the login is a full email address.  STALWART_USERNAME may
+        # be a bare local part, as setup_stalwart.sh reads it.
+        username = os.environ.get("STALWART_USERNAME", "testuser")
+        if "@" not in username:
+            username = f"{username}@{self._domain}"
+        config.setdefault("username", username)
         config.setdefault("password", os.environ.get("STALWART_PASSWORD", "testcaldav"))
         if "features" not in config:
             config["features"] = compatibility_hints.stalwart_1_1.copy()

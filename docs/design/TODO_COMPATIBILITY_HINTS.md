@@ -110,7 +110,7 @@ Possibly into three files (or four, with the original compatibility_hints.py bei
 
 There are three quite different things in the file now, the database of the feature names/flags, the database of server compatibility, and the match logic.
 
-## 8. A grouping node cannot derive from a child that has a default
+## 8. A grouping node cannot derive from a child that has a default (won't fix, documented)
 
 **Location**: `FeatureSet._derive_from_subfeatures`, the `continue` on
 `'default' in subfeature_info`
@@ -124,15 +124,58 @@ marks it as independently probed.  So a grouping node whose children are all
 real, probed features derives nothing, falls through to `_default()`, and
 answers `full` whatever its children say.
 
-Six nodes have that shape today: `http`, `non-existing-raises-not-found`,
+Nine nodes have that shape today: `http`, `non-existing-raises-not-found`,
 `save-load.event.recurrences.exception`, `save-load.icalendar`,
-`url.encode-at` and `auth`.  `is_supported("non-existing-raises-not-found")`
+`url.encode-at`, `auth`, `supported-components`, `sync-token.delete` and
+`scheduling.calendar-user-address-set`.  `is_supported("non-existing-raises-not-found")`
 returns `full` on a server where both children are `unsupported`.
 
-**Fix**: skip a child with its own default only when the *parent* has one too.
-A grouping node should derive from all its children, real ones included.  The
-existing OR-semantics note on `principal-search` suggests the derivation rules
-want a second look at the same time.
+**Proposed fix, and why it does not work as stated**: skip a child with its own
+default only when the *parent* has one too.  Both callers of
+`_derive_from_subfeatures` already require a parent without a default, so this
+amounts to removing the skip.  Answers for every feature over all 25 server
+profiles, before and after:
+
+* `scheduling.calendar-user-address-set` goes to `unsupported` on Xandikos, while
+  the description of `.populated` says an empty property still means the parent
+  is supported.
+* `sync-token.delete` goes to `unsupported` on Xandikos and Stalwart, because
+  `.created-and-deleted` is.  Those profiles state no fault on the parent, and
+  the integration tests guarded by this feature would be skipped.
+* `http` goes to `unsupported` on DAViCal and Synology and to `fragile` on
+  Baikal, `auth` to `unsupported` on Yahoo: all
+  say only that the one child is missing.
+* `supported-components` goes to `unknown` on Purelymail and Robur, against the
+  comment on the node.  A test pins the node at `full` for a single child set
+  (`test_an_absent_property_leaves_the_grouping_node_alone`).
+* `save`, `save.duplicate-uid` and (on Xandikos and Stalwart)
+  `save.duplicate-uid.cross-calendar` go to `quirk`, and `search.time-range.open` to
+  `unknown`: nodes with default-less children too, which pick up the new verdict.
+
+Restricting the change to parents whose children *all* have a default removes
+the last group only.  The existing tests pass under either variant, so they do
+not protect against any of this.
+
+The missing default on these nodes means two things: "only groups" and "real
+capability that happens to have no default".  `delete`,
+`sync-token.delete`, `scheduling.calendar-user-address-set` and
+`save-load.event.recurrences.exception` are the second kind.  The last one is
+read by `search.py`, which switches to server-side expansion when it is false; no
+profile changes today, but `.cancelled` and `.reschedule` both negative, or mixed,
+would trigger that switch for unrelated reasons.
+
+Of the pure grouping nodes listed above only `non-existing-raises-not-found` gains a meaningful
+answer (`unknown` on Robur), and nothing in the library reads it.
+
+**Decided 2026-11-11: won't fix, documented.**  The behaviour stays, and the
+docstring of `_derive_from_subfeatures` now says that such a node has no
+verdict of its own.  The alternative, marking the nodes meant to aggregate in
+`FEATURES` and deriving only for those, would add a schema key for a node
+without a reader.  The convention stands: an explicit default on a node marks
+an independent feature that is probed; without one, the node only groups.
+Should a real capability without a default ever need its own answer, the way
+out is to give it an explicit `unknown` default.  The OR-semantics note on
+`principal-search` is untouched by this.
 
 ## Ordering / dependencies
 
