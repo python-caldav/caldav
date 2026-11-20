@@ -15,6 +15,13 @@ def pytest_configure(config):
         os.environ["PYTHON_CALDAV_DEBUGMODE"] = "DEBUG_PDB"
 
 
+def pytest_sessionfinish(session, exitstatus):
+    """Remove the test calendars from the external servers this session used."""
+    from .fixture_helpers import sweep_used_servers
+
+    sweep_used_servers()
+
+
 @pytest.fixture
 def process_tz(request, monkeypatch):
     """Run the test with the Python process in the time zone given by

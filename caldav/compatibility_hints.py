@@ -343,7 +343,8 @@ hence, "fragile".
                 "interval": "Rate limiting window, in seconds",
                 "count": "Max number of requests to send within the interval",
                 "max_sleep": "Max sleep when hitting a 429 or 503 with retry-after, in seconds",
-                "default_sleep": "Sleep for this long when hitting a 429, in seconds"
+                "default_sleep": "Sleep for this long when hitting a 429, in seconds",
+                "create_calendar_per_hour": "How many calendars the account may make within an hour (Nextcloud's default period); MKCALENDAR beyond that gets a 429 (Nextcloud's rateLimitCalendarCreation, observed as about 10 on ecloud).  A client that makes many calendars, like a test suite, should reuse them rather than make new ones.  Read on its own, whatever 'enable' says: a server with only this limit needs no pacing or sleep-and-retry",
             }},
         "search-cache": {
             "type": "server-peculiarity",
@@ -1864,12 +1865,21 @@ ecloud = nextcloud | {
     #'search.text.case-sensitive': {'support': 'unsupported'}, ## observed to work at 4bc0de765a2b53e6f223e0b9ac51c653bac11fb7 (caldav) / 3cae24cf99da1702b851b5a74a9b88c8e5317dad (server checker)
     'delete-calendar.free-namespace': False,
     ## TODO: this applies only to test runs, not to ordinary usage
+    ## 2026-11-12: two test runs at one request per 2 s made 22 calendars in
+    ## 3 hours (up to 9 in one hour) and got no 429 at all, so the pace is
+    ## doubled to one request per second.  Only the sync suite paces by
+    ## interval/count.  Revisit: lower it further while no 429 shows up,
+    ## raise it again if one does.
     'rate-limit': {
         'enable': True,
-        'interval': 2,
+        'interval': 1,
         'count': 1,
         'default_sleep': 4,
         'max_sleep': 120,
+        ## Nextcloud's own default (rateLimitCalendarCreation); 2026-11-11 a
+        ## dozen creations within the hour got a 429, 2026-11-12 nine in one
+        ## hour did not.
+        'create_calendar_per_hour': 10,
         'description': "It's needed to manually empty trashbin frequently when running tests.  Since this operation takes some time and/or there are some caches, it's needed to run tests slowly, even when hammering the 'empty thrashbin' frequently",
     },
     'auto-connect.url': {
@@ -2530,7 +2540,14 @@ synology = davical | {
     ## through its own UI/API and refuses a CalDAV DELETE on the collection,
     ## where upstream DAViCal allows it.  Consequence for callers: Calendar
     ## .delete() degrades to wiping the objects, so a cal_id is never freed for
-    ## reuse and a later MKCALENDAR at the same id gets 405.
+    ## reuse and a later MKCALENDAR at the same id gets 405.  DSM's own web
+    ## API does delete them, with the account's CalDAV credentials: log in
+    ## at /webapi/entry.cgi (api=SYNO.API.Auth, version=6, method=login,
+    ## session=Calendar, format=sid), then api=SYNO.Cal.Cal, version=1,
+    ## method=delete, cal_id='"/<user>/<segment>/"' (a JSON string) with the
+    ## sid as _sid.  It works on calendars made over CalDAV too, although
+    ## SYNO.Cal.Cal's list method does not show those (2026-11-18, 384
+    ## leftover test calendars deleted).
     'delete-calendar': False,
     ## sync-token (fragile, inherited from davical) and sync-token.delete
     ## both came out full in a server-tester run on 2026-10-23.
