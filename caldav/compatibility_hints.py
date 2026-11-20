@@ -305,6 +305,11 @@ class FeatureSet:
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc3744#section-2", "https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
         },
+        "propfind.listed-members-exist": {
+            "description": "Every calendar a Depth: 1 PROPFIND of the calendar home lists is there: a PROPFIND of its own does not answer 404.  RFC 4918 section 9.1 has a Depth: 1 PROPFIND report the members of the collection, so 'broken' is a listing naming a calendar that is not there - Bedework 5 lists a tasks/ calendar, display name and component set and all, that answers 404 when asked directly.  A client that takes the listing's properties as they are hands such a calendar out, to fail when used; where this is broken, it asks each listed calendar first.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
+        },
         "create-calendar.with-supported-component-types": {
             "description": "A MKCALENDAR naming a supported-calendar-component-set gives a calendar with that set.  RFC 4791 section 5.3.1.1 has a server that cannot set a property answer 207 with 403 or 409 for it and create nothing; 'unsupported' means the calendar was created with another set (reported as another set, or not reported while an object outside the requested set can be saved to it) - Bedework 5 answers the property '200 ok' and makes a VEVENT-only calendar.  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.  Whether the server then obeys the set it reports is supported-components.honoured.",
             "default": {"support": "full"},
@@ -2208,6 +2213,10 @@ bedework_5_0_0 = {
     "create-calendar.auto": {"support": "unsupported"},
     "create-calendar.set-displayname": {"support": "full"},
     "create-calendar.stable-url": {"support": "full"},
+    ## Found 2026-11-20 on the docker image: the calendar home's listing
+    ## names tasks/ with a display name and ['VTODO'], and a PROPFIND of
+    ## tasks/ answers 404.  Bedework 3.10 lists no such calendar.
+    "propfind.listed-members-exist": {"support": "broken", "behaviour": "lists a tasks/ calendar that answers 404"},
     ## Not RFC properties; Bedework stores the Apple colour but not the order.
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "unsupported"},

@@ -1,0 +1,1 @@
+New compatibility feature `propfind.listed-members-exist`: every calendar the calendar home's listing names is there.  Bedework 5 lists a `tasks/` calendar that answers 404, which its profile now records as broken, so a client that takes calendars and their properties from the listing alone knows where to check each one first.
