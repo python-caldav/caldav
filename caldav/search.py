@@ -79,21 +79,21 @@ def _filter_search_results(
 
     result = []
     for o in objects:
+        try:
+            i = o.icalendar_instance
+        except ValueError:
+            logging.getLogger(__name__).warning("Skipping unparseable calendar object at %s", o.url)
+            continue
         if searcher.expand or post_filter:
             try:
                 filtered = searcher.check_component(o, expand_only=not post_filter)
             except ValueError:
-                filtered = [
-                    x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
-                ]
+                filtered = [x for x in i.subcomponents if not isinstance(x, Timezone)]
             if not filtered:
                 continue
         else:
-            filtered = [
-                x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
-            ]
+            filtered = [x for x in i.subcomponents if not isinstance(x, Timezone)]
 
-        i = o.icalendar_instance
         tz_ = [x for x in i.subcomponents if isinstance(x, Timezone)]
         i.subcomponents = tz_
 
@@ -1432,8 +1432,8 @@ class CalDAVSearcher(Searcher):
     ) -> list[CalendarObjectResource]:
         """Apply client-side filtering and handle recurrence expansion/splitting.
 
-        This method delegates to the operations layer filter_search_results().
-        See that function for full documentation.
+        If parsing an object's iCalendar data raises a ValueError during filtering
+        or expansion, its URL is logged at warning level and the search continues.
 
         :param objects: List of Event/Todo/Journal objects to filter
         :param post_filter: Whether to apply the searcher's filter logic
