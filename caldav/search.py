@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     )
     from .collection import Calendar as AsyncCalendar
 
+log = logging.getLogger("caldav")
 _icalendar_types = TypesFactory()
 
 ## Dates and floating times have no time zone, and a CalDAV server
@@ -79,21 +80,22 @@ def _filter_search_results(
 
     result = []
     for o in objects:
+        try:
+            i = o.icalendar_instance
+        except ValueError as exc:
+            log.warning("Including unparseable calendar object at %s unfiltered: %s", o.url, exc)
+            result.append(o)
+            continue
         if searcher.expand or post_filter:
             try:
-                filtered = searcher.check_component(o, expand_only=not post_filter)
+                filtered = list(searcher.check_component(o, expand_only=not post_filter) or ())
             except ValueError:
-                filtered = [
-                    x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
-                ]
+                filtered = [x for x in i.subcomponents if not isinstance(x, Timezone)]
             if not filtered:
                 continue
         else:
-            filtered = [
-                x for x in o.icalendar_instance.subcomponents if not isinstance(x, Timezone)
-            ]
+            filtered = [x for x in i.subcomponents if not isinstance(x, Timezone)]
 
-        i = o.icalendar_instance
         tz_ = [x for x in i.subcomponents if isinstance(x, Timezone)]
         i.subcomponents = tz_
 
@@ -330,7 +332,11 @@ def _dedup_resources(matches: list) -> list:
     objects = []
     seen = set()
     for item in matches:
-        recurrence_id = item.icalendar_component.get("RECURRENCE-ID")
+        try:
+            recurrence_id = item.icalendar_component.get("RECURRENCE-ID")
+        except ValueError:
+            # An unparseable resource was returned unexpanded; deduplicate it by URL.
+            recurrence_id = None
         key = (item.url, recurrence_id.to_ical() if recurrence_id is not None else None)
         if key not in seen:
             seen.add(key)
@@ -1432,8 +1438,8 @@ class CalDAVSearcher(Searcher):
     ) -> list[CalendarObjectResource]:
         """Apply client-side filtering and handle recurrence expansion/splitting.
 
-        This method delegates to the operations layer filter_search_results().
-        See that function for full documentation.
+        If an object's iCalendar data cannot be parsed, it is included unfiltered
+        and a warning is logged. See `_filter_search_results()`.
 
         :param objects: List of Event/Todo/Journal objects to filter
         :param post_filter: Whether to apply the searcher's filter logic

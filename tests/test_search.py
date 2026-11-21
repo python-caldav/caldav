@@ -256,6 +256,50 @@ class TestCalDAVSearcherFilterBasic:
 class TestCalDAVSearcherFilterPostFilter:
     """Tests for post_filter parameter functionality."""
 
+    @pytest.mark.parametrize("expand", [False, True])
+    def test_filter_includes_unparseable_todo(
+        self, mock_client: DAVClient, mock_url: str, caplog: pytest.LogCaptureFixture, expand: bool
+    ) -> None:
+        def todo(name: str, data: str) -> Todo:
+            return Todo(client=mock_client, url=f"{mock_url}/{name}.ics", data=data)
+
+        first = todo("first", SIMPLE_TODO)
+        bad = todo("bad", SIMPLE_TODO.replace("DUE:20240620T170000Z", "DUE:2024-06-20"))
+        last = todo("last", SIMPLE_TODO.replace("simple-todo@", "another-todo@"))
+        searcher = CalDAVSearcher(
+            todo=True,
+            expand=expand,
+            start=datetime(2024, 6, 1, tzinfo=timezone.utc),
+            end=datetime(2024, 7, 1, tzinfo=timezone.utc),
+        )
+        objects = [first, bad, last]
+
+        with caplog.at_level("WARNING", logger="caldav"):
+            result = searcher.filter(objects, post_filter=True)
+
+        assert [item.url for item in result] == [item.url for item in objects]
+        assert result[1] is bad
+        assert any(
+            record.name == "caldav"
+            and record.levelname == "WARNING"
+            and str(bad.url) in record.getMessage()
+            and "2024-06-20" in record.getMessage()
+            for record in caplog.records
+        )
+
+    def test_expand_falls_back_if_iteration_fails(self, mock_client: DAVClient, mock_url: str):
+        event = Event(client=mock_client, url=mock_url, data=SIMPLE_EVENT)
+
+        component = event.icalendar_component
+
+        def occurrences():
+            yield component
+            raise ValueError("cannot expand recurrence")
+
+        with mock.patch.object(CalDAVSearcher, "check_component", return_value=occurrences()):
+            result = CalDAVSearcher(expand=True).filter([event])
+        assert [item.id for item in result] == ["simple-event@example.com"]
+
     def test_filter_with_post_filter_true_applies_filters(
         self, mock_client: DAVClient, mock_url: str
     ) -> None:
