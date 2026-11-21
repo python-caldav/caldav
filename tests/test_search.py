@@ -256,6 +256,27 @@ class TestCalDAVSearcherFilterBasic:
 class TestCalDAVSearcherFilterPostFilter:
     """Tests for post_filter parameter functionality."""
 
+    def test_filter_skips_unparseable_todo(
+        self, mock_client: DAVClient, mock_url: str, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        def todo(name: str, data: str) -> Todo:
+            return Todo(client=mock_client, url=f"{mock_url}/{name}.ics", data=data)
+
+        first = todo("first", SIMPLE_TODO)
+        bad = todo("bad", SIMPLE_TODO.replace("DUE:20240620T170000Z", "DUE:2024-06-20"))
+        last = todo("last", SIMPLE_TODO.replace("simple-todo@", "another-todo@"))
+        searcher = CalDAVSearcher(todo=True)
+        objects = [first, bad, last]
+
+        assert searcher.filter(objects, post_filter=False) == objects
+        result = searcher.filter(objects, post_filter=True)
+
+        assert [item.url for item in result] == [first.url, last.url]
+        assert any(
+            record.levelname == "WARNING" and str(bad.url) in record.getMessage()
+            for record in caplog.records
+        )
+
     def test_filter_with_post_filter_true_applies_filters(
         self, mock_client: DAVClient, mock_url: str
     ) -> None:
