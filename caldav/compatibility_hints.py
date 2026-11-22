@@ -898,6 +898,11 @@ hence, "fragile".
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.5.1"],
         },
+        "sync-token.deleted-rdate": {
+            "description": "A sync token issued before an event with RDATE and no RRULE was deleted is still accepted after the delete (RFC 6578 section 3.5.2; whether the delete is reported is sync-token.delete).  Not under sync-token.delete: Bedework 5 does not report deletions, yet its tokens keep working.  'ungraceful' when every such older token is refused with an error that does not name DAV:valid-sync-token (OX App Suite 7.10.6: 400, CAL-4002 'Invalid recurrence rule [rule null]', as it stores such an event as a series without a rule), so incremental sync of that calendar never works again; get_objects_by_sync_token() falls back to a full listing.  'quirk' when they are refused with DAV:valid-sync-token, which tells the client to start over with a full sync.  An event with both RRULE and RDATE is not affected.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.5.2"],
+        },
         "sync-token.initial-sync": {
             "description": "A sync report from an empty token lists exactly the current members of the collection: RFC 6578 section 3.4 says it MUST NOT return removed members.  'quirk' when it lists more, which a client can filter away (keep only hrefs below the collection, answered 200): Radicale lists deleted members with a 404, Stalwart and CCS also list the collection itself.  The behaviour says which.  The limit on an initial sync is sync-token.limit.initial-sync, which inherits from sync-token.limit rather than from this.",
             "default": {"support": "full"},
@@ -3304,6 +3309,11 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
+    ## Found by hand 2026-11-22, with com.openexchange.dav on DEBUG: the
+    ## tombstone of a deleted RDATE-only event is a series master without a
+    ## rule, and EventPostProcessor.doProcessTombstone fails on it for every
+    ## sync-collection REPORT with an older token.
+    "sync-token.deleted-rdate": {"support": "ungraceful", "behaviour": "a token older than the delete of an RDATE-only event gets 400 without valid-sync-token"},
     ## Probed 2026-11-22 by caldav-server-tester
     "save-load.icalendar.tzid-link": {"support": "quirk", "behaviour": "stored as TZID=Europe/Berlin, the zone Europe/Oslo points to"},
     ## Probed 2026-10-26 by caldav-server-tester
