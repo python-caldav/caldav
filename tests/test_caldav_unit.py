@@ -11,6 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from unittest import mock
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import icalendar
 import lxml.etree
@@ -3558,8 +3559,6 @@ class TestOlsonTzidHint:
 
     @staticmethod
     def _berlin() -> datetime:
-        from zoneinfo import ZoneInfo
-
         return datetime(2026, 6, 6, 20, tzinfo=ZoneInfo("Europe/Berlin"))
 
     @pytest.mark.parametrize(
@@ -10542,3 +10541,141 @@ class TestTzidLinkRewritten:
             assert vcal.canonical_tzids(data) == data
         finally:
             vcal.tzdata_links.cache_clear()
+
+
+class TestDurationSentAsDue:
+    """Where ``save-load.todo.dtstart-without-due`` is unsupported, the server
+    drops a task's DTSTART unless the task has a DUE (Zimbra, which keeps the
+    DURATION, so the task comes back with a DURATION alone, which RFC 5545
+    forbids).  save() then sends the DUE that DTSTART and DURATION give."""
+
+    URL = "http://cal.example.com/dav/user/tasks/"
+
+    @staticmethod
+    def _ical(lines):
+        return (
+            "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//t//EN\r\n"
+            "BEGIN:VTODO\r\nUID:duration-1\r\nDTSTAMP:20261101T000000Z\r\n"
+            + "".join(f"{line}\r\n" for line in lines.split("\n"))
+            + "SUMMARY:x\r\nEND:VTODO\r\nEND:VCALENDAR\r\n"
+        )
+
+    def _save(self, data, support="unsupported", raw=False, **more):
+        sent = []
+        features = {"save-load.todo.dtstart-without-due": {"support": support}, **more}
+        client = DAVClient(url="http://cal.example.com/dav/", features=features)
+
+        def request(url, method="GET", body="", headers=None):
+            if method.upper() == "PUT":
+                sent.append(body.decode() if isinstance(body, bytes) else str(body))
+            resp = mock.MagicMock()
+            resp.reason = "whatever"
+            resp.status_code = 201 if method.upper() == "PUT" else 404
+            resp.content = b""
+            resp.headers = {}
+            resp.text = ""
+            return DAVResponse(resp, client)
+
+        client.request = request
+        todo = Todo(
+            client,
+            url=self.URL + "duration-1.ics",
+            data=data,
+            parent=Calendar(client, url=self.URL),
+        )
+        if raw:
+            todo.save(raw_data=data.encode(), no_overwrite=False, no_create=False)
+        else:
+            todo.save(increase_seqno=False)
+        [body] = sent
+        [component] = icalendar.Calendar.from_ical(body).walk("VTODO")
+        return todo, component, body
+
+    @pytest.mark.parametrize(
+        ("lines", "due"),
+        [
+            (
+                "DTSTART;TZID=Europe/Berlin:20261120T100000\nDURATION:PT2H",
+                datetime(2026, 11, 20, 12, tzinfo=ZoneInfo("Europe/Berlin")),
+            ),
+            (
+                "DTSTART:20261120T100000Z\nDURATION:PT2H",
+                datetime(2026, 11, 20, 12, tzinfo=timezone.utc),
+            ),
+            ("DTSTART;VALUE=DATE:20261120\nDURATION:P2D", date(2026, 11, 22)),
+            ("DTSTART:20261120T100000\nDURATION:PT2H", datetime(2026, 11, 20, 12)),
+        ],
+    )
+    def test_the_duration_is_sent_as_a_due(self, lines, due) -> None:
+        todo, sent, _ = self._save(self._ical(lines))
+        assert "DURATION" not in sent
+        assert sent.decoded("DUE") == due
+        assert type(sent.decoded("DUE")) is type(due)
+        assert sent.decoded("DTSTART") == icalendar.Calendar.from_ical(self._ical(lines)).walk(
+            "VTODO"
+        )[0].decoded("DTSTART")
+        assert "DURATION" in todo.data, "the object as the caller holds it is not rewritten"
+
+    def test_a_duration_icalendar_has_no_due_for_is_sent_as_it_is(self) -> None:
+        """A date start takes a duration of days or weeks only."""
+        _, sent, _ = self._save(self._ical("DTSTART;VALUE=DATE:20261120\nDURATION:PT2H"))
+        assert "DURATION" in sent and "DUE" not in sent
+
+    def test_a_body_icalendar_cannot_read_is_sent_as_it_is(self) -> None:
+        from caldav.lib.vcal import duration_as_due
+
+        assert duration_as_due("not icalendar") == "not icalendar"
+
+    def test_a_master_and_its_override_are_both_rewritten(self) -> None:
+        from caldav.lib.vcal import duration_as_due
+
+        data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H\nRRULE:FREQ=DAILY;COUNT=3")
+        override = (
+            "BEGIN:VTODO\r\nUID:duration-1\r\nDTSTAMP:20261101T000000Z\r\n"
+            "RECURRENCE-ID:20261121T100000Z\r\nDTSTART:20261121T110000Z\r\n"
+            "DURATION:PT1H\r\nSUMMARY:x\r\nEND:VTODO\r\n"
+        )
+        data = data.replace("END:VCALENDAR", override + "END:VCALENDAR")
+        tasks = icalendar.Calendar.from_ical(duration_as_due(data)).walk("VTODO")
+        assert [t.decoded("DUE") for t in tasks] == [
+            datetime(2026, 11, 20, 12, tzinfo=timezone.utc),
+            datetime(2026, 11, 21, 12, tzinfo=timezone.utc),
+        ]
+        assert not any("DURATION" in t for t in tasks)
+
+    def test_a_zone_defined_in_the_body_is_kept(self) -> None:
+        zone = TestTzidLinkRewritten._vtimezone("My Zone")
+        data = self._ical("DTSTART;TZID=My Zone:20261120T100000\nDURATION:PT2H")
+        data = data.replace("BEGIN:VTODO", zone + "BEGIN:VTODO", 1)
+        _, sent, _ = self._save(data)
+        assert sent["DUE"].params["TZID"] == "My Zone"
+
+    def test_it_stacks_with_the_tzid_link_rewrite(self) -> None:
+        """Bedework 5 refuses a tz link; both hints at once rewrite both."""
+        data = self._ical("DTSTART;TZID=Europe/Oslo:20261120T100000\nDURATION:PT2H")
+        data = data.replace(
+            "BEGIN:VTODO", TestTzidLinkRewritten._vtimezone("Europe/Oslo") + "BEGIN:VTODO", 1
+        )
+        _, task, _ = self._save(
+            data, **{"save-load.icalendar.tzid-link": {"support": "ungraceful"}}
+        )
+        assert "DURATION" not in task
+        assert task["DTSTART"].params["TZID"] == "Europe/Berlin"
+        assert task["DUE"].params["TZID"] == "Europe/Berlin"
+
+    def test_nothing_is_rewritten_where_the_server_keeps_the_start(self) -> None:
+        data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H")
+        for support in ("full", "unknown"):
+            _, sent, _ = self._save(data, support=support)
+            assert "DURATION" in sent and "DUE" not in sent
+
+    def test_raw_data_is_sent_unchanged(self) -> None:
+        data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H")
+        _, _, body = self._save(data, raw=True)
+        assert body == data
+
+    def test_an_event_is_left_alone(self) -> None:
+        from caldav.lib.vcal import duration_as_due
+
+        data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H").replace("VTODO", "VEVENT")
+        assert duration_as_due(data) == data

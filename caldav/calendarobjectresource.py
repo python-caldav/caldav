@@ -1233,6 +1233,12 @@ class CalendarObjectResource(DAVObject):
         ):
             ## The server refuses a TZID that is a tz database link (Bedework 5)
             body = vcal.canonical_tzids(str(body))
+        if (
+            features is not None
+            and features.is_supported("save-load.todo.dtstart-without-due", str) == "unsupported"
+        ):
+            ## The server drops a task's DTSTART unless it has a DUE (Zimbra)
+            body = vcal.duration_as_due(str(body))
         if self.is_async_client:
             return self._async_send_put(
                 str(body), headers, retry_on_failure, precondition, wildcard

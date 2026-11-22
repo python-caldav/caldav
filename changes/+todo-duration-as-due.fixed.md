@@ -1,0 +1,1 @@
+Where `save-load.todo.dtstart-without-due` is `unsupported` (Zimbra), `save()` sends a task's DTSTART and DURATION as DTSTART and the DUE they give, so the server keeps the start instead of storing a DURATION alone.  `raw_data` is sent as it is.

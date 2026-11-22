@@ -95,6 +95,28 @@ def canonical_tzids(data: str) -> str:
     return cal.to_ical().decode() if changed else data
 
 
+def duration_as_due(data: str) -> str:
+    """``data`` with each task's DTSTART and DURATION given as DTSTART and DUE.
+
+    The DUE is the one icalendar computes.  A task icalendar cannot compute
+    one for, and ``data`` icalendar cannot read, come back as they are.
+    """
+    try:
+        cal = icalendar.Calendar.from_ical(data)
+    except ValueError:
+        return data
+    changed = False
+    for task in cal.walk("VTODO"):
+        if "DTSTART" not in task or "DURATION" not in task or "DUE" in task:
+            continue
+        try:
+            task.end = task.end
+        except icalendar.InvalidCalendar:
+            continue
+        changed = True
+    return cal.to_ical().decode() if changed else data
+
+
 def parse_ical(data, context: str | None = None) -> icalendar.Calendar:
     """icalendar.Calendar.from_ical(), with a usable error for a body that
     holds no iCalendar at all.
