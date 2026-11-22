@@ -2046,8 +2046,9 @@ zimbra_8_8 = {
     ## in place in three runs on 2026-10-29.  Zimbra is known to need a
     ## pause before an invitation lands, and the probe looks at the
     ## attendee's calendar only once, so the miss may have been a delay.
-    ## If it is observed missing again, regrade scheduling.auto-schedule
-    ## (below) as fragile.
+    ## Missing again on 2026-11-22, in one of three runs that day (with 20
+    ## other servers probed in parallel), so scheduling.auto-schedule (below)
+    ## is fragile, as planned here.
     #"scheduling.mailbox.inbox-delivery": False,
     "scheduling.schedule-tag": False,
     'save-load.icalendar.related-to': {'support': 'unsupported'},
@@ -2080,7 +2081,7 @@ zimbra_8_8 = {
     "save-load.event.recurrences.rdate": {"support": "unsupported", "behaviour": "the RDATE is dropped"},
     "save-load.icalendar.unknown-property": {"support": "unsupported", "behaviour": "ESTIMATED-DURATION is dropped"},
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
-    "scheduling.auto-schedule": {"support": "full"},
+    "scheduling.auto-schedule": {"support": "fragile", "behaviour": "the invitation is sometimes missing from the attendee's calendar when the probe looks"},
     ## Probed 2026-11-06 by caldav-server-tester
     "save-load.icalendar.olson-tzid": {"support": "full", "behaviour": "the server adds a VTIMEZONE for Asia/Tokyo"},
     ## Probed 2026-11-15 by caldav-server-tester, on 8.8 and on 10.1
