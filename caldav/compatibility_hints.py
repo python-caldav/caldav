@@ -643,7 +643,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.8.8.2"],
         },
         "save-load.icalendar.x-parameter": {
-            "description": "An X- parameter (RFC 5545 section 3.2) on a standard property is stored with it, in an event and in a task.  'unsupported' when it is dropped (Ox and Zimbra drop SUMMARY's); the behaviour names the first component it was dropped from.",
+            "description": "An X- parameter (RFC 5545 section 3.2) on a standard property is stored with it, in an event and in a task.  'unsupported' when it is dropped (Ox, Zimbra and Bedework drop SUMMARY's); the behaviour names the first component it was dropped from.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc5545#section-3.2"],
         },
@@ -666,7 +666,7 @@ hence, "fragile".
             "default": {"support": "full"},
         },
         "save-load.mutable.if-match-wildcard": {
-            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra, Radicale - both compare '*' as a literal etag).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) is save.if-none-match.  save(no_create=True) sends If-Match: * where this is supported ('full' or 'quirk') and no strong ETag or Schedule-Tag is cached, so the server refuses to create in the same request; elsewhere it searches for the UID before the PUT.  The default is 'full': RFC 4791 section 2 requires a CalDAV server to support ETags as RFC 2616 defines them, and RFC 2616 section 14.24 (now RFC 9110 section 13.1.1) says the server MUST NOT perform the method when '*' is given and no object exists.",
+            "description": "An overwrite carrying If-Match: * is accepted, and a PUT carrying it to a missing object is refused.  RFC 9110 section 13.1.1 has '*' match any current representation, so it means 'overwrite, but only if the object exists'.  When 'unsupported', the server answers 412 Precondition Failed even though the object is there (Zimbra, and Radicale before 3.9.0 - both compare '*' as a literal etag).  When 'broken', a missing object is created: the condition is backwards (Bedework, 412 on an existing object) or ignored (SOGo).  If-None-Match: * (section 13.1.2) is save.if-none-match.  save(no_create=True) sends If-Match: * where this is supported ('full' or 'quirk') and no strong ETag or Schedule-Tag is cached, so the server refuses to create in the same request; elsewhere it searches for the UID before the PUT.  The default is 'full': RFC 4791 section 2 requires a CalDAV server to support ETags as RFC 2616 defines them, and RFC 2616 section 14.24 (now RFC 9110 section 13.1.1) says the server MUST NOT perform the method when '*' is given and no object exists.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc4791#section-2", "https://datatracker.ietf.org/doc/html/rfc2616#section-14.24", "https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1"],
         },
@@ -904,7 +904,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.4"],
         },
         "sync-token.invalid-token": {
-            "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status (Xandikos: 412).  'ungraceful' means an error without the precondition (Xandikos and CCS answer 500 for a malformed token).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
+            "description": "A sync-collection report with a token the server never issued is refused with the DAV:valid-sync-token precondition and a 403, which RFC 4918 section 16 suggests for a request that will always fail, so the client knows to start over with a full sync.  'quirk' means the precondition comes with another status (Xandikos: 412).  'ungraceful' means an error without the precondition (CCS answers 500 for a malformed token, as Xandikos did before 0.4.10).  'broken' means the report succeeds (Stalwart returns a full listing), so a client can't tell a refused token from an ordinary report",
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.2"],
         },
         "sync-token.limit": {
@@ -1095,6 +1095,28 @@ hence, "fragile".
         "save.duplicate-uid": {}, ## TODO: should consider reorganizing here.  See also `no-uid-conflict`.
         "save.duplicate-uid.cross-calendar": {
             "description": "Server allows events with the same UID to exist in different calendars and treats them as separate entities. Support can be 'full' (allowed), 'ungraceful' (rejected with error), or 'unsupported' (silently ignored or moved). Behaviour 'silently-ignored' means the duplicate is not saved but no error is thrown. Behaviour 'moved-instead-of-copied' means the event is moved from the original calendar to the new calendar (Zimbra behavior)"
+        },
+        "move": {
+            "description": "WebDAV MOVE (RFC 4918 section 9.9) of a calendar object into another calendar of the same principal: the object ends up in the target only.  RFC 4918 says every WebDAV resource MUST support MOVE.  Without it, a client moves by copying and deleting, which fails where save.duplicate-uid.cross-calendar is not supported.  See https://github.com/python-caldav/caldav/issues/841",
+            ## Not derived from move.overwrite and move.if-match: a server ignoring them still moves.
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.9"],
+        },
+        "move.overwrite": {
+            "description": "A MOVE honours 'Overwrite: F' (RFC 4918 section 10.6): it refuses to replace an object at the destination, and moves onto a free name as without the header.  Derived from the two subfeatures.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-10.6"],
+        },
+        "move.overwrite.existing": {
+            "description": "A MOVE with 'Overwrite: F' onto an object that already exists at the destination fails with 412 and changes nothing, as RFC 4918 section 10.6 requires.  Where unsupported, the MOVE replaces the object at the destination.  'ungraceful' when it is refused with another status (GMX: 405) and nothing is moved.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-10.6"],
+        },
+        "move.overwrite.free-name": {
+            "description": "A MOVE with 'Overwrite: F' onto a name that is free at the destination moves the object, as one without the header does.  'broken' when it is refused (Bedework 3.10 and 5: 412), so the header can only be sent where the name is known to be taken.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-10.6"],
+        },
+        "move.if-match": {
+            "description": "A MOVE with an If-Match the object no longer has fails with 412 and moves nothing (RFC 9110 section 13.1.1).  Where unsupported, a MOVE cannot guard against an object changed since it was read.",
+            "links": ["https://datatracker.ietf.org/doc/html/rfc9110#section-13.1.1"],
         },
         "save.duplicate-event": {
             "description": "Server allows two events with identical content but different UIDs to coexist in the same calendar.  Some servers reject or de-duplicate such an event ('duplicates not allowed even with a different UID'), in which case this is 'unsupported' (silently dropped) or 'ungraceful' (rejected with an error).  The default 'full' is the usual behaviour.",
@@ -1689,13 +1711,15 @@ hence, "fragile".
 ## are some hacks in the library code itself to work around some known
 ## compatibility issues, like the caldav.lib.vcal.fix function.
 xandikos = {
-    ## Probed 2026-10-11 on 0.4.8, unchanged on master (0.4.9): a token that
-    ## isn't a hex SHA crashes the git store lookup, and a hex one is refused
-    ## as 412 rather than 403.
+    ## Probed 2026-11-22 by caldav-server-tester
+    "move.if-match": {"support": "unsupported", "behaviour": "a MOVE with an outdated If-Match answered 201, not 412"},
+    ## Probed 2026-11-22: since 0.4.10 (https://github.com/jelmer/xandikos/pull/748)
+    ## a token that isn't a hex SHA is refused like a hex one, as 412 rather
+    ## than 403; up to 0.4.9 it crashed the git store lookup with a 500.
     ## https://github.com/pycalendar/calendaring-sync/pull/19#issuecomment-6112378889
     "sync-token.invalid-token": {
-        "support": "ungraceful",
-        "behaviour": "'http://example.invalid/never-issued': 500 without valid-sync-token; '0000000000000000000000000000000000000000': 412 with valid-sync-token",
+        "support": "quirk",
+        "behaviour": "'http://example.invalid/never-issued': 412 with valid-sync-token; '0000000000000000000000000000000000000000': 412 with valid-sync-token",
     },
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
@@ -1741,20 +1765,21 @@ xandikos = {
 ## There is much development going on at Radicale as of summar 2025,
 ## so I'm expecting this list to shrink a lot soon.
 radicale = {
+    ## Probed 2026-11-22 by caldav-server-tester.  Radicale 3.9.0
+    ## fixed the i;octet collation and If-Match: *; on older
+    ## versions configure search.text.case-sensitive and
+    ## save-load.mutable.if-match-wildcard as unsupported.
+    "move.if-match": {"support": "unsupported", "behaviour": "a MOVE with an outdated If-Match answered 201, not 412"},
     ## A fresh account comes without a calendar (observed on the docker test server)
     "get-current-user-principal.has-calendar": {"value": False},
     ## Genuinely returns matching objects for a comp-type-less query that carries
     ## a time-range (verified: the event is returned, not just "no error").
     "search.time-range.comp-type-optional": {"support": "full"},
     "search.is-not-defined": {"support": "full"},
-    "search.text.case-sensitive": {"support": "unsupported"},
-    ## radicale/app/put.py compares the If-Match value with the item's etag
-    ## literally, so '*' never matches.  If-None-Match: * is handled right.
-    ## Measured on 3.8.0, 2026-09-15.
-    "save-load.mutable.if-match-wildcard": {
-        "support": "unsupported",
-        "behaviour": "If-Match: * is compared as a literal etag: an overwrite of an existing object is refused with 412",
-    },
+    ## Up to 3.8.x the i;octet collation was ignored (search.text.case-sensitive
+    ## unsupported) and If-Match: * was compared as a literal etag
+    ## (save-load.mutable.if-match-wildcard unsupported); 3.9.0 fixed both,
+    ## probed 2026-11-22 on 3.9.2.
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "full"},
     "save.no-uid-conflict.href-given": {"support": "unsupported"},
@@ -1909,6 +1934,10 @@ ecloud = nextcloud | {
 ## zimbra/zcs-foss:latest docker image (Zimbra 8.8, built 2017); upgrades
 ## have been known to bring regressions, hence the version-stamped name.
 zimbra_8_8 = {
+    ## Probed 2026-11-22 by caldav-server-tester, on the docker image and on Zimbra 10.1
+    "move.overwrite.existing": {"support": "unsupported", "behaviour": "a MOVE with Overwrite: F onto an existing object answered 204, not 412"},
+    "move.overwrite.free-name": {"support": "full"},
+    "move.if-match": {"support": "unsupported", "behaviour": "a MOVE with an outdated If-Match answered 204, not 412"},
     ## Probed 2026-11-03 by caldav-server-tester, on the docker image
     "save-load.todo.status": {"support": "ungraceful", "behaviour": "CANCELLED is refused (401/403)", "values": ["NEEDS-ACTION", "IN-PROCESS", "COMPLETED"], "map": {}, "refused": ["CANCELLED"]},
     "save-load.todo.status.rfc10051": {"support": "unsupported", "behaviour": "PENDING is stored as NEEDS-ACTION; FAILED is stored as NEEDS-ACTION; the server does not advertise RFC 10051", "values": [], "map": {"PENDING": "NEEDS-ACTION", "FAILED": "NEEDS-ACTION"}, "refused": []},
@@ -2181,6 +2210,8 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
+    ## Probed 2026-11-22 by caldav-server-tester
+    "save-load.icalendar.x-parameter": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER on SUMMARY is dropped, in an event"},
     ## Probed 2026-11-14 by caldav-server-tester: a calendar-query returns
     ## the master without the moved occurrence, which a GET of the same
     ## object has.  The object keeps both, so the exception is stored
@@ -2588,6 +2619,10 @@ synology = davical | {
 }
 
 sogo = {
+    ## Probed 2026-11-22 by caldav-server-tester
+    "move.overwrite.existing": {"support": "unsupported", "behaviour": "a MOVE with Overwrite: F onto an existing object answered 201, not 412"},
+    "move.overwrite.free-name": {"support": "full"},
+    "move.if-match": {"support": "unsupported", "behaviour": "a MOVE with an outdated If-Match answered 201, not 412"},
     ## Measured with caldav-server-tester, 2026-10-28.
     "save.no-uid-conflict": {"support": "quirk", "status": 409, "precondition": False, "behaviour": "refused with a bare 409"},
     "save.no-uid-conflict.href-given": {"support": "unknown"},
@@ -2715,6 +2750,8 @@ sogo = {
 #]
 
 robur = {
+    ## Probed 2026-11-22 by caldav-server-tester
+    "move": {"support": "unsupported", "behaviour": "MOVE answered 501"},
     ## Probed 2026-11-12 by caldav-server-tester: a calendar-multiget naming
     ## .../x%40y.ics answers 404, one naming .../x@y.ics finds it; PUT and GET
     ## of the %40 URL both work.
@@ -3153,6 +3190,10 @@ purelymail = {
 }
 
 gmx = {
+    ## Probed 2026-11-22 by caldav-server-tester
+    "move.overwrite.existing": {"support": "ungraceful", "behaviour": "a MOVE with Overwrite: F onto an existing object answered 405, not 412, and moved nothing"},
+    "move.overwrite.free-name": {"support": "full"},
+    "save-load.icalendar.tzid-link": {"support": "quirk", "behaviour": "stored as TZID=Europe/Berlin, the zone Europe/Oslo points to"},
     ## Probed 2026-10-26 by caldav-server-tester
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500, ical4j casts the Participant to a VAlarm)"},
     ## Measured with caldav-server-tester, 2026-10-19.
@@ -3263,6 +3304,8 @@ gmx = {
 ## OX App Suite CalDAV served at /caldav/ (Apache proxies to /servlet/dav/caldav on port 8009).
 ## The Docker image must be built locally before use (see tests/docker-test-servers/ox/build.sh).
 ox = {
+    ## Probed 2026-11-22 by caldav-server-tester
+    "save-load.icalendar.tzid-link": {"support": "quirk", "behaviour": "stored as TZID=Europe/Berlin, the zone Europe/Oslo points to"},
     ## Probed 2026-10-26 by caldav-server-tester
     "save-load.icalendar.participant": {"support": "ungraceful", "behaviour": "an event with a PARTICIPANT is refused (500)"},
     "save-load.icalendar.x-property": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER is dropped, in a task"},

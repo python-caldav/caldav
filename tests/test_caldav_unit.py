@@ -9745,9 +9745,7 @@ class TestNoCreateIfMatch(_SaveRequests):
             )
         assert [m for m, _ in sent] == ["REPORT"]
 
-    @pytest.mark.parametrize(
-        "server", ["radicale", "zimbra_8_8", "zimbra_10_1", "bedework_5_0_0", "sogo"]
-    )
+    @pytest.mark.parametrize("server", ["zimbra_8_8", "zimbra_10_1", "bedework_5_0_0", "sogo"])
     def test_hints_of_servers_mishandling_if_match_star(self, server) -> None:
         from caldav import compatibility_hints
         from caldav.compatibility_hints import FeatureSet
