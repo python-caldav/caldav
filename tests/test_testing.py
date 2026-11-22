@@ -40,3 +40,23 @@ def test_xandikos_stop_closes_event_loop() -> None:
     loop = server.xapp_loop
     server.stop()
     assert loop.is_closed()
+
+
+@pytest.mark.parametrize(
+    ("env", "login"),
+    [
+        ("foo", "foo@example.org"),
+        ("foo@example.org", "foo@example.org"),
+    ],
+)
+def test_stalwart_username_is_completed_with_the_domain(
+    monkeypatch: pytest.MonkeyPatch, env: str, login: str
+) -> None:
+    """setup_stalwart.sh reads STALWART_USERNAME as a local part; the
+    client must log in as the account the script created."""
+    from caldav.testing.docker import StalwartTestServer
+
+    monkeypatch.setenv("STALWART_USERNAME", env)
+    server = StalwartTestServer()
+    assert server.username == login
+    assert server.url.endswith("/dav/cal/foo%40example.org/")

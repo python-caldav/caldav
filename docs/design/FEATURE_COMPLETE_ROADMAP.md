@@ -176,11 +176,11 @@ The v3.2 roadmap covers basic scheduling improvements. Additional work for full 
 - **Related issue:** [#568](https://github.com/python-caldav/caldav/issues/568)
 
 **Tasks:**
-- [x] Add `negate="yes"` attribute support in text-match filters — the `cdav.TextMatch(..., negate=True)` element exists and is used internally (`search.py` `vNotCompleted`/`vNotCancelled`); what is missing is exposing it through the public search API
-- [ ] Update `CalDAVSearcher` to support `!=` operator
+- [x] Add `negate="yes"` attribute support in text-match filters — the `cdav.TextMatch(..., negate=True)` element exists and is used internally (`search.py` `vNotCompleted`/`vNotCancelled`)
+- [x] Update `CalDAVSearcher` to support `!=` operator — **done in v3.5.0** (https://github.com/python-caldav/caldav/pull/750): `add_property_filter()` takes `!=` (alias `<>`), `!contains` and `def`
 - [ ] Add server compatibility detection
-- [ ] Implement client-side fallback filtering for non-supporting servers
-- [ ] Unit and functional tests
+- [x] Implement client-side fallback filtering for non-supporting servers — **done in v3.5.0**: `search()` filters the negated operators client-side, as no server has been probed for `negate-condition` yet
+- [ ] Unit and functional tests — unit tests are in `tests/test_search.py`; no functional test yet
 
 ---
 
@@ -312,7 +312,7 @@ change notifications.  Requested by the proposal authors themselves.
 - [x] Proper `If-Match` / `If-None-Match` header usage — `If-Match` is sent when an ETag is cached (and `If-Schedule-Tag-Match` takes precedence when a Schedule-Tag is) on save, and on delete with `delete(if_match=True)` (https://github.com/python-caldav/caldav/issues/740); `save(no_overwrite=True)` sends `If-None-Match: *` (not on servers where `save.if-none-match` is unsupported), and leaves out its UID search where the server refuses a duplicate UID (`save.no-uid-conflict`, and its `.if-none-match` child, full, quirk or ungraceful) - with a GET of the URL in place of the header where `save.if-none-match` is unsupported.  `save(no_create=True)` sends `If-Match: *` instead of searching, where `save-load.mutable.if-match-wildcard` is full and no ETag or Schedule-Tag is cached
 - [ ] Handle UID vs path name mismatches
 - [ ] Race condition mitigation
-- [ ] Clear error messages for conflicts
+- [x] Clear error messages for conflicts — `UidConflictError` and its subclasses (https://github.com/python-caldav/caldav/issues/756), naming the object holding the UID in `href` where the server tells (https://github.com/python-caldav/caldav/pull/833), and the `DAV:error` precondition kept on every error (https://github.com/python-caldav/caldav/pull/759)
 
 ---
 
@@ -351,9 +351,9 @@ change notifications.  Requested by the proposal authors themselves.
 - **Related issue:** [#552](https://github.com/python-caldav/caldav/issues/552)
 
 **Tasks:**
-- [ ] Follow 3xx redirects on PROPFIND — still open, and there is a comment in `davclient.py` marking the spot
-- [ ] Update internal URLs after redirect
-- [ ] Prevent redirect loops
+- [x] Follow 3xx redirects on PROPFIND — every method but GET and HEAD is repeated at the `Location` of a 301/302/307/308 on the same scheme, host and port, with its body (`BaseDAVClient._redirect_target()`, https://github.com/python-caldav/caldav/pull/837)
+- [ ] Update internal URLs after redirect — done for PUT and MKCOL/MKCALENDAR (`redirected_to`), not for PROPFIND
+- [x] Prevent redirect loops — `MAX_REDIRECTS = 5`
 
 ---
 
@@ -593,7 +593,7 @@ features.
 - [ ] Reduce the remaining sync/async code duplication ([#665](https://github.com/python-caldav/caldav/issues/665))
 - [ ] Parse all server iCalendar through `vcal.parse_ical()` consistently ([#698](https://github.com/python-caldav/caldav/issues/698))
 - [ ] Shrink the ruff ignore list ([#634](https://github.com/python-caldav/caldav/issues/634))
-- [ ] `object.id` should always work ([#94](https://github.com/python-caldav/caldav/issues/94))
+- [x] `object.id` should always work ([#94](https://github.com/python-caldav/caldav/issues/94)) — closed as a duplicate of the closed #96; what is left is #515 (8.1)
 - [ ] Keep the raw string and the icalendar object side by side instead of
       either-or, and skip saving unmodified objects.  Needs change tracking in
       `icalendar`, requested in [icalendar#1922](https://github.com/PyCalendar/icalendar/issues/1922)
@@ -620,12 +620,12 @@ features.
 
 These open issues are bug reports, support questions or automated noise rather
 than roadmap items, and are deliberately left out:
-- [ ] [#71](https://github.com/python-caldav/caldav/issues/71) (`add_event` can update as well),
+- [x] [#71](https://github.com/python-caldav/caldav/issues/71) (`add_event` can update as well),
 - [ ] [#545](https://github.com/python-caldav/caldav/issues/545) (searches return full-day events of adjacent days),
-- [ ] [#612](https://github.com/python-caldav/caldav/issues/612) (support question),
+- [x] [#612](https://github.com/python-caldav/caldav/issues/612) (support question),
 - [ ] [#624](https://github.com/python-caldav/caldav/issues/624) (GMX calendar creation),
 - [ ] server-specific breakage reports ...
-  - [ ] [#680](https://github.com/python-caldav/caldav/issues/680)
+  - [x] [#680](https://github.com/python-caldav/caldav/issues/680)
   - [x] [#681](https://github.com/python-caldav/caldav/issues/681)
   - [ ] [#684](https://github.com/python-caldav/caldav/issues/684)
 - [x] [#685](https://github.com/python-caldav/caldav/issues/685) (automated link-checker report).

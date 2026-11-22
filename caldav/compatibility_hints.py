@@ -305,6 +305,11 @@ class FeatureSet:
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc3744#section-2", "https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
         },
+        "propfind.listed-members-exist": {
+            "description": "Every calendar a Depth: 1 PROPFIND of the calendar home lists is there: a PROPFIND of its own does not answer 404.  RFC 4918 section 9.1 has a Depth: 1 PROPFIND report the members of the collection, so 'broken' is a listing naming a calendar that is not there - Bedework 5 lists a tasks/ calendar, display name and component set and all, that answers 404 when asked directly.  A client that takes the listing's properties as they are hands such a calendar out, to fail when used; where this is broken, it asks each listed calendar first.",
+            "default": {"support": "full"},
+            "links": ["https://datatracker.ietf.org/doc/html/rfc4918#section-9.1"],
+        },
         "create-calendar.with-supported-component-types": {
             "description": "A MKCALENDAR naming a supported-calendar-component-set gives a calendar with that set.  RFC 4791 section 5.3.1.1 has a server that cannot set a property answer 207 with 403 or 409 for it and create nothing; 'unsupported' means the calendar was created with another set (reported as another set, or not reported while an object outside the requested set can be saved to it) - Bedework 5 answers the property '200 ok' and makes a VEVENT-only calendar.  When 'ungraceful', the MKCALENDAR request itself fails when a component set is specified.  Whether the server then obeys the set it reports is supported-components.honoured.",
             "default": {"support": "full"},
@@ -894,7 +899,7 @@ hence, "fragile".
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.5.1"],
         },
         "sync-token.initial-sync": {
-            "description": "A sync report from an empty token lists exactly the current members of the collection: RFC 6578 section 3.4 says it MUST NOT return removed members.  'quirk' when it lists more, which a client can filter away (keep only hrefs below the collection, answered 200): Radicale lists deleted members with a 404, Stalwart also lists the collection itself.  The behaviour says which.  The limit on an initial sync is sync-token.limit.initial-sync, which inherits from sync-token.limit rather than from this.",
+            "description": "A sync report from an empty token lists exactly the current members of the collection: RFC 6578 section 3.4 says it MUST NOT return removed members.  'quirk' when it lists more, which a client can filter away (keep only hrefs below the collection, answered 200): Radicale lists deleted members with a 404, Stalwart and CCS also list the collection itself.  The behaviour says which.  The limit on an initial sync is sync-token.limit.initial-sync, which inherits from sync-token.limit rather than from this.",
             "default": {"support": "full"},
             "links": ["https://datatracker.ietf.org/doc/html/rfc6578#section-3.4"],
         },
@@ -1433,7 +1438,8 @@ hence, "fragile".
         Derive parent feature status from explicitly set subfeatures.
 
         Logic:
-        - Only consider subfeatures WITHOUT explicit defaults (those are independent features)
+        - Only consider subfeatures WITHOUT explicit defaults (subfeatures with a default are
+          independent features and are skipped)
         - If ANY relevant subfeature has a positive status (full/quirk) → derive as that status
           (any support means the parent has some support)
         - If ALL relevant subfeatures are set AND all have the same negative status → use that status
@@ -1443,6 +1449,16 @@ hence, "fragile".
 
         Returns None if no relevant subfeatures are explicitly set or if
         derivation is inconclusive due to partial information.
+
+        An explicit default on a node marks it as an independent feature, one
+        that is probed on its own.  A parent node without one is treated as a
+        grouping node.  A grouping node whose subfeatures all have explicit
+        defaults (``auth``, ``http``) therefore has no verdict of its own:
+        nothing is derived, and unless the node or an ancestor is set in the
+        server's features, is_supported() answers from the type default
+        whatever the subfeatures say.  Ask the subfeatures instead.  A real
+        capability that lacks a default and needs its own answer should get
+        an explicit ``unknown`` default.
         """
         if 'subfeatures' not in feature_info or not feature_info['subfeatures']:
             return None
@@ -2207,6 +2223,10 @@ bedework_5_0_0 = {
     "create-calendar.auto": {"support": "unsupported"},
     "create-calendar.set-displayname": {"support": "full"},
     "create-calendar.stable-url": {"support": "full"},
+    ## Found 2026-11-20 on the docker image: the calendar home's listing
+    ## names tasks/ with a display name and ['VTODO'], and a PROPFIND of
+    ## tasks/ answers 404.  Bedework 3.10 lists no such calendar.
+    "propfind.listed-members-exist": {"support": "broken", "behaviour": "lists a tasks/ calendar that answers 404"},
     ## Not RFC properties; Bedework stores the Apple colour but not the order.
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "unsupported"},
