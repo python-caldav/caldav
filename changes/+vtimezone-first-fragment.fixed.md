@@ -1,1 +1,1 @@
-`add_event()`, `add_todo()`, `add_object()` and `vcal.create_ical()` given an `ical` calendar that lists its VTIMEZONE before the event or task put the properties given (summary, due, ...) onto the VTIMEZONE.  They now go onto the event or task.
+`add_event()`, `add_todo()`, `add_object()` and `vcal.create_ical()` given an `ical` calendar that lists its VTIMEZONE before the event or task put the properties given (summary, due, ...) and an alarm given as `alarm_*` properties onto the VTIMEZONE.  They now go onto the event or task.

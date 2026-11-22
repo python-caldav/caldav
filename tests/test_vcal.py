@@ -209,6 +209,23 @@ class TestVcal(TestCase):
         assert str(event["SUMMARY"]) == "tz-first"
         assert "SUMMARY" not in tz
 
+        ## the same for an alarm given as alarm_* properties
+        ical = create_ical(
+            alarm_action="DISPLAY",
+            alarm_description="reminder",
+            alarm_trigger=timedelta(minutes=-15),
+            ical_fragment="BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:x\n"
+            "BEGIN:VTIMEZONE\nTZID:UTC\nBEGIN:STANDARD\nDTSTART:19700101T000000\n"
+            "TZOFFSETFROM:+0000\nTZOFFSETTO:+0000\nEND:STANDARD\nEND:VTIMEZONE\n"
+            "BEGIN:VEVENT\nUID:tz-first\nDTSTAMP:20320101T000000Z\n"
+            "DTSTART;TZID=UTC:20320101T100000\nEND:VEVENT\nEND:VCALENDAR",
+        )
+        cal = icalendar.Calendar.from_ical(ical)
+        [event] = cal.walk("VEVENT")
+        [tz] = cal.walk("VTIMEZONE")
+        assert [c.name for c in event.subcomponents] == ["VALARM"]
+        assert "VALARM" not in [c.name for c in tz.subcomponents]
+
     def test_create_ical_adds_vtimezone_for_each_tzid(self) -> None:
         """RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID.
 
