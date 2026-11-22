@@ -157,6 +157,75 @@ class TestVcal(TestCase):
         rrule_pos = raw_bytes.index(b"RRULE:FREQ=DAILY")
         assert rrule_pos > end_valarm_pos, "RRULE must not be inside VALARM"
 
+    def test_create_ical_fragment_with_valarm(self) -> None:
+        """A fragment holding only a VALARM goes into the new component.
+
+        It used to be taken for the whole object: the VTODO was never
+        created and the summary landed on the alarm.
+        """
+        ical = create_ical(
+            objtype="VTODO",
+            summary="alarm-test",
+            ical_fragment="BEGIN:VALARM\nACTION:DISPLAY\nDESCRIPTION:reminder\n"
+            "TRIGGER:-PT10M\nEND:VALARM",
+        )
+        cal = icalendar.Calendar.from_ical(ical)
+        assert [c.name for c in cal.subcomponents] == ["VTODO"]
+        todo = cal.subcomponents[0]
+        assert str(todo["SUMMARY"]) == "alarm-test"
+        assert [c.name for c in todo.subcomponents] == ["VALARM"]
+        assert "SUMMARY" not in todo.subcomponents[0]
+
+        ## the default objtype, and VALARM lines mixed with property lines
+        ical = create_ical(
+            summary="alarm-test",
+            ical_fragment="PRIORITY:3\nBEGIN:VALARM\nACTION:DISPLAY\nDESCRIPTION:reminder\n"
+            "TRIGGER:-PT10M\nEND:VALARM",
+        )
+        cal = icalendar.Calendar.from_ical(ical)
+        assert [c.name for c in cal.subcomponents] == ["VEVENT"]
+        event = cal.subcomponents[0]
+        assert event["PRIORITY"] == 3
+        assert [c.name for c in event.subcomponents] == ["VALARM"]
+
+        ## a name that only starts like a component is not one
+        ical = create_ical(objtype="VTODO", summary="x", ical_fragment="BEGIN:VTODOX\nEND:VTODOX")
+        [todo] = icalendar.Calendar.from_ical(ical).walk("VTODO")
+        assert str(todo["SUMMARY"]) == "x"
+
+    def test_create_ical_fragment_with_vtimezone_first(self) -> None:
+        """The properties go onto the event, not onto a VTIMEZONE before it"""
+        ical = create_ical(
+            summary="tz-first",
+            ical_fragment="BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:x\n"
+            "BEGIN:VTIMEZONE\nTZID:UTC\nBEGIN:STANDARD\nDTSTART:19700101T000000\n"
+            "TZOFFSETFROM:+0000\nTZOFFSETTO:+0000\nEND:STANDARD\nEND:VTIMEZONE\n"
+            "BEGIN:VEVENT\nUID:tz-first\nDTSTAMP:20320101T000000Z\n"
+            "DTSTART;TZID=UTC:20320101T100000\nEND:VEVENT\nEND:VCALENDAR",
+        )
+        cal = icalendar.Calendar.from_ical(ical)
+        [event] = cal.walk("VEVENT")
+        [tz] = cal.walk("VTIMEZONE")
+        assert str(event["SUMMARY"]) == "tz-first"
+        assert "SUMMARY" not in tz
+
+        ## the same for an alarm given as alarm_* properties
+        ical = create_ical(
+            alarm_action="DISPLAY",
+            alarm_description="reminder",
+            alarm_trigger=timedelta(minutes=-15),
+            ical_fragment="BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:x\n"
+            "BEGIN:VTIMEZONE\nTZID:UTC\nBEGIN:STANDARD\nDTSTART:19700101T000000\n"
+            "TZOFFSETFROM:+0000\nTZOFFSETTO:+0000\nEND:STANDARD\nEND:VTIMEZONE\n"
+            "BEGIN:VEVENT\nUID:tz-first\nDTSTAMP:20320101T000000Z\n"
+            "DTSTART;TZID=UTC:20320101T100000\nEND:VEVENT\nEND:VCALENDAR",
+        )
+        cal = icalendar.Calendar.from_ical(ical)
+        [event] = cal.walk("VEVENT")
+        [tz] = cal.walk("VTIMEZONE")
+        assert [c.name for c in event.subcomponents] == ["VALARM"]
+        assert "VALARM" not in [c.name for c in tz.subcomponents]
+
     def test_create_ical_adds_vtimezone_for_each_tzid(self) -> None:
         """RFC 5545 section 3.6.5 requires a VTIMEZONE for every TZID.
 

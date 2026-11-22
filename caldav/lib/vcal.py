@@ -387,7 +387,13 @@ def create_ical(
     ical_fragment = to_normal_str(ical_fragment)
     if "class_" in props:
         props["class"] = props.pop("class_")
-    if not ical_fragment or not re.search("^BEGIN:V", ical_fragment, re.MULTILINE):
+    ## A fragment may hold subcomponents (VALARM) of the object to be created,
+    ## only a VCALENDAR or a top-level component means the object is given
+    if not ical_fragment or not re.search(
+        r"^BEGIN:V(CALENDAR|EVENT|TODO|JOURNAL|FREEBUSY|AVAILABILITY)\b",
+        ical_fragment,
+        re.MULTILINE,
+    ):
         my_instance = icalendar.Calendar()
         if objtype is None:
             objtype = "VEVENT"
@@ -412,7 +418,7 @@ def create_ical(
                 "BEGIN:VCALENDAR\n" + to_normal_str(ical_fragment.strip()) + "\nEND:VCALENDAR\n"
             )
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
-        component = my_instance.subcomponents[0]
+        component = _main_component(my_instance)
         ical_fragment = None
 
     ## Populate with mandatory fields, if missing
@@ -501,9 +507,18 @@ def _years(ical: icalendar.Calendar) -> Iterator[int]:
                         yield dt.year
 
 
+def _main_component(ical):
+    """The event, task or journal of a calendar: its first subcomponent
+    that is not a VTIMEZONE (the first one, if all of them are)"""
+    return next(
+        (c for c in ical.subcomponents if c.name != "VTIMEZONE"),
+        ical.subcomponents[0],
+    )
+
+
 def add_alarm(ical, alarm):
     ia = icalendar.Alarm()
     for prop in alarm:
         ia.add(prop, alarm[prop])
-    ical.subcomponents[0].add_component(ia)
+    _main_component(ical).add_component(ia)
     return ical
