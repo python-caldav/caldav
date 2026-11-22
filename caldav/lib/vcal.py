@@ -396,7 +396,10 @@ def create_ical(
                 "BEGIN:VCALENDAR\n" + to_normal_str(ical_fragment.strip()) + "\nEND:VCALENDAR\n"
             )
         my_instance = icalendar.Calendar.from_ical(ical_fragment)
-        component = my_instance.subcomponents[0]
+        component = next(
+            (c for c in my_instance.subcomponents if c.name != "VTIMEZONE"),
+            my_instance.subcomponents[0],
+        )
         ical_fragment = None
 
     ## Populate with mandatory fields, if missing
