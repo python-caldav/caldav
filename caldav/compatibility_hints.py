@@ -2821,6 +2821,9 @@ robur = {
     ## 2026-11-12: a PUT answers ETag: 2568..., a GET ETag: "2568...", and a
     ## PUT with If-Match: "2568..." is accepted (201).
     "save.etag": {"support": "quirk", "behaviour": "unquoted"},
+    ## Probed 2026-11-23: the unquoted ETag belongs to what was stored.
+    ## Without this line it would inherit the quirk above.
+    "save.etag.matches-stored": {"support": "full"},
     ## Probed 2026-10-20 by caldav-server-tester
     "calendar-color": {"support": "full"},
     "calendar-order": {"support": "full"},
