@@ -4965,7 +4965,7 @@ class TestConfigSectionInheritance:
     def test_test_server_with_inherits(self, tmp_path):
         import json
 
-        from caldav.config import get_all_test_servers
+        from caldav.testing.selection import get_all_test_servers
 
         config_file = tmp_path / "calendar.conf"
         config_file.write_text(
@@ -4981,7 +4981,7 @@ class TestConfigSectionInheritance:
     def test_broken_section_does_not_hide_test_servers(self, tmp_path):
         import json
 
-        from caldav.config import get_all_test_servers
+        from caldav.testing.selection import get_all_test_servers
 
         config_file = tmp_path / "calendar.conf"
         config_file.write_text(
@@ -4995,6 +4995,56 @@ class TestConfigSectionInheritance:
             )
         )
         assert list(get_all_test_servers(str(config_file))) == ["srv"]
+
+    def test_test_server_with_features_only(self, tmp_path):
+        """Without a URL, the client finds one from the profile's auto-connect hints."""
+        import json
+
+        from caldav.testing.selection import get_all_test_servers
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(json.dumps({"srv": {"features": "xandikos", "test_allowed": True}}))
+        assert "srv" in get_all_test_servers(str(config_file))
+
+    def test_disabled_and_meta_sections_are_no_test_servers(self, tmp_path):
+        """A disabled section is not tested against, and a meta-section
+        with test_allowed used to make get_all_test_servers fail."""
+        import json
+
+        from caldav.testing.selection import get_all_test_servers
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            json.dumps(
+                {
+                    "srv": {"caldav_url": "https://dav.example.com/", "test_allowed": True},
+                    "off": {
+                        "caldav_url": "https://off.example.com/",
+                        "test_allowed": True,
+                        "disable": True,
+                    },
+                    "all": {"contains": ["srv", "off"], "test_allowed": True},
+                }
+            )
+        )
+        assert list(get_all_test_servers(str(config_file))) == ["srv"]
+
+    def test_test_tooling_in_config_is_deprecated(self, tmp_path):
+        """get_test_setting and get_all_test_servers moved to caldav.testing.selection."""
+        import json
+
+        from caldav import config
+
+        config_file = tmp_path / "calendar.conf"
+        config_file.write_text(
+            json.dumps({"srv": {"caldav_url": "https://dav.example.com/", "test_allowed": True}})
+        )
+        with pytest.warns(DeprecationWarning, match="caldav.testing.selection"):
+            assert "srv" in config.get_all_test_servers(str(config_file))
+        with pytest.warns(DeprecationWarning, match="caldav.testing.selection"):
+            assert config.get_test_setting({"test_allowed": True}, "test_allowed")
+        with pytest.raises(AttributeError):
+            config.no_such_name  # noqa: B018
 
     def test_own_contains_and_disable_are_kept(self):
         """only the parents' contains and disable are dropped"""
@@ -5121,12 +5171,12 @@ class TestTestKeyPrefix:
         return str(config_file)
 
     def test_test_allowed(self, tmp_path):
-        from caldav.config import get_all_test_servers
+        from caldav.testing.selection import get_all_test_servers
 
         assert "srv" in get_all_test_servers(self._write(tmp_path, {"test_allowed": True}))
 
     def test_testing_allowed_is_deprecated(self, tmp_path):
-        from caldav.config import get_all_test_servers
+        from caldav.testing.selection import get_all_test_servers
 
         config_file = self._write(tmp_path, {"testing_allowed": True})
         with pytest.warns(FutureWarning, match="test_allowed"):
@@ -5135,14 +5185,15 @@ class TestTestKeyPrefix:
     def test_deprecated_key_does_not_break_the_test_run(self, tmp_path):
         """pyproject.toml's filterwarnings must let the warning through
         rather than turn the developer's own config into a test error."""
-        from caldav.config import get_all_test_servers, resolve_features
+        from caldav.config import resolve_features
+        from caldav.testing.selection import get_all_test_servers
 
         config_file = self._write(tmp_path, {"testing_allowed": True})
         assert "srv" in get_all_test_servers(config_file)
         resolve_features("zimbra")
 
     def test_test_priority(self, tmp_path):
-        from caldav.config import _ConfiguredServer, get_all_test_servers
+        from caldav.testing.selection import _ConfiguredServer, get_all_test_servers
 
         config_file = self._write(tmp_path, {"test_allowed": True, "test_priority": 5})
         params = get_all_test_servers(config_file)["srv"]
@@ -5150,7 +5201,7 @@ class TestTestKeyPrefix:
         assert "test_priority" not in extract_conn_keys(params)
 
     def test_priority_is_deprecated(self, tmp_path):
-        from caldav.config import _ConfiguredServer, get_all_test_servers
+        from caldav.testing.selection import _ConfiguredServer, get_all_test_servers
 
         config_file = self._write(tmp_path, {"test_allowed": True, "priority": 5})
         with pytest.warns(FutureWarning, match="test_priority"):
@@ -5356,11 +5407,11 @@ class TestExplicitParamsMerge:
     def test_explicit_params_merged_with_test_server_config(self, monkeypatch):
         """Gate finding F8: the testconfig branch returned the test-server
         config verbatim, dropping the explicit kwargs entirely."""
-        from caldav import config as config_module
         from caldav.config import get_connection_params
+        from caldav.testing import selection
 
         monkeypatch.setattr(
-            config_module,
+            selection,
             "_get_test_server_config",
             lambda *a, **kw: {"url": "https://testserver.example.com/", "username": "testuser"},
         )
@@ -5578,7 +5629,7 @@ class TestSharedConfigFormat:
     def test_test_servers_name_the_section_in_errors(self, tmp_path):
         import sys
 
-        from caldav.config import get_all_test_servers
+        from caldav.testing.selection import get_all_test_servers
 
         config_file = self._write(
             tmp_path,
@@ -5596,7 +5647,7 @@ class TestSharedConfigFormat:
     def test_test_servers_in_the_new_format(self, tmp_path):
         import sys
 
-        from caldav.config import get_all_test_servers
+        from caldav.testing.selection import get_all_test_servers
 
         command = [sys.executable, "-c", "print('s3cr3t')"]
         config_file = self._write(

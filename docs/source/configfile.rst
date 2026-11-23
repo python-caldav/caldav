@@ -273,7 +273,8 @@ a warning:
 With ``testconfig=True`` (or the ``PYTHON_CALDAV_USE_TEST_SERVER``
 environment variable), ``get_davclient()`` only uses sections marked with
 ``test_allowed: true``, so a personal server is never used for testing by
-accident.  ``test_priority`` sets the order servers are tried in, lower
+accident.  A section with ``disable: true`` is not used, nor is a
+meta-section (``contains``).  ``test_priority`` sets the order servers are tried in, lower
 first; the default is 30, while embedded servers come at 10 and docker
 servers at 20.
 
