@@ -2119,6 +2119,12 @@ def __getattr__(name: str) -> Any:
 ## 5.x, hence the version-stamped name - a plain `bedework` would be claiming
 ## far more than we have measured.
 bedework_3_10_3 = {
+    ## Probed 2026-11-23 by caldav-server-tester, as for Bedework 5 (see
+    ## there).  Its listings lag behind a MOVE, which hid this until the
+    ## probe checked with a GET as well.
+    "move.overwrite.existing": {"support": "full"},
+    "move.overwrite.free-name": {"support": "broken", "behaviour": "a MOVE with Overwrite: F onto a free name answered 412; one without it works"},
+    "move.if-match": {"support": "unsupported", "behaviour": "a MOVE with an outdated If-Match answered 201, not 412"},
     ## Probed 2026-11-14 by caldav-server-tester: a calendar-query returns
     ## the master without the moved occurrence, which a GET of the same
     ## object has.  The object keeps both, so the exception is stored
@@ -2216,6 +2222,12 @@ bedework_3_10_3 = {
 ## deletes calendars, its sync-token and text search behave differently - so
 ## nothing is inherited from that profile.
 bedework_5_0_0 = {
+    ## Probed 2026-11-23 by caldav-server-tester.  The MOVE probe sent
+    ## Overwrite: F before, and Bedework's 412 to that header (onto a free
+    ## name too) passed for an honoured If-Match.
+    "move.overwrite.existing": {"support": "full"},
+    "move.overwrite.free-name": {"support": "broken", "behaviour": "a MOVE with Overwrite: F onto a free name answered 412; one without it works"},
+    "move.if-match": {"support": "unsupported", "behaviour": "a MOVE with an outdated If-Match answered 201, not 412"},
     ## Probed 2026-11-22 by caldav-server-tester
     "save-load.icalendar.x-parameter": {"support": "unsupported", "behaviour": "X-CALDAV-SERVER-TESTER on SUMMARY is dropped, in an event"},
     ## Probed 2026-11-14 by caldav-server-tester: a calendar-query returns
