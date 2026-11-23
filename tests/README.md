@@ -151,7 +151,8 @@ python tests/tools/convert_conf_private.py
 ```
 
 This generates a `caldav_test_servers.yaml` from your existing configuration.
-The old `conf_private.py` format is deprecated and will be removed in v3.0.
+Pass `--force` to overwrite an existing yaml file.  The old `conf_private.py`
+format was removed in v3.0 (it is ignored).
 
 ## Test Server Types
 
