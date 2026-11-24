@@ -1,78 +1,195 @@
 # Contributing
 
-Contributions are most welcome (but do inform about it if you've used AI or other tools).  If the length of this text scares you, then I'd rather want you to skip reading and just produce a pull-request in GitHub.
+Contributions are most welcome (but do inform about it if you've used AI or
+other tools).  If the length of this text scares you, then I'd rather want you
+to skip reading and just produce a pull-request in GitHub.
 
 ## Git commit messages
 
-Starting from v3.0.1, we'll stick to https://www.conventionalcommits.org/en/v1.0.0/ on the master branch.  A good pull request contains one commit that follows the conventions.  Otherwise the maintainer will have to rewrite the commit message.
+Starting from v3.0.1, we'll stick to
+https://www.conventionalcommits.org/en/v1.0.0/ on the master branch.  A good
+pull request contains one commit that follows the conventions.  Otherwise the
+maintainer will have to rewrite the commit message.
 
 The types used should (as for now) be one of:
 
-* "revert" - a clean revert of a previous commit (should be used very infrequently on the master branch)
-* "feat" - a new feature added to the codebase/API.  The commit should include test code, documentation and a changelog fragment (see below) unless there are good reasons for procrastinating it.  "feat" should not be used for new features that only affects the test framework, or changes only affecting the documentation etc.
-* "fix" - a bugfix.  Again, documentation and a changelog fragment should be included in the commit (notable exception: if a bug was introduced after the previous release and fixed before the next release, it does not need to be mentioned in the CHANGELOG).  If the only "fix" is that some typo is fixed in some existing documentation, then we should use "docs" instead.
-* "perf" - a code change in the codebase that is neither a bugfix or a feature, but intends to improve performance.
-* "refactor" - a code change in the codebase that is neither a bugfix or a feature, but makes the code more readable, shorter, better or more maintainable.
-* "test" - fixes, additions or improvements that only affects the test code or the test framework.  The commit may include documentation.
-* "docs" - changes that *only* is done to the documentation, documentation framework - this includes minor typo fixes as well as new documentation, and it includes both the user documentation under `docs/source`, other documentation files (including CHANGELOG and changelog fragments) as well as inline comments and docstrings in the code itself.
+* "revert" - a clean revert of a previous commit (should be used very
+  infrequently on the master branch)
+* "feat" - a new feature added to the codebase/API.  The commit should include
+  test code, documentation and a changelog fragment (see below) unless there
+  are good reasons for procrastinating it.  "feat" should not be used for new
+  features that only affects the test framework, or changes only affecting the
+  documentation etc.
+* "fix" - a bugfix.  Again, documentation and a changelog fragment should be
+  included in the commit (notable exception: if a bug was introduced after the
+  previous release and fixed before the next release, it does not need to be
+  mentioned in the CHANGELOG).  If the only "fix" is that some typo is fixed
+  in some existing documentation, then we should use "docs" instead.
+* "perf" - a code change in the codebase that is neither a bugfix or a
+  feature, but intends to improve performance.
+* "refactor" - a code change in the codebase that is neither a bugfix or a
+  feature, but makes the code more readable, shorter, better or more
+  maintainable.
+* "test" - fixes, additions or improvements that only affects the test code or
+  the test framework.  The commit may include documentation.
+* "docs" - changes that *only* is done to the documentation, documentation
+  framework - this includes minor typo fixes as well as new documentation, and
+  it includes both the user documentation under `docs/source`, other
+  documentation files (including CHANGELOG and changelog fragments) as well as
+  inline comments and docstrings in the code itself.
 * "chore" - if nothing of the above fits
 
-The `compatibility_hints.py` has been moved from the test directory to the codebase not so very long ago.  Some special rules here:
+The `compatibility_hints.py` has been moved from the test directory to the
+codebase not so very long ago.  Some special rules here:
 
-* Adjusting the feature set for some calendar server?  Check if there exists some workarounds etc in the code for said feature, if so, then it should be considered a fix or a feature.  Perhaps even a breaking change.  Otherwise, use `test: ...`.  (because it is relevant for the compatibility test, if nothing else).
-* Adding a new feature hint?  Ensure it's covered by the caldav-server-tester.  Since we have a compatibility test, it will be relevant for the test - so use `test: (...)`.  It should be covered by the caldav-server-tester.
-* Changing some descriptions?  That goes as `docs: ...` even if it's actually changing a variable in the code.
+* Adjusting the feature set for some calendar server?  Check if there exists
+  some workarounds etc in the code for said feature, if so, then it should be
+  considered a fix or a feature.  Perhaps even a breaking change.  Otherwise,
+  use `test: ...`.  (because it is relevant for the compatibility test, if
+  nothing else).
+* Adding a new feature hint?  Ensure it's covered by the caldav-server-tester.
+  Since we have a compatibility test, it will be relevant for the test - so
+  use `test: (...)`.  It should be covered by the caldav-server-tester.
+* Changing some descriptions?  That goes as `docs: ...` even if it's actually
+  changing a variable in the code.
 
-This is not set in stone.  If you feel strongly for using something else, use something else in the commit message and update this file in the same commit.
+This is not set in stone.  If you feel strongly for using something else, use
+something else in the commit message and update this file in the same commit.
 
 "Imperative presens" or "imperative mood" is to be used in commit messages.
 
-The boundaries of breaking changes vs "non-breaking" changes [may be blurry](https://xkcd.com/1172/). In the CHANGELOG I've used the concept "potentially breaking changes" for things that most likely won't break anything for anyone.  Potentially breaking changes should be marked with `!` in the commit header.  Breaking changes should be marked both with `!` and `BREAKING CHANGE:`
+The boundaries of breaking changes vs "non-breaking" changes [may be
+blurry](https://xkcd.com/1172/). In the CHANGELOG I've used the concept
+"potentially breaking changes" for things that most likely won't break
+anything for anyone.  Potentially breaking changes should be marked with `!`
+in the commit header.  Breaking changes should be marked both with `!` and
+`BREAKING CHANGE:`
 
-The conventionalcommits guide also says nothing about how to deal with security-relevant changes.  Maybe it makes sense to start the commit message (after the  "SECURITY: "
+The conventionalcommits guide also says nothing about how to deal with
+security-relevant changes.  Use the ordinary type (usually `fix`) and start
+the description with `SECURITY: `, like
+`fix: SECURITY: quadratic regexp in vcal.fix()`, and reference the advisory
+or CVE in the footer, like `Refs: GHSA-5h4q-xm57-3mh5`.  Also add a
+`security` changelog fragment.
 
-As for now, we do not use the module field. If there is strong reasons for using it, then go ahead and update this file in the same commit.
+As for now, we do not use the module field. If there is strong reasons for
+using it, then go ahead and update this file in the same commit.
+
+## Integration tests
+
+This library has unit tests that do NOT communicate with any servers, but
+rather fake server behaviour through mocking or patching.  It also has
+integration tests that do communicate with servers (by default an internal
+xandikos and radicale instance spun up by the test framework, plus the docker
+servers when docker is available).  The purpose of this library is to have a
+consistent API towards real world servers - so having all corners of the
+library covered by integration tests is considered more important than having
+everything covered by unit tests.  Obviously, there should be no mocking or
+patching faking any server behaviour in the integration tests.
+
+The integration tests are mainly located in `tests/test_caldav.py` and
+`tests/test_async_integration.py` (those files have grown huge - they should
+probably be split).  It's important that those two files are in sync - tests
+should be the same in the sync and async version.
+
+The CalDAV standard is not optimized for being easy to implement - and the
+server perfectly implementing all the RFCs according to the letter does not
+exist; all servers come with different quirks, different interpretation of the
+standards, and (lack of) support for different parts of the standards.
+Sometimes a test is failing on one server.  Do not remove an assert just to
+get the test passing.  The server behaviour has to be probed in
+`caldav-server-tester`, defined in the `compatibility_hints.py`-file and only
+then is it possible to consider how to deal with it.  Ask the maintainer or
+raise an issue if in doubt.
+
+A feature definition in `compatibility_hints.py` should cite the relevant RFC
+and its section in the description text, and list the URLs under `links` as
+well: the description is what a human reads when deciding what a feature
+means, and a bare URL list does not say which clause matters.  See
+`url.encode-at` for an example.
 
 ## Usage of AI and other tools
 
-A separate [AI POLICY](AI-POLICY.md) has been made.  If you want to use AI and you're too lazy to read the AI Policy, then at least ask the AI to read it and chat with it to work out if your contribution is within the policy or not.
+A separate [AI POLICY](AI-POLICY.md) has been made.  If you want to use AI and
+you're too lazy to read the AI Policy, then at least ask the AI to read it and
+chat with it to work out if your contribution is within the policy or not.
 
 ## GitHub
 
-The official guidelines currently involves contributors to have a GitHub account - but this is not a requirement!  If you for some reason or another don't want to use GitHub, then that's fine.  Reach out by email, IRC, matrix, signal, deltachat, telegram or whatnot.
+The official guidelines currently involves contributors to have a GitHub
+account - but this is not a requirement!  If you for some reason or another
+don't want to use GitHub, then that's fine.  Reach out by email, IRC, matrix,
+signal, deltachat, telegram or whatnot.
 
 ## Considerations
 
-* Contributions that break backward compatibility will (generally) not be accepted
-* Primary scope of the library is to deal with the CalDAV-protocol.  Just consider for a moment if your new feature may fit better into another library, like the icalendar library or the plann tool.
-* Workarounds for supporting some quirky CalDAV-server is generally accepted, just be careful that your contribution does not break for other CalDAV-servers.
-* If you need to deal with iCalendar payload, new code should do it through the icalendar library.
+* Contributions that break backward compatibility will (generally) not be
+  accepted
+* Primary scope of the library is to deal with the CalDAV-protocol.  Just
+  consider for a moment if your new feature may fit better into another
+  library, like the icalendar library or the plann tool.
+* Workarounds for supporting some quirky CalDAV-server is generally accepted,
+  just be careful that your contribution does not break for other
+  CalDAV-servers.
+* If you need to deal with iCalendar payload, new code should do it through
+  the icalendar library.
 
 ## Contribution Procedure
 
-Consider this procedures to be a more of a guideline than a rigid procedure.  Use your own judgement, skip steps you deem too difficult, too boring or that doesn't make sense.  If you don't have an account at GitHub, then reach out by email to t-py-caldav@tobixen.no (prepend subject with `caldav:` and my spam filter will let it through).
+Consider this procedures to be a more of a guideline than a rigid procedure.
+Use your own judgement, skip steps you deem too difficult, too boring or that
+doesn't make sense.  If you don't have an account at GitHub, then reach out by
+email to t-py-caldav@tobixen.no (prepend subject with `caldav:` and my spam
+filter will let it through).
 
-* Write up an issue at [GitHub](https://github.com/python-caldav/caldav/issues/new)
+* Write up an issue at
+  [GitHub](https://github.com/python-caldav/caldav/issues/new)
 
-* Make sure to flag your intention to make a pull request in the issue (or in a comment on an existing one) before you start working on it.  Reasons:
+* Make sure to flag your intention to make a pull request in the issue (or in
+  a comment on an existing one) before you start working on it.  Reasons:
 
-  * To avoid duplicated work efforts, merge conflicts or other conflicts.  Perhaps the maintainer is working on a big reorg.  Perhaps there are other open pull requests or work in progress that would clash with the effort.
+  * To avoid duplicated work efforts, merge conflicts or other conflicts.
+    Perhaps the maintainer is working on a big reorg.  Perhaps there are other
+    open pull requests or work in progress that would clash with the effort.
 
-  * To allow coordination - particularly with regard to the release cycle.  The release process sometimes takes days or even weeks - it involves running a huge test suite towards third-party servers, some of them rate-limiting requests, others doing things in a slightly async way requiring a sleep after every call - and if regressions are found and fixed, the whole process needs to be redone from scratch.  So if there are urgent bugfixes coming in, the maintainer should pause the release process - and if the issue is minor, the effort of making that pull request should probably wait until after the release.
+  * To allow coordination - particularly with regard to the release cycle.
+    The release process sometimes takes days or even weeks - it involves
+    running a huge test suite towards third-party servers, some of them
+    rate-limiting requests, others doing things in a slightly async way
+    requiring a sleep after every call - and if regressions are found and
+    fixed, the whole process needs to be redone from scratch.  So if there are
+    urgent bugfixes coming in, the maintainer should pause the release process
+    - and if the issue is minor, the effort of making that pull request should
+    probably wait until after the release.
 
 * Create your own [GitHub fork](https://github.com/python-caldav/caldav/fork)
 
-* Clone locally (`git clone https://github.com/$LOGNAME/caldav`) and run `pytest` for a quick run of the tests.  They should pass (you may need to replace `$LOGNAME`).
+* Clone locally (`git clone https://github.com/$LOGNAME/caldav`) and run
+  `pytest` to run the tests.  They should pass (you may need to replace
+  `$LOGNAME`).  If docker is available, `pytest` also tries to start the
+  docker test servers, which is far from quick.  For a quick run against the
+  embedded Xandikos and Radicale servers only: `PYTHON_CALDAV_TEST_DOCKER=0
+  PYTHON_CALDAV_TEST_EXTERNAL=0 pytest`, and add `-k Xandikos` (or `-k
+  Radicale`) to the integration tests to narrow it to one server.
 
-* Write up some test code prior to changing the code ("test-driven development" is a good concept)
+* Write up some test code prior to changing the code ("test-driven
+  development" is a good concept) - see the section on integration tests.
 
 * Write up your changes
 
-* Run `pytest`.  The tests should still pass.  (Beware: tests may take very long time to run and may consume a lot of memory and disk space if the tests have the permissions to start docker containers).
+* Run `pytest`.  The tests should still pass.  (Beware: tests may take very
+  long time to run and may consume a lot of memory and disk space if the tests
+  have the permissions to start docker containers).
 
-* Consider to write some lines in the documentation, changelog and/or examples covering your change
+* Consider to write some lines in the documentation, changelog and/or examples
+  covering your change
 
-* Add a changelog fragment: a file `changes/<issue>.<type>.md`, e.g. `changes/740.fixed.md`, holding the text of the entry (without an issue: `changes/+<slug>.<type>.md`).  Do not edit `CHANGELOG.md` itself - the fragments are collected into it at release time, so that parallel pull requests do not conflict there.  [changes/README.md](changes/README.md) has the details.
+* Add a changelog fragment: a file `changes/<issue>.<type>.md`, e.g.
+  `changes/740.fixed.md`, holding the text of the entry (without an issue:
+  `changes/+<slug>.<type>.md`).  Do not edit `CHANGELOG.md` itself - the
+  fragments are collected into it at release time, so that parallel pull
+  requests do not conflict there.  [changes/README.md](changes/README.md) has
+  the details.
 
 * Create a pull request
 
