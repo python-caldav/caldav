@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tests.tools import convert_conf_private
 
@@ -12,6 +13,11 @@ caldav_servers = [
     {"name": "example", "url": "https://caldav.example.com/", "username": "u", "password": "p"},
 ]
 """
+
+
+def converted_url(text: str) -> str:
+    """The example server's URL in the generated YAML."""
+    return yaml.safe_load(text)["test-servers"]["example"]["url"]
 
 
 def run(monkeypatch: pytest.MonkeyPatch, *args: str) -> None:
@@ -42,7 +48,7 @@ def test_force_overwrites_existing_output(tmp_path: Path, monkeypatch: pytest.Mo
 
     run(monkeypatch, "--force", str(conf), str(out))
 
-    assert "caldav.example.com" in out.read_text()
+    assert converted_url(out.read_text()) == "https://caldav.example.com/"
 
 
 def test_writes_new_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -52,7 +58,7 @@ def test_writes_new_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
 
     run(monkeypatch, str(conf), str(out))
 
-    assert "caldav.example.com" in out.read_text()
+    assert converted_url(out.read_text()) == "https://caldav.example.com/"
 
 
 def test_dry_run_leaves_existing_output_alone(
@@ -66,4 +72,7 @@ def test_dry_run_leaves_existing_output_alone(
     run(monkeypatch, "--dry-run", str(conf), str(out))
 
     assert out.read_text() == "precious: true\n"
-    assert "caldav.example.com" in capsys.readouterr().out
+    out_text = capsys.readouterr().out
+    _, marker, printed = out_text.partition("--- Generated YAML ---\n")
+    assert marker, out_text
+    assert converted_url(printed) == "https://caldav.example.com/"
