@@ -126,31 +126,26 @@ def _auto_url(
 
     # Try RFC6764 discovery first if enabled and we have a bare domain/email
     if enable_rfc6764 and url:
-        ## caldav.discovery needs the sync HTTP library, which an
-        ## httpx-only install lacks.  Fall back as on a failed discovery.
+        from caldav.discovery import DiscoveryError, discover_caldav
+
         try:
-            from caldav.discovery import DiscoveryError, discover_caldav
-        except ImportError:
-            log.warning("RFC6764 discovery needs niquests or requests; skipping it")
-        else:
-            try:
-                service_info = discover_caldav(
-                    identifier=url,
-                    timeout=timeout,
-                    ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
-                    require_tls=require_tls,
+            service_info = discover_caldav(
+                identifier=url,
+                timeout=timeout,
+                ssl_verify_cert=ssl_verify_cert if isinstance(ssl_verify_cert, bool) else True,
+                require_tls=require_tls,
+            )
+            if service_info:
+                log.info(
+                    f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
                 )
-                if service_info:
-                    log.info(
-                        f"RFC6764 discovered service: {service_info.url} (source: {service_info.source})"
-                    )
-                    if service_info.username:
-                        log.debug(f"Username discovered from email: {service_info.username}")
-                    return (service_info.url, service_info.username)
-            except DiscoveryError as e:
-                log.debug(f"RFC6764 discovery failed: {e}")
-            except Exception as e:
-                log.debug(f"RFC6764 discovery error: {e}")
+                if service_info.username:
+                    log.debug(f"Username discovered from email: {service_info.username}")
+                return (service_info.url, service_info.username)
+        except DiscoveryError as e:
+            log.debug(f"RFC6764 discovery failed: {e}")
+        except Exception as e:
+            log.debug(f"RFC6764 discovery error: {e}")
 
     # Fall back to feature-based URL construction
     url_hints = features.is_supported("auto-connect.url", dict)

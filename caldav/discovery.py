@@ -38,13 +38,13 @@ See: https://datatracker.ietf.org/doc/html/rfc6764
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urljoin, urlparse
 
 import dns.exception
 import dns.resolver
 
 from caldav.lib.error import DAVError
-from caldav.lib.http_sync import requests
 
 log = logging.getLogger(__name__)
 
@@ -266,6 +266,34 @@ def _txt_lookup(domain: str, service_type: str, use_tls: bool = True) -> str | N
     return None
 
 
+def _http_get(url: str, timeout: int, verify: bool) -> Any:
+    """One GET that does not follow redirects, or None if it failed.
+
+    Uses the sync HTTP library when there is one.  An async-only install
+    (an httpx-family library, neither niquests nor requests) uses the async
+    client's library instead: its module-level ``get`` is synchronous, like
+    the rest of discovery.  Ref
+    https://github.com/python-caldav/caldav/issues/860
+    """
+    try:
+        from caldav.lib.http_sync import requests
+    except ImportError:
+        ## Raises an ImportError of its own if there is no async library either.
+        from caldav.async_davclient import httpx
+
+        try:
+            return httpx.get(url, timeout=timeout, verify=verify, follow_redirects=False)
+        except (httpx.HTTPError, httpx.InvalidURL) as e:
+            log.debug(f"Well-known URI lookup failed: {e}")
+            return None
+
+    try:
+        return requests.get(url, timeout=timeout, verify=verify, allow_redirects=False)
+    except requests.exceptions.RequestException as e:
+        log.debug(f"Well-known URI lookup failed: {e}")
+        return None
+
+
 def _well_known_lookup(
     domain: str, service_type: str, timeout: int = 10, ssl_verify_cert: bool = True
 ) -> ServiceInfo | None:
@@ -292,59 +320,51 @@ def _well_known_lookup(
 
     log.debug(f"Trying well-known URI: {url}")
 
-    try:
-        # We expect a redirect to the actual service URL
-        # Use HEAD or GET with allow_redirects
-        response = requests.get(
-            url,
-            timeout=timeout,
-            verify=ssl_verify_cert,
-            allow_redirects=False,  # We want to see the redirect
-        )
+    # We expect a redirect to the actual service URL, so do not follow it
+    response = _http_get(url, timeout=timeout, verify=ssl_verify_cert)
+    if response is None:
+        return None
 
-        # RFC 6764 says we should follow redirects
-        if response.status_code in (301, 302, 303, 307, 308):
-            location = response.headers.get("Location")
-            if location:
-                log.debug(f"Well-known URI redirected to: {location}")
+    # RFC 6764 says we should follow redirects
+    if response.status_code in (301, 302, 303, 307, 308):
+        location = response.headers.get("Location")
+        if location:
+            log.debug(f"Well-known URI redirected to: {location}")
 
-                # Make it an absolute URL if it's relative
-                final_url = urljoin(url, location)
-                parsed = urlparse(final_url)
-                redirect_hostname = parsed.hostname or domain
+            # Make it an absolute URL if it's relative
+            final_url = urljoin(url, location)
+            parsed = urlparse(final_url)
+            redirect_hostname = parsed.hostname or domain
 
-                # RFC 6764 Section 8 Security: Validate redirect target is in same domain
-                if not _is_subdomain_or_same(redirect_hostname, domain):
-                    log.warning(
-                        f"RFC 6764 Security: Rejecting well-known redirect to different domain. "
-                        f"Queried domain: {domain}, Redirect target: {redirect_hostname}. "
-                        f"Ignoring this redirect for security."
-                    )
-                    return None
-
-                return ServiceInfo(
-                    url=final_url,
-                    hostname=redirect_hostname,
-                    port=parsed.port or (443 if parsed.scheme == "https" else 80),
-                    path=parsed.path or "/",
-                    tls=parsed.scheme == "https",
-                    source="well-known",
+            # RFC 6764 Section 8 Security: Validate redirect target is in same domain
+            if not _is_subdomain_or_same(redirect_hostname, domain):
+                log.warning(
+                    f"RFC 6764 Security: Rejecting well-known redirect to different domain. "
+                    f"Queried domain: {domain}, Redirect target: {redirect_hostname}. "
+                    f"Ignoring this redirect for security."
                 )
+                return None
 
-        # If we get 200 OK, the well-known URI itself is the service endpoint
-        if response.status_code == 200:
-            log.debug(f"Well-known URI is the service endpoint: {url}")
             return ServiceInfo(
-                url=url,
-                hostname=domain,
-                port=443,
-                path=well_known_path,
-                tls=True,
+                url=final_url,
+                hostname=redirect_hostname,
+                port=parsed.port or (443 if parsed.scheme == "https" else 80),
+                path=parsed.path or "/",
+                tls=parsed.scheme == "https",
                 source="well-known",
             )
 
-    except requests.exceptions.RequestException as e:
-        log.debug(f"Well-known URI lookup failed: {e}")
+    # If we get 200 OK, the well-known URI itself is the service endpoint
+    if response.status_code == 200:
+        log.debug(f"Well-known URI is the service endpoint: {url}")
+        return ServiceInfo(
+            url=url,
+            hostname=domain,
+            port=443,
+            path=well_known_path,
+            tls=True,
+            source="well-known",
+        )
 
     return None
 

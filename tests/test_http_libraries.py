@@ -49,7 +49,6 @@ needs_an_httpx = pytest.mark.skipif(
 ## own concern, not caldav's.
 SYNC_MODULES = [
     "caldav.davclient",
-    "caldav.discovery",
     "caldav.requests",
     "caldav.testing",
 ]
@@ -272,9 +271,12 @@ class TestAsyncOnlyInstall:
             from caldav.async_davclient import AsyncDAVClient
             client = AsyncDAVClient(url="https://caldav.example.com/dav/")
             assert str(client.url) == "https://caldav.example.com/dav/"
-            ## A bare domain needs RFC 6764 discovery, which uses the sync
-            ## HTTP library; without it the client falls back to the
-            ## feature-based URL rather than failing.
+            ## A bare domain goes through RFC 6764 discovery; stub it out
+            ## here, so the test stays off the network.
+            import caldav.discovery
+            def no_discovery(**kwargs):
+                raise caldav.discovery.DiscoveryError("no discovery in unit tests")
+            caldav.discovery.discover_caldav = no_discovery
             client = AsyncDAVClient(url="caldav.example.com")
             assert "caldav.example.com" in str(client.url)
             print("ok")
@@ -283,6 +285,81 @@ class TestAsyncOnlyInstall:
         result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
         assert result.returncode == 0, (
             "an httpx-only install must be able to create a client:\n"
+            + (result.stderr or result.stdout)
+        )
+
+    def test_well_known_discovery_works(self) -> None:
+        ## https://github.com/python-caldav/caldav/issues/860
+        code = textwrap.dedent(
+            """
+            import sys
+
+            class Blocker:
+                def find_spec(self, fullname, path=None, target=None):
+                    if fullname.split(".")[0] in ("niquests", "requests"):
+                        raise ImportError("blocked by the test: " + fullname)
+                    return None
+
+            sys.meta_path.insert(0, Blocker())
+            import caldav.async_davclient
+            from caldav.discovery import _well_known_lookup
+
+            calls = []
+
+            class Redirect:
+                status_code = 301
+                headers = {"Location": "https://dav.example.com/caldav/"}
+
+            def fake_get(url, **kwargs):
+                calls.append((url, kwargs))
+                return Redirect()
+
+            caldav.async_davclient.httpx.get = fake_get
+            info = _well_known_lookup("example.com", "caldav")
+            assert calls, "the httpx-family library was not used"
+            url, kwargs = calls[0]
+            assert url == "https://example.com/.well-known/caldav", url
+            assert kwargs.get("follow_redirects") is False, kwargs
+            assert kwargs.get("verify") is True, kwargs
+            assert kwargs.get("timeout") == 10, kwargs
+            assert info is not None and info.url == "https://dav.example.com/caldav/", info
+            print("ok")
+            """
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert result.returncode == 0, (
+            "an httpx-only install must be able to do well-known discovery:\n"
+            + (result.stderr or result.stdout)
+        )
+
+    def test_well_known_discovery_survives_a_connection_error(self) -> None:
+        code = textwrap.dedent(
+            """
+            import sys
+
+            class Blocker:
+                def find_spec(self, fullname, path=None, target=None):
+                    if fullname.split(".")[0] in ("niquests", "requests"):
+                        raise ImportError("blocked by the test: " + fullname)
+                    return None
+
+            sys.meta_path.insert(0, Blocker())
+            import caldav.async_davclient
+            from caldav.discovery import _well_known_lookup
+
+            httpx = caldav.async_davclient.httpx
+            for error in (httpx.ConnectError("refused"), httpx.InvalidURL("bad")):
+                def failing_get(url, error=error, **kwargs):
+                    raise error
+
+                httpx.get = failing_get
+                assert _well_known_lookup("example.com", "caldav") is None, error
+            print("ok")
+            """
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert result.returncode == 0, (
+            "a failed well-known request must mean no result, not an exception:\n"
             + (result.stderr or result.stdout)
         )
 
