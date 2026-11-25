@@ -14,7 +14,8 @@ from typing import Any
 
 import yaml
 
-from caldav.config import expand_env_vars, get_all_test_servers
+from caldav.config import expand_env_vars
+from caldav.testing.selection import get_all_test_servers
 
 # Test-specific config file locations (don't need test_allowed).  The
 # checkout's file is found relative to this module, not to the current

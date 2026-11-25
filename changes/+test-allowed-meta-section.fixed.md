@@ -1,0 +1,1 @@
+A meta-section (one with `contains`) marked `test_allowed: true` no longer makes the test-server lookup fail: before, it broke `get_davclient()` with `PYTHON_CALDAV_USE_TEST_SERVER`, or made the test suite skip every `test_allowed` server.  Meta-sections are now left out of the test servers.

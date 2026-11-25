@@ -942,6 +942,8 @@ class CalendarCollection(list):
 
     def close(self):
         """Close all underlying DAV client connections."""
+        ## calling client.__exit__() is wrong: it has the side effect of
+        ## closing down test servers when running tests.
         seen: set[int] = set()
         for c in self._clients:
             if id(c) not in seen:
@@ -1016,6 +1018,8 @@ class CalendarResult:
 
     def close(self):
         """Close the underlying DAV client connection."""
+        ## calling client.__exit__() is wrong: it has the side effect of
+        ## closing down test servers when running tests.
         client = self.client
         if client:
             client.close()

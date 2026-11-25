@@ -44,10 +44,6 @@ https?://davical\.bekkenstenveien53c\.oslo\.no/.*
 # browser; lychee just isn't one.
 https://stackoverflow\.com/.*
 
-# TLS certificate expired 2026-11-14 and was not renewed.  Drop this
-# once the site serves a valid one again.
-https://devguide\.calconnect\.org/.*
-
 # Dead or broken links we can't fix
 http://fsf\.org/.*
 http://oxpedia\.org/.*

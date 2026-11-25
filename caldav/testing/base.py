@@ -15,7 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import IO, Any
 
-from caldav.config import get_test_setting
+from caldav.testing.selection import get_test_setting
 
 
 def docker_servers_dir() -> Path:

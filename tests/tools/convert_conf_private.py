@@ -6,9 +6,10 @@ Usage:
     python tests/tools/convert_conf_private.py [conf_private.py] [output.yaml]
 
 If no arguments given, looks for tests/conf_private.py and outputs to
-tests/caldav_test_servers.yaml.
+tests/caldav_test_servers.yaml.  An existing output file is left alone
+unless --force is given.
 
-The old conf_private.py format is deprecated and will be removed in v3.0.
+The old conf_private.py format was removed in v3.0 and is ignored.
 """
 
 import argparse
@@ -243,6 +244,11 @@ def main():
         action="store_true",
         help="Print output instead of writing to file",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite the output file if it already exists",
+    )
 
     args = parser.parse_args()
 
@@ -257,6 +263,13 @@ def main():
         )
         print(
             "  cp tests/caldav_test_servers.yaml.example tests/caldav_test_servers.yaml",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if output_path.exists() and not args.force and not args.dry_run:
+        print(
+            f"Error: {output_path} already exists; use --force to overwrite it",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -284,7 +297,7 @@ def main():
         # Set restrictive permissions since file may contain passwords
         output_path.chmod(stat.S_IRUSR | stat.S_IWUSR)  # 0600
         print(f"Written to {output_path} (mode 0600)")
-        print(f"\nYou can now delete {input_path} (it's deprecated and will be ignored)")
+        print(f"\nYou can now delete {input_path} (it is ignored since v3.0)")
 
 
 if __name__ == "__main__":

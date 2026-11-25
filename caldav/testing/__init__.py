@@ -16,8 +16,8 @@ import threading
 import time
 from typing import Any
 
-from caldav.config import get_test_setting
 from caldav.lib.http_sync import requests
+from caldav.testing.selection import get_test_setting
 
 # ── Constants ────────────────────────────────────────────────────────────────
 

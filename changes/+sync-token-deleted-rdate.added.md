@@ -1,0 +1,1 @@
+`compatibility_hints`: new feature `sync-token.deleted-rdate`, whether sync tokens survive the delete of an event with RDATE and no RRULE.  `ungraceful` for OX App Suite, which refuses every older token with a bare 400 after such a delete; `get_objects_by_sync_token()` then falls back to a full listing.

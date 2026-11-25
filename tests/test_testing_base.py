@@ -196,14 +196,16 @@ class TestSessionLock:
         """A busy server skipped by get_davclient() must still be waited for later."""
         import fcntl
 
-        from caldav import config
+        from caldav.testing import selection
 
         busy = base.ExternalTestServer({"name": "Iota", "url": "http://localhost:1/Iota/"})
         free = base.ExternalTestServer({"name": "Kappa", "url": "http://localhost:1/Kappa/"})
-        monkeypatch.setattr(config, "_collect_test_servers", lambda name, config_file: [busy, free])
+        monkeypatch.setattr(
+            selection, "_collect_test_servers", lambda name, config_file: [busy, free]
+        )
         with open(base._lock_path("Iota", ".session"), "a+") as other:
             fcntl.flock(other, fcntl.LOCK_EX)
-            params = config._get_test_server_config(None, environment=False)
+            params = selection._get_test_server_config(None, environment=False)
             assert params is not None and "Kappa" in params["url"]
         monkeypatch.setenv("PYTHON_CALDAV_TEST_SERVER_LOCK_TIMEOUT", "5")
         busy.start()
@@ -213,7 +215,7 @@ class TestSessionLock:
     ) -> None:
         import time
 
-        from caldav import config
+        from caldav.testing import selection
 
         held_elsewhere("Busy")
         monkeypatch.setenv("PYTHON_CALDAV_TEST_SERVER_LOCK_TIMEOUT", "30")
@@ -221,9 +223,9 @@ class TestSessionLock:
             base.ExternalTestServer({"name": n, "url": f"http://localhost:1/{n}/"})
             for n in ("Busy", "Free")
         ]
-        monkeypatch.setattr(config, "_collect_test_servers", lambda name, config_file: servers)
+        monkeypatch.setattr(selection, "_collect_test_servers", lambda name, config_file: servers)
         t0 = time.monotonic()
-        params = config._get_test_server_config(None, environment=False)
+        params = selection._get_test_server_config(None, environment=False)
         assert time.monotonic() - t0 < 5
         assert params is not None and "Free" in params["url"]
 
@@ -231,11 +233,11 @@ class TestSessionLock:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """A server from an explicit config file has no claim_server()."""
-        from caldav import config
+        from caldav.testing import selection
 
-        server = config._ConfiguredServer("Lambda", {"url": "http://localhost:1/Lambda/"})
-        monkeypatch.setattr(config, "_collect_test_servers", lambda name, config_file: [server])
-        params = config._get_test_server_config(None, environment=False)
+        server = selection._ConfiguredServer("Lambda", {"url": "http://localhost:1/Lambda/"})
+        monkeypatch.setattr(selection, "_collect_test_servers", lambda name, config_file: [server])
+        params = selection._get_test_server_config(None, environment=False)
         assert params is not None and "Lambda" in params["url"]
 
     def test_fallback_releases_server_that_failed_to_start(
@@ -243,7 +245,7 @@ class TestSessionLock:
     ) -> None:
         import fcntl
 
-        from caldav import config
+        from caldav.testing import selection
 
         class BrokenServer(base.ExternalTestServer):
             def start(self) -> None:
@@ -253,9 +255,9 @@ class TestSessionLock:
         broken = BrokenServer({"name": "Mu", "url": "http://localhost:1/Mu/"})
         free = base.ExternalTestServer({"name": "Nu", "url": "http://localhost:1/Nu/"})
         monkeypatch.setattr(
-            config, "_collect_test_servers", lambda name, config_file: [broken, free]
+            selection, "_collect_test_servers", lambda name, config_file: [broken, free]
         )
-        params = config._get_test_server_config(None, environment=False)
+        params = selection._get_test_server_config(None, environment=False)
         assert params is not None and "Nu" in params["url"]
         assert "Mu" not in base._session_locks
         with open(base._lock_path("Mu", ".session"), "a+") as other:
@@ -327,8 +329,7 @@ class TestCollectTestServers:
         """A config file given to get_davclient() (or by CALDAV_CONFIG_FILE) is honoured."""
         import json
 
-        from caldav import config
-        from caldav.testing import registry
+        from caldav.testing import registry, selection
 
         monkeypatch.setattr(registry, "_global_registry", registry.ServerRegistry())
         config_file = tmp_path / "calendar.conf"
@@ -337,7 +338,7 @@ class TestCollectTestServers:
                 {"OnlyHere": {"caldav_url": "https://dav.example.com/", "test_allowed": True}}
             )
         )
-        names = [s.name for s in config._collect_test_servers(None, str(config_file))]
+        names = [s.name for s in selection._collect_test_servers(None, str(config_file))]
         assert "OnlyHere" in names
 
 
