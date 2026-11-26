@@ -1640,11 +1640,14 @@ class CalendarObjectResource(DAVObject):
             ## stored (a 5xx after writing) would refuse If-None-Match: *,
             ## and the failure is reported as it was for If-Match: * too.
             ## Nor where it may be a taken UID: cleaning up the data does not free it.
+            ## A 5xx may also follow a successful write; retrying could mask
+            ## that uncertain outcome with a refusal from the second PUT.
             ## Nor a redirect the client did not follow (another host or
             ## port): nothing was stored, and another PUT is redirected too.
             if (
                 wildcard
                 or 300 <= r.status < 400
+                or r.status >= 500
                 or self._bare_uid_conflict(r.status, precondition, wildcard)
             ):
                 retry_on_failure = False
@@ -1656,7 +1659,10 @@ class CalendarObjectResource(DAVObject):
             if retry_on_failure:
                 ## Accessing vobject_instance may "clean" the object.
                 ## See https://github.com/python-caldav/caldav/issues/43
-                self.get_vobject_instance()
+                try:
+                    self.get_vobject_instance()
+                except vobject.base.ParseError as exc:
+                    raise error.error_from_response(error.PutError, r) from exc
                 return self._put(False, precondition, wildcard)
             else:
                 raise error.error_from_response(error.PutError, r)
