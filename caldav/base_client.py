@@ -331,6 +331,17 @@ class BaseDAVClient(ABC):
         """
         return method.upper() in ("GET", "HEAD")
 
+    def _proxies_for(self, url_obj: URL) -> dict[str, str] | None:
+        """The per-request ``proxies`` mapping for niquests/requests.
+
+        Maps the scheme of ``url_obj`` to the configured proxy, or returns
+        None when no proxy is configured.  (httpx takes the proxy once, when
+        the session is created, and does not use this.)
+        """
+        if self.proxy is None:
+            return None
+        return {url_obj.scheme: self.proxy}
+
     def _redirect_target(
         self, method: str, url_obj: URL, status_code: int, headers: Any
     ) -> URL | None:

@@ -408,9 +408,6 @@ class AsyncDAVClient(BaseDAVClient):
             }
         else:
             # niquests uses different parameter names
-            proxies = None
-            if self.proxy is not None:
-                proxies = {url_obj.scheme: self.proxy}
             request_kwargs: dict[str, Any] = {
                 "method": method,
                 "url": str(url_obj),
@@ -418,7 +415,7 @@ class AsyncDAVClient(BaseDAVClient):
                 "headers": combined_headers,
                 "auth": self.auth,
                 "timeout": self.timeout,
-                "proxies": proxies,
+                "proxies": self._proxies_for(url_obj),
                 "verify": self.ssl_verify_cert,
                 "cert": self.ssl_cert,
                 "allow_redirects": self._follows_redirects(method),
@@ -464,15 +461,12 @@ class AsyncDAVClient(BaseDAVClient):
                     timeout=self.timeout,
                 )
             else:
-                proxies = None
-                if self.proxy is not None:
-                    proxies = {url_obj.scheme: self.proxy}
                 r = await self.session.request(
                     method="GET",
                     url=str(url_obj),
                     headers=combined_headers,
                     timeout=self.timeout,
-                    proxies=proxies,
+                    proxies=self._proxies_for(url_obj),
                     verify=self.ssl_verify_cert,
                     cert=self.ssl_cert,
                 )

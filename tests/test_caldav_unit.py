@@ -10728,3 +10728,17 @@ class TestDurationSentAsDue:
 
         data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H").replace("VTODO", "VEVENT")
         assert duration_as_due(data) == data
+
+
+class TestProxyHandling:
+    """``_proxies_for`` maps the request scheme to the configured proxy."""
+
+    def test_proxies_for_without_proxy(self) -> None:
+        client = DAVClient(url="https://cal.example.com/")
+        assert client._proxies_for(URL("https://cal.example.com/")) is None
+
+    def test_proxies_for_maps_request_scheme(self) -> None:
+        client = DAVClient(url="https://cal.example.com/", proxy="http://proxy.example.com:3128")
+        assert client._proxies_for(URL("https://cal.example.com/")) == {
+            "https": "http://proxy.example.com:3128"
+        }

@@ -767,9 +767,8 @@ class DAVClient(BaseDAVClient):
         """
         url_obj, combined_headers = self._prepare_request(url, method, body, headers)
 
-        proxies = None
-        if self.proxy is not None:
-            proxies = {url_obj.scheme: self.proxy}
+        proxies = self._proxies_for(url_obj)
+        if proxies is not None:
             log.debug("using proxy - %s" % (proxies))
 
         r = self.session.request(
