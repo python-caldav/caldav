@@ -190,6 +190,7 @@ class BaseDAVClient(ABC):
     auth_type: str | None = None
     features: FeatureSet | None = None
     url: Any = None  # URL object, set by subclasses
+    proxy: str | None = None
 
     # Set once _build_unprompted_basic_auth() has guessed Basic for a bare 401
     # (see _should_attempt_unprompted_basic); never cleared, so the guess is
@@ -329,6 +330,17 @@ class BaseDAVClient(ABC):
         ``_redirect_target()``.
         """
         return method.upper() in ("GET", "HEAD")
+
+    def _proxies_for(self, url_obj: URL) -> dict[str, str] | None:
+        """The per-request ``proxies`` mapping for niquests/requests.
+
+        Maps the scheme of ``url_obj`` to the configured proxy, or returns
+        None when no proxy is configured.  (httpx takes the proxy once, when
+        the session is created, and does not use this.)
+        """
+        if self.proxy is None:
+            return None
+        return {url_obj.scheme: self.proxy}
 
     def _redirect_target(
         self, method: str, url_obj: URL, status_code: int, headers: Any

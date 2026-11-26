@@ -191,6 +191,20 @@ class TestAsyncDAVClient:
 
         assert client.proxy == "http://proxy.example.com:8080"
 
+    def test_proxies_for(self) -> None:
+        """The per-request proxies mapping is keyed on the request's scheme."""
+        from caldav.lib.url import URL
+
+        client = AsyncDAVClient(
+            url="https://caldav.example.com/dav/",
+            proxy="proxy.example.com:8080",
+        )
+        assert client._proxies_for(URL("https://caldav.example.com/dav/")) == {
+            "https": "http://proxy.example.com:8080"
+        }
+        no_proxy = AsyncDAVClient(url="https://caldav.example.com/dav/")
+        assert no_proxy._proxies_for(URL("https://caldav.example.com/dav/")) is None
+
     def test_session_creation_without_proxy_does_not_pass_proxy_kwarg(self) -> None:
         """Regression test for issue #632: proxy=None must not be passed to httpx.AsyncClient.
 
