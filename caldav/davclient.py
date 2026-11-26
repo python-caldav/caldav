@@ -219,8 +219,8 @@ class DAVClient(BaseDAVClient):
             # add a port is one is not specified
             # TODO: this will break if using basic auth and embedding
             # username:password in the proxy URL
-            p = _proxy.split(":")
-            if len(p) == 2:
+            proxy_parts = _proxy.split(":")
+            if len(proxy_parts) == 2:
                 _proxy += ":8080"
             log.debug("init - proxy: %s" % (_proxy))
 
