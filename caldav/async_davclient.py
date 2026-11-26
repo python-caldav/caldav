@@ -126,7 +126,6 @@ class AsyncDAVClient(BaseDAVClient):
     """
 
     is_async = True
-    proxy: str | None = None
     url: URL = None
     huge_tree: bool = False
 

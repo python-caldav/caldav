@@ -92,7 +92,6 @@ class DAVClient(BaseDAVClient):
     the constructor (__init__), the principal method and the calendar method.
     """
 
-    proxy: str | None = None
     url: URL = None
     huge_tree: bool = False
 

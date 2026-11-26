@@ -190,6 +190,7 @@ class BaseDAVClient(ABC):
     auth_type: str | None = None
     features: FeatureSet | None = None
     url: Any = None  # URL object, set by subclasses
+    proxy: str | None = None
 
     # Set once _build_unprompted_basic_auth() has guessed Basic for a bare 401
     # (see _should_attempt_unprompted_basic); never cleared, so the guess is
