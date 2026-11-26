@@ -31,6 +31,7 @@ from caldav.davclient import DAVClient, DAVResponse
 from caldav.elements import cdav, dav
 from caldav.lib import error
 from caldav.lib.python_utilities import to_normal_str, to_wire
+from caldav.lib.rate_limit import RateLimitPolicy
 from caldav.lib.url import URL
 
 from .public_share_fixtures import (
@@ -10728,3 +10729,26 @@ class TestDurationSentAsDue:
 
         data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H").replace("VTODO", "VEVENT")
         assert duration_as_due(data) == data
+
+
+class TestRateLimitPolicy:
+    """Rate-limit settings live in ``RateLimitPolicy``; the client attributes still work."""
+
+    def test_client_attributes_read_and_write_the_policy(self) -> None:
+        client = DAVClient(
+            url="https://cal.example.com/", rate_limit_handle=True, rate_limit_max_sleep=60
+        )
+        assert client.rate_limit_handle is True
+        assert client.rate_limit_default_sleep is None
+        assert client.rate_limit_max_sleep == 60
+        client.rate_limit_handle = False
+        assert client._rate_limit.handle is False
+
+    def test_disabled_policy_reraises(self) -> None:
+        exc = error.RateLimitError(retry_after_seconds=5)
+        with pytest.raises(error.RateLimitError):
+            RateLimitPolicy(handle=False).sleep_seconds(exc, 0)
+
+    def test_enabled_policy_uses_retry_after(self) -> None:
+        exc = error.RateLimitError(retry_after_seconds=5)
+        assert RateLimitPolicy(handle=True).sleep_seconds(exc, 0) == 5
