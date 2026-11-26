@@ -6899,8 +6899,10 @@ class TestRecurringCompleteHelpers:
         [
             ([412], True),
             ([403], True),
-            ## Two, as a 5xx on the PUT may be retried once
+            ## A server failure must not be hidden by a retry refusal.
             ([500, 500], False),
+            ([500, 412], False),
+            ([500, 403], False),
         ],
     )
     def test_safe_completion_master_answer(
@@ -7896,8 +7898,31 @@ class TestConditionalWrite:
         assert sent[-1][1]["if-schedule-tag-match"] == '"stag-1"'
         assert "if-match" not in sent[-1][1]
 
+    @pytest.mark.parametrize("first_status", [500, 502, 503, 504])
+    @pytest.mark.parametrize("second_status", [204, 403, 412])
+    def test_save_does_not_retry_server_error(self, base, first_status, second_status):
+        event, sent = self._event(base, status=[first_status, second_status])
+        with pytest.raises(error.PutError) as exc:
+            self._save(event)
+        assert exc.value.status == first_status
+        assert [method for method, _ in sent] == ["PUT"]
+
+    def test_save_preserves_refusal_when_vobject_cannot_parse(self, base, monkeypatch):
+        import vobject
+
+        event, sent = self._event(base, status=403)
+        monkeypatch.setattr(
+            event,
+            "get_vobject_instance",
+            mock.Mock(side_effect=vobject.base.ParseError("cannot parse")),
+        )
+        with pytest.raises(error.PutError) as exc:
+            self._save(event)
+        assert exc.value.status == 403
+        assert [method for method, _ in sent] == ["PUT"]
+
     def test_save_precondition_etag_kept_on_retry(self, base) -> None:
-        event, sent = self._event(base, schedule_tag='"stag-1"', status=[500, 204])
+        event, sent = self._event(base, schedule_tag='"stag-1"', status=[400, 204])
         self._save(event, precondition="etag")
         puts = [headers for method, headers in sent if method == "PUT"]
         assert len(puts) == 2
@@ -9488,8 +9513,8 @@ class TestNoOverwriteIfNoneMatch(_SaveRequests):
             self._run(self._event(client).save(no_overwrite=True))
         assert [m for m, _ in sent] == ["PUT"]
 
-    def test_plain_save_failure_still_retried(self, base) -> None:
-        client, sent = self._client(base, put_status=500, features=self.NO_UID_CONFLICT)
+    def test_plain_save_bad_request_still_retried(self, base) -> None:
+        client, sent = self._client(base, put_status=400, features=self.NO_UID_CONFLICT)
         with pytest.raises(error.PutError):
             self._run(self._event(client).save())
         assert [m for m, _ in sent] == ["PUT", "PUT"]
