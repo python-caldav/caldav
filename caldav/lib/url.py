@@ -172,6 +172,18 @@ class URL:
             aliases |= {self.hostname}
         return URL(new._raw(), alias_at=self.alias_at, host_aliases=aliases)
 
+    def same_origin(self, target: "URL") -> bool:
+        """Whether credentials for this URL may go along to ``target``.
+
+        The same host (or one of its ``host_aliases``), port and scheme - or
+        the upgrade from http to https on the default ports.
+        """
+        origin, dest = self.canonical(), target.canonical()
+        if dest.hostname != origin.hostname and dest.hostname not in self.host_aliases:
+            return False
+        door = (origin.scheme, origin.port, dest.scheme, dest.port)
+        return door[:2] == door[2:] or door == ("http", 80, "https", 443)
+
     def __bool__(self) -> bool:
         if self.url_raw or self.url_parsed:
             return True

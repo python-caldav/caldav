@@ -10728,3 +10728,19 @@ class TestDurationSentAsDue:
 
         data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H").replace("VTODO", "VEVENT")
         assert duration_as_due(data) == data
+
+
+class TestURLSameOrigin:
+    """``URL.same_origin`` decides whether credentials may follow a redirect."""
+
+    def test_same_host_scheme_and_port(self) -> None:
+        assert URL("https://cal.example.com/a/").same_origin(URL("https://cal.example.com/b/"))
+
+    def test_other_host_is_refused(self) -> None:
+        assert not URL("https://cal.example.com/").same_origin(URL("https://other.example.com/"))
+
+    def test_http_to_https_upgrade_is_allowed(self) -> None:
+        assert URL("http://cal.example.com/").same_origin(URL("https://cal.example.com/"))
+
+    def test_https_to_http_downgrade_is_refused(self) -> None:
+        assert not URL("https://cal.example.com/").same_origin(URL("http://cal.example.com/"))
