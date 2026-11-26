@@ -2573,7 +2573,17 @@ END:VCALENDAR"""
         finally:
             Calendar.search = original_search
 
-    def testGetObjectByUidExactMatch(self):
+    @pytest.mark.parametrize(
+        "resource_data",
+        [
+            ev1,
+            todo.replace(
+                "20070313T123432Z-456553@example.com", "20010712T182145Z-123401@example.com"
+            ).replace("DUE;VALUE=DATE:20070501", "DUE:2007-05-01"),
+        ],
+        ids=["valid", "unparseable"],
+    )
+    def testGetObjectByUidExactMatch(self, resource_data):
         """
         get_object_by_uid() must return only an object with the exact requested UID,
         even if the server (doing a substring search) returns objects with UIDs
@@ -2600,7 +2610,7 @@ END:VCALENDAR
     <d:href>/calendar/ev1.ics</d:href>
     <d:propstat>
       <d:prop>
-        <cal:calendar-data>{ev1}</cal:calendar-data>
+        <cal:calendar-data>{resource_data}</cal:calendar-data>
       </d:prop>
       <d:status>HTTP/1.1 200 OK</d:status>
     </d:propstat>
