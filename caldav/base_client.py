@@ -349,7 +349,7 @@ class BaseDAVClient(ABC):
         if not location:
             return None
         target = URL.objectify(urljoin(str(url_obj), location))
-        if not self._same_origin(url_obj, target):
+        if not url_obj.same_origin(target):
             log.warning(
                 "%s %s was redirected to %s, on another host or port - not following",
                 method,
@@ -358,19 +358,6 @@ class BaseDAVClient(ABC):
             )
             return None
         return target
-
-    @staticmethod
-    def _same_origin(url_obj: URL, target: URL) -> bool:
-        """Whether credentials for ``url_obj`` may go along to ``target``.
-
-        The same host (or one of its ``host_aliases``), port and scheme - or
-        the upgrade from http to https on the default ports.
-        """
-        origin, dest = url_obj.canonical(), target.canonical()
-        if dest.hostname != origin.hostname and dest.hostname not in url_obj.host_aliases:
-            return False
-        door = (origin.scheme, origin.port, dest.scheme, dest.port)
-        return door[:2] == door[2:] or door == ("http", 80, "https", 443)
 
     def _should_negotiate_auth(self, status_code: int, headers: Any) -> bool:
         """Return True when a 401 response warrants auth negotiation.
