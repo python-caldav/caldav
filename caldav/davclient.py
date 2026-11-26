@@ -751,7 +751,7 @@ class DAVClient(BaseDAVClient):
         try:
             return self._sync_request(url, method, body, headers)
         except error.RateLimitError as e:
-            sleep_seconds = self._rate_limit_sleep_seconds(e, rate_limit_time_slept)
+            sleep_seconds = self._rate_limit.sleep_seconds(e, rate_limit_time_slept)
             time.sleep(sleep_seconds)
             return self.request(url, method, body, headers, rate_limit_time_slept + sleep_seconds)
 

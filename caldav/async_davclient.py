@@ -375,7 +375,7 @@ class AsyncDAVClient(BaseDAVClient):
         try:
             return await self._async_request(url, method, body, headers)
         except error.RateLimitError as e:
-            sleep_seconds = self._rate_limit_sleep_seconds(e, rate_limit_time_slept)
+            sleep_seconds = self._rate_limit.sleep_seconds(e, rate_limit_time_slept)
             await asyncio.sleep(sleep_seconds)
             return await self.request(
                 url, method, body, headers, rate_limit_time_slept + sleep_seconds

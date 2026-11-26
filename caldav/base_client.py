@@ -23,6 +23,7 @@ from caldav.elements.base import BaseElement
 from caldav.lib import error
 from caldav.lib.auth import extract_auth_types, select_auth_type
 from caldav.lib.python_utilities import to_normal_str
+from caldav.lib.rate_limit import RateLimitPolicy
 from caldav.lib.url import URL
 
 if TYPE_CHECKING:
@@ -531,55 +532,34 @@ class BaseDAVClient(ABC):
         rate_limit_default_sleep: int | None,
         rate_limit_max_sleep: int | None,
     ) -> None:
-        """Resolve and store rate-limit settings on self.
-
-        When ``rate_limit_handle`` is None it is auto-detected from the
-        ``rate-limit`` feature; an enabled feature may also supply default and
-        max sleep durations (explicit constructor arguments are not overridden
-        because the feature values only fill in the auto-detected branch).
-        """
-        rate_limit = self.features.is_supported("rate-limit", dict)
-        if rate_limit_handle is None:
-            if rate_limit and rate_limit.get("enable"):
-                rate_limit_handle = True
-                if "default_sleep" in rate_limit:
-                    rate_limit_default_sleep = rate_limit["default_sleep"]
-                if "max_sleep" in rate_limit:
-                    rate_limit_max_sleep = rate_limit["max_sleep"]
-            else:
-                rate_limit_handle = False
-        self.rate_limit_handle = rate_limit_handle
-        self.rate_limit_default_sleep = rate_limit_default_sleep
-        self.rate_limit_max_sleep = rate_limit_max_sleep
-
-    def _rate_limit_sleep_seconds(
-        self,
-        exc: error.RateLimitError,
-        rate_limit_time_slept: float,
-    ) -> float:
-        """Decide how long to sleep before retrying a rate-limited request.
-
-        Returns the sleep duration in seconds.  Re-raises ``exc`` when no retry
-        should happen (rate-limit handling disabled, no usable duration, or the
-        accumulated sleep already exceeds ``rate_limit_max_sleep``).  The caller
-        is responsible for actually sleeping (time.sleep vs asyncio.sleep) and
-        retrying with ``rate_limit_time_slept + <returned value>``.
-        """
-        if not self.rate_limit_handle:
-            raise exc
-        sleep_seconds = error.compute_sleep_seconds(
-            exc.retry_after_seconds,
-            self.rate_limit_default_sleep,
-            self.rate_limit_max_sleep,
+        """Resolve and store the rate-limit settings (see ``RateLimitPolicy``)."""
+        self._rate_limit = RateLimitPolicy.from_settings(
+            self.features, rate_limit_handle, rate_limit_default_sleep, rate_limit_max_sleep
         )
-        if sleep_seconds is None or (
-            self.rate_limit_max_sleep is not None
-            and rate_limit_time_slept > self.rate_limit_max_sleep
-        ):
-            raise exc
-        if rate_limit_time_slept:
-            sleep_seconds += rate_limit_time_slept / 2
-        return sleep_seconds
+
+    @property
+    def rate_limit_handle(self) -> bool:
+        return self._rate_limit.handle
+
+    @rate_limit_handle.setter
+    def rate_limit_handle(self, value: bool) -> None:
+        self._rate_limit.handle = value
+
+    @property
+    def rate_limit_default_sleep(self) -> int | None:
+        return self._rate_limit.default_sleep
+
+    @rate_limit_default_sleep.setter
+    def rate_limit_default_sleep(self, value: int | None) -> None:
+        self._rate_limit.default_sleep = value
+
+    @property
+    def rate_limit_max_sleep(self) -> int | None:
+        return self._rate_limit.max_sleep
+
+    @rate_limit_max_sleep.setter
+    def rate_limit_max_sleep(self, value: int | None) -> None:
+        self._rate_limit.max_sleep = value
 
     # ── Calendar discovery post-processing ──────────────────────────────────
     # Pure result-handling shared by sync/async get_calendars; only the two
