@@ -10728,3 +10728,15 @@ class TestDurationSentAsDue:
 
         data = self._ical("DTSTART:20261120T100000Z\nDURATION:PT2H").replace("VTODO", "VEVENT")
         assert duration_as_due(data) == data
+
+
+class TestProxyDefaultPort:
+    """DAVClient adds port 8080 only when the proxy URL has no port."""
+
+    def test_proxy_without_port_gets_default_port(self) -> None:
+        client = DAVClient(url="https://cal.example.com/", proxy="proxy.example.com")
+        assert client.proxy == "https://proxy.example.com:8080"
+
+    def test_proxy_with_port_keeps_it(self) -> None:
+        client = DAVClient(url="https://cal.example.com/", proxy="proxy.example.com:3128")
+        assert client.proxy == "https://proxy.example.com:3128"
