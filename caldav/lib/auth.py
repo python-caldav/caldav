@@ -7,6 +7,9 @@ DAVClient (sync) and AsyncDAVClient (async).
 
 from __future__ import annotations
 
+import re
+from urllib.request import parse_http_list
+
 
 def extract_auth_types(header: str) -> set[str]:
     """
@@ -28,7 +31,18 @@ def extract_auth_types(header: str) -> set[str]:
     Reference:
         https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/WWW-Authenticate#syntax
     """
-    return {h.split()[0] for h in header.lower().split(",") if h.strip()}
+    schemes = set()
+    # Commas inside quoted parameter values do not delimit challenges.
+    for item in parse_http_list(header):
+        match = re.match(r"([!#$%&'*+.^_`|~0-9A-Za-z-]+)(.*)", item.strip())
+        if match is None:
+            continue
+        scheme, rest = match.groups()
+        # A comma can also introduce another auth-param in the same challenge.
+        if rest and (not rest[0].isspace() or rest.lstrip().startswith("=")):
+            continue
+        schemes.add(scheme.lower())
+    return schemes
 
 
 def select_auth_type(
